@@ -1,0 +1,203 @@
+import { Inject, Injectable, Logger, type OnModuleDestroy } from "@nestjs/common";
+import type { IncomingMessage, Server } from "node:http";
+import type { Duplex } from "node:stream";
+import { decodeJwt, importSPKI, jwtVerify } from "jose";
+import { WebSocketServer, type WebSocket } from "ws";
+import { z } from "zod";
+import type { Db } from "@arena/db";
+import { DEVICE_ASSERTION_AUDIENCE } from "@arena/contracts";
+import { CONFIG, type AppConfig } from "../config.js";
+import { DB } from "../common/db.module.js";
+import { CommandsService } from "./commands.service.js";
+import { DeviceRuntimeService } from "./device-runtime.service.js";
+import { DeviceHub, type Connection } from "./live.js";
+
+export const DEVICE_WS_PATH = "/v1/device/ws";
+
+const num = z.number().finite().nullish();
+const pct = z.number().min(0).max(100).nullish();
+const Metrics = z.object({
+  cpuPct: pct, gpuPct: pct, ramPct: pct, diskPct: pct,
+  cpuTempC: z.number().min(-20).max(150).nullish(), gpuTempC: z.number().min(-20).max(150).nullish(),
+  pingMs: z.number().min(0).max(60_000).nullish(), packetLossPct: pct, fps: z.number().min(0).max(2000).nullish(),
+  uptimeSec: z.number().int().min(0).nullish(), foregroundApp: z.string().max(200).nullish(), shellState: z.string().max(40).nullish(),
+});
+const Hardware = z.object({
+  cpu: z.string().max(200).nullish(), cpuCores: z.number().int().nullish(), gpu: z.string().max(200).nullish(), gpuVramMb: num,
+  ramMb: num, motherboard: z.string().max(200).nullish(), biosVersion: z.string().max(100).nullish(), osVersion: z.string().max(200).nullish(),
+  disks: z.array(z.record(z.string(), z.unknown())).max(32).nullish(), nics: z.array(z.record(z.string(), z.unknown())).max(32).nullish(),
+  monitors: z.array(z.record(z.string(), z.unknown())).max(16).nullish(),
+});
+const Incoming = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("hello"), agentVersion: z.string().max(32), shellVersion: z.string().max(32).nullish(), ipAddress: z.string().max(64).nullish(), hostname: z.string().max(64).nullish(), macAddress: z.string().max(32).nullish(), activeSessionId: z.uuid().nullish() }),
+  z.object({ type: z.literal("shell_login"), requestId: z.string().min(8).max(64), username: z.string().min(1).max(100), secret: z.string().min(1).max(256) }),
+  z.object({ type: z.literal("shell_logout"), requestId: z.string().min(8).max(64), sessionId: z.uuid() }),
+  z.object({ type: z.literal("heartbeat"), metrics: Metrics }),
+  z.object({ type: z.literal("hardware"), snapshot: Hardware }),
+  z.object({
+    type: z.literal("ack"),
+    commandId: z.uuid(),
+    status: z.enum(["RECEIVED", "EXECUTING", "SUCCESS", "FAILED"]),
+    errorCode: z.string().max(64).optional(),
+    errorMessage: z.string().max(500).optional(),
+    result: z.record(z.string(), z.unknown()).optional(),
+  }),
+]);
+
+/**
+ * WebSocket endpoint for Windows agents. Each connection authenticates with a
+ * short-lived ES256 assertion signed by the device's enrolment key — proof of
+ * possession; the private key never leaves the PC and no shared secret exists.
+ */
+@Injectable()
+export class DeviceGateway implements OnModuleDestroy {
+  private readonly log = new Logger("DeviceGateway");
+  private readonly wss = new WebSocketServer({ noServer: true, maxPayload: 256 * 1024 });
+  /** Single-use assertion ids (jti) — in-memory; Redis once there are several API nodes. */
+  private readonly seenJti = new Map<string, number>();
+  /** Customer-facing requests from the Gaming Shell (login/logout), answered on the same socket. */
+  private shellHandler?: (conn: Connection, msg: { type: "shell_login" | "shell_logout"; requestId: string } & Record<string, unknown>) => Promise<Record<string, unknown>>;
+
+  handleShell(fn: NonNullable<DeviceGateway["shellHandler"]>) {
+    this.shellHandler = fn;
+  }
+
+  constructor(
+    @Inject(DB) private readonly db: Db,
+    @Inject(DeviceHub) private readonly hub: DeviceHub,
+    @Inject(DeviceRuntimeService) private readonly runtime: DeviceRuntimeService,
+    @Inject(CommandsService) private readonly commands: CommandsService,
+    @Inject(CONFIG) private readonly cfg: AppConfig,
+  ) {}
+
+  attach(server: Server) {
+    server.on("upgrade", (req: IncomingMessage, socket: Duplex, head: Buffer) => {
+      const path = (req.url ?? "").split("?")[0];
+      if (path !== DEVICE_WS_PATH) return; // not ours
+      this.authenticate(req)
+        .then((who) => this.wss.handleUpgrade(req, socket, head, (ws) => this.onConnection(ws, who)))
+        .catch((e: Error) => {
+          this.log.warn(`device auth rejected: ${e.message}`);
+          socket.write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");
+          socket.destroy();
+        });
+    });
+  }
+
+  onModuleDestroy() {
+    for (const c of this.hub.all()) c.socket.close(1001, "server shutting down");
+    this.wss.close();
+  }
+
+  private async authenticate(req: IncomingMessage): Promise<{ deviceId: string; organizationId: string; branchId: string; name: string; venue: { name: string; branchName: string; logoUrl: string | null } }> {
+    const header = req.headers.authorization ?? "";
+    const assertion = header.startsWith("Bearer ") ? header.slice(7) : null;
+    if (!assertion) throw new Error("missing assertion");
+
+    const unverified = decodeJwt(assertion);
+    const deviceId = unverified.sub;
+    if (typeof deviceId !== "string" || !/^[0-9a-f-]{36}$/i.test(deviceId)) throw new Error("bad subject");
+
+    const rows = await this.db.global.$queryRaw<Array<{ device_org: string | null }>>`SELECT app.device_org(${deviceId}::uuid) AS device_org`;
+    const organizationId = rows[0]?.device_org;
+    if (!organizationId) throw new Error("unknown or disabled device");
+
+    return this.db.withTenant({ organizationId, actorType: "DEVICE", actorId: deviceId }, async (tx) => {
+      const device = await tx.device.findUnique({
+        where: { id: deviceId },
+        select: { id: true, branchId: true, name: true, isEnabled: true, branch: { select: { name: true, brand: { select: { name: true, logoUrl: true } } } } },
+      });
+      const creds = await tx.deviceCredential.findMany({ where: { deviceId, revokedAt: null, expiresAt: { gt: new Date() } } });
+      if (!device?.isEnabled || creds.length === 0) throw new Error("no active credential");
+
+      let verified: { payload: { jti?: string } } | null = null;
+      for (const c of creds) {
+        try {
+          verified = await jwtVerify(assertion, await importSPKI(c.publicKeyPem, "ES256"), {
+            algorithms: ["ES256"],
+            audience: DEVICE_ASSERTION_AUDIENCE,
+            issuer: deviceId,
+            subject: deviceId,
+            maxTokenAge: "120s",
+            clockTolerance: 30,
+          });
+          break;
+        } catch {
+          /* try next credential */
+        }
+      }
+      if (!verified) throw new Error("bad signature");
+
+      const jti = verified.payload.jti;
+      if (typeof jti !== "string" || jti.length < 16) throw new Error("missing jti");
+      const now = Date.now();
+      for (const [k, exp] of this.seenJti) if (exp < now) this.seenJti.delete(k);
+      if (this.seenJti.has(jti)) throw new Error("replayed assertion");
+      this.seenJti.set(jti, now + 5 * 60_000);
+
+      return { deviceId, organizationId, branchId: device.branchId, name: device.name, venue: { name: device.branch.brand.name, branchName: device.branch.name, logoUrl: device.branch.brand.logoUrl } };
+    });
+  }
+
+  private onConnection(ws: WebSocket, who: { deviceId: string; organizationId: string; branchId: string; name: string; venue: { name: string; branchName: string; logoUrl: string | null } }) {
+    const now = Date.now();
+    const { venue, ...ids } = who;
+    const conn: Connection = { socket: ws, ...ids, connectedAt: now, lastMessageAt: now, lastPersistAt: 0, metrics: null, metricsAt: null, alerts: null };
+    this.hub.add(conn);
+    this.log.log(`device ${who.name} (${who.deviceId}) connected`);
+    ws.send(JSON.stringify({ type: "welcome", serverTime: new Date().toISOString(), heartbeatSeconds: this.cfg.DEVICE_HEARTBEAT_SECONDS, deviceName: who.name, venue }));
+
+    // Simple flood guard: max 30 messages per 10 s window.
+    let windowStart = now;
+    let count = 0;
+    let chain: Promise<unknown> = Promise.resolve(); // process messages in order
+
+    ws.on("message", (data) => {
+      conn.lastMessageAt = Date.now();
+      if (conn.lastMessageAt - windowStart > 10_000) {
+        windowStart = conn.lastMessageAt;
+        count = 0;
+      }
+      if (++count > 30) return ws.close(1008, "rate limit");
+
+      let msg: z.infer<typeof Incoming>;
+      try {
+        msg = Incoming.parse(JSON.parse(data.toString()));
+      } catch {
+        return ws.send(JSON.stringify({ type: "error", error: "invalid_message" }));
+      }
+      chain = chain
+        .then(() => {
+          switch (msg.type) {
+            case "hello":
+              return this.runtime.onHello(conn, msg);
+            case "heartbeat":
+              return this.runtime.onHeartbeat(conn, msg.metrics);
+            case "hardware":
+              return this.runtime.onHardware(conn, msg.snapshot as any);
+            case "ack":
+              return this.commands.ack(conn.organizationId, conn.deviceId, msg);
+            case "shell_login":
+            case "shell_logout": {
+              const handler = this.shellHandler;
+              if (!handler) return ws.send(JSON.stringify({ type: "shell_result", requestId: msg.requestId, ok: false, error: "unavailable" }));
+              return handler(conn, msg).then(
+                (r) => ws.send(JSON.stringify({ type: "shell_result", requestId: msg.requestId, ...r })),
+                (e) => ws.send(JSON.stringify({ type: "shell_result", requestId: msg.requestId, ok: false, error: e?.response?.error ?? "failed", message: e?.response?.message })),
+              );
+            }
+          }
+        })
+        .catch((e) => this.log.error(`device ${conn.deviceId} ${msg.type}: ${e instanceof Error ? e.message : e}`));
+    });
+
+    ws.on("close", () => {
+      const removed = this.hub.remove(conn.deviceId, ws);
+      if (removed) {
+        this.log.log(`device ${who.name} disconnected`);
+        void this.runtime.onDisconnect(removed);
+      }
+    });
+    ws.on("error", () => ws.terminate());
+  }
+}

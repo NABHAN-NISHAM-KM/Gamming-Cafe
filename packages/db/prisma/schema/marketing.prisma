@@ -1,0 +1,176 @@
+// ── Promotions (rules engine) & CRM ─────────────────────────────────────────
+
+enum PromotionType {
+  PROMO_CODE
+  HAPPY_HOUR
+  BUY_X_GET_Y // "buy 2 hours get 1 free"
+  BUNDLE // gaming + meal combo
+  PACKAGE // student / night packages
+  BIRTHDAY
+  WEEKEND
+  REFERRAL
+  FIRST_VISIT
+  AUTOMATIC_DISCOUNT
+}
+
+enum PromotionStatus {
+  DRAFT
+  SCHEDULED
+  ACTIVE
+  PAUSED
+  EXPIRED
+  ARCHIVED
+}
+
+/// `conditions` and `effects` are validated JSON documents
+/// (schema in @arena/contracts `PromotionRule`), e.g.
+///   conditions: { all: [ {branchIn:[..]}, {zoneIn:[..]}, {tierIn:["GOLD"]},
+///                        {dayOfWeekIn:["fri","sat"]}, {timeBetween:["14:00","18:00"]},
+///                        {gameIn:[..]}, {minSpend: 50}, {segmentIn:[..]} ] }
+///   effects:    [ {type:"PERCENT_OFF", target:"GAMING_TIME", value:20} ]
+model Promotion {
+  id                   String                @id @default(uuid(7)) @db.Uuid
+  organizationId       String                @db.Uuid
+  name                 String
+  description          String?
+  type                 PromotionType
+  status               PromotionStatus       @default(DRAFT)
+  conditions           Json                  @default("{}")
+  effects              Json                  @default("[]")
+  priority             Int                   @default(0)
+  isStackable          Boolean               @default(false)
+  requiresCode         Boolean               @default(false)
+  startsAt             DateTime?             @db.Timestamptz(3)
+  endsAt               DateTime?             @db.Timestamptz(3)
+  totalUsageLimit      Int?
+  perCustomerLimit     Int?
+  usageCount           Int                   @default(0)
+  budgetAmount         Decimal?              @db.Decimal(19, 4)
+  budgetUsed           Decimal               @default(0) @db.Decimal(19, 4)
+  createdById          String?               @db.Uuid
+  createdAt            DateTime              @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime              @updatedAt @db.Timestamptz(3)
+  organization         Organization          @relation(fields: [organizationId], references: [id])
+  promoCodes           PromoCode[]
+  promotionRedemptions PromotionRedemption[]
+  campaigns            Campaign[]
+
+  @@unique([id, organizationId])
+  @@index([organizationId, status, startsAt])
+}
+
+model PromoCode {
+  id                   String                @id @default(uuid(7)) @db.Uuid
+  organizationId       String                @db.Uuid
+  promotionId          String                @db.Uuid
+  code                 String // stored upper-case
+  maxUses              Int?
+  uses                 Int                   @default(0)
+  customerId           String?               @db.Uuid // single-customer code (referral, apology)
+  expiresAt            DateTime?             @db.Timestamptz(3)
+  isActive             Boolean               @default(true)
+  createdAt            DateTime              @default(now()) @db.Timestamptz(3)
+  promotion            Promotion             @relation(fields: [promotionId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  customer             Customer?             @relation(fields: [customerId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  promotionRedemptions PromotionRedemption[]
+
+  @@unique([id, organizationId])
+  @@unique([organizationId, code])
+}
+
+model PromotionRedemption {
+  id              String         @id @default(uuid(7)) @db.Uuid
+  organizationId  String         @db.Uuid
+  promotionId     String         @db.Uuid
+  promoCodeId     String?        @db.Uuid
+  customerId      String?        @db.Uuid
+  orderId         String?        @db.Uuid
+  gamingSessionId String?        @db.Uuid
+  bookingId       String?        @db.Uuid
+  discountAmount  Decimal        @db.Decimal(19, 4)
+  bonusMinutes    Int            @default(0)
+  currency        String         @db.Char(3)
+  reversedAt      DateTime?      @db.Timestamptz(3)
+  createdAt       DateTime       @default(now()) @db.Timestamptz(3)
+  promotion       Promotion      @relation(fields: [promotionId, organizationId], references: [id, organizationId])
+  promoCode       PromoCode?     @relation(fields: [promoCodeId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  customer        Customer?      @relation(fields: [customerId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  order           Order?         @relation(fields: [orderId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  gamingSession   GamingSession? @relation(fields: [gamingSessionId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@index([organizationId, promotionId])
+  @@index([organizationId, customerId])
+}
+
+// ── CRM ──
+
+enum SegmentKind {
+  STATIC
+  DYNAMIC // re-evaluated by a scheduled job from `rules`
+}
+
+/// Built-in dynamic segments: NEW, REGULAR, VIP, INACTIVE, HIGH_SPENDER,
+/// COMPETITIVE, RESTAURANT_HEAVY, GAMING_HEAVY (seeded per org).
+model CustomerSegment {
+  id                     String                  @id @default(uuid(7)) @db.Uuid
+  organizationId         String                  @db.Uuid
+  key                    String?
+  name                   String
+  kind                   SegmentKind
+  rules                  Json                    @default("{}")
+  memberCount            Int                     @default(0)
+  lastEvaluatedAt        DateTime?               @db.Timestamptz(3)
+  createdAt              DateTime                @default(now()) @db.Timestamptz(3)
+  updatedAt              DateTime                @updatedAt @db.Timestamptz(3)
+  organization           Organization            @relation(fields: [organizationId], references: [id])
+  customerSegmentMembers CustomerSegmentMember[]
+  campaigns              Campaign[]
+
+  @@unique([id, organizationId])
+  @@unique([organizationId, key])
+}
+
+model CustomerSegmentMember {
+  organizationId String          @db.Uuid
+  segmentId      String          @db.Uuid
+  customerId     String          @db.Uuid
+  addedAt        DateTime        @default(now()) @db.Timestamptz(3)
+  segment        CustomerSegment @relation(fields: [segmentId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  customer       Customer        @relation(fields: [customerId, organizationId], references: [id, organizationId], onDelete: Cascade)
+
+  @@id([segmentId, customerId])
+  @@index([organizationId, customerId])
+}
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  SENDING
+  SENT
+  CANCELLED
+  FAILED
+}
+
+model Campaign {
+  id             String              @id @default(uuid(7)) @db.Uuid
+  organizationId String              @db.Uuid
+  name           String
+  channel        NotificationChannel
+  segmentId      String?             @db.Uuid
+  promotionId    String?             @db.Uuid
+  status         CampaignStatus      @default(DRAFT)
+  subject        String?
+  body           String
+  templateKey    String? // provider-approved template (WhatsApp)
+  scheduledAt    DateTime?           @db.Timestamptz(3)
+  sentAt         DateTime?           @db.Timestamptz(3)
+  stats          Json                @default("{}") // {targeted, sent, delivered, opened, clicked, converted}
+  createdById    String?             @db.Uuid
+  createdAt      DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime            @updatedAt @db.Timestamptz(3)
+  organization   Organization        @relation(fields: [organizationId], references: [id])
+  segment        CustomerSegment?    @relation(fields: [segmentId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  promotion      Promotion?          @relation(fields: [promotionId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@index([organizationId, status])
+}

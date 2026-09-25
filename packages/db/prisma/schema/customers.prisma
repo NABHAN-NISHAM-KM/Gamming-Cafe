@@ -1,0 +1,403 @@
+// ── Customers, membership, wallet, loyalty ───────────────────────────────────
+// Customers are org-scoped: one account works at every branch of the org
+// ("one customer account + one wallet"), never across organizations.
+
+enum CustomerStatus {
+  ACTIVE
+  RESTRICTED
+  BANNED
+  PENDING_VERIFICATION
+  DELETED // GDPR-style erasure: PII scrubbed, financial records kept
+}
+
+model Customer {
+  id                     String                  @id @default(uuid(7)) @db.Uuid
+  organizationId         String                  @db.Uuid
+  username               String
+  displayName            String
+  firstName              String?
+  lastName               String?
+  email                  String?
+  phone                  String?
+  dateOfBirth            DateTime?               @db.Date
+  avatarUrl              String?
+  passwordHash           String?
+  pinHash                String? // quick shell login
+  qrLoginSecretRef       String?
+  status                 CustomerStatus          @default(ACTIVE)
+  membershipTierId       String?                 @db.Uuid
+  homeBranchId           String?                 @db.Uuid
+  locale                 String                  @default("en")
+  marketingConsent       Boolean                 @default(false)
+  referralCode           String?
+  referredById           String?                 @db.Uuid
+  // Denormalised counters (rebuildable from ledgers/sessions)
+  loyaltyPoints          Int                     @default(0)
+  totalGamingMinutes     Int                     @default(0)
+  totalSpend             Decimal                 @default(0) @db.Decimal(19, 4)
+  lastVisitAt            DateTime?               @db.Timestamptz(3)
+  emailVerifiedAt        DateTime?               @db.Timestamptz(3)
+  phoneVerifiedAt        DateTime?               @db.Timestamptz(3)
+  createdAt              DateTime                @default(now()) @db.Timestamptz(3)
+  updatedAt              DateTime                @updatedAt @db.Timestamptz(3)
+  organization           Organization            @relation(fields: [organizationId], references: [id])
+  membershipTier         MembershipTier?         @relation(fields: [membershipTierId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  homeBranch             Branch?                 @relation(fields: [homeBranchId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  referredBy             Customer?               @relation("Referral", fields: [referredById, organizationId], references: [id, organizationId], onDelete: Restrict)
+  referrals              Customer[]              @relation("Referral")
+  captainOf              Team[]                  @relation("TeamCaptain")
+  bookings               Booking[]
+  customerRestrictions   CustomerRestriction[]
+  customerSessions       CustomerSession[]
+  customerFavoriteGames  CustomerFavoriteGame[]
+  customerAchievements   CustomerAchievement[]
+  memberships            Membership[]
+  wallets                Wallet[]
+  loyaltyTransactions    LoyaltyTransaction[]
+  tournamentPlayers      TournamentPlayer[]
+  payments               Payment[]
+  invoices               Invoice[]
+  promoCodes             PromoCode[]
+  promotionRedemptions   PromotionRedemption[]
+  customerSegmentMembers CustomerSegmentMember[]
+  bills                  Bill[]
+  orders                 Order[]
+  gamingSessions         GamingSession[]
+  printJobs              PrintJob[]
+  notifications          Notification[]
+  pushSubscriptions      PushSubscription[]
+  supportTickets         SupportTicket[]
+
+  @@unique([id, organizationId])
+  @@unique([organizationId, username])
+  @@unique([organizationId, email])
+  @@unique([organizationId, phone])
+  @@unique([organizationId, referralCode])
+  @@index([organizationId, status])
+}
+
+enum RestrictionType {
+  BAN
+  ZONE_BLOCK
+  GAME_BLOCK
+  AGE_LIMIT
+  TIME_LIMIT
+  RESTAURANT_BLOCK
+}
+
+model CustomerRestriction {
+  id             String          @id @default(uuid(7)) @db.Uuid
+  organizationId String          @db.Uuid
+  customerId     String          @db.Uuid
+  type           RestrictionType
+  scope          Json            @default("{}") // {zoneIds, gameIds, maxMinutesPerDay}
+  reason         String
+  startsAt       DateTime        @default(now()) @db.Timestamptz(3)
+  endsAt         DateTime?       @db.Timestamptz(3)
+  createdById    String          @db.Uuid
+  liftedAt       DateTime?       @db.Timestamptz(3)
+  liftedById     String?         @db.Uuid
+  createdAt      DateTime        @default(now()) @db.Timestamptz(3)
+  customer       Customer        @relation(fields: [customerId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  createdBy      Employee        @relation("RestrictionCreatedBy", fields: [createdById, organizationId], references: [id, organizationId])
+
+  @@index([organizationId, customerId])
+}
+
+enum LoginChannel {
+  SHELL
+  WEB
+  MOBILE
+  KIOSK
+  POS
+}
+
+/// A customer's authenticated presence (shell login on a PC, app login...).
+/// Distinct from GamingSession, which is the billable time.
+model CustomerSession {
+  id              String         @id @default(uuid(7)) @db.Uuid
+  organizationId  String         @db.Uuid
+  customerId      String         @db.Uuid
+  channel         LoginChannel
+  deviceId        String?        @db.Uuid
+  gamingSessionId String?        @db.Uuid
+  ip              String?
+  userAgent       String?
+  startedAt       DateTime       @default(now()) @db.Timestamptz(3)
+  lastActiveAt    DateTime       @default(now()) @db.Timestamptz(3)
+  endedAt         DateTime?      @db.Timestamptz(3)
+  customer        Customer       @relation(fields: [customerId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  device          Device?        @relation(fields: [deviceId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  gamingSession   GamingSession? @relation(fields: [gamingSessionId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@index([organizationId, customerId, startedAt])
+}
+
+model CustomerFavoriteGame {
+  organizationId String   @db.Uuid
+  customerId     String   @db.Uuid
+  gameId         String   @db.Uuid
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+  customer       Customer @relation(fields: [customerId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  game           Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@id([customerId, gameId])
+  @@index([organizationId])
+}
+
+model Achievement {
+  id                   String                @id @default(uuid(7)) @db.Uuid
+  organizationId       String                @db.Uuid
+  key                  String
+  name                 String
+  description          String?
+  iconUrl              String?
+  criteria             Json // evaluated by the loyalty worker
+  rewardPoints         Int                   @default(0)
+  isActive             Boolean               @default(true)
+  createdAt            DateTime              @default(now()) @db.Timestamptz(3)
+  organization         Organization          @relation(fields: [organizationId], references: [id])
+  customerAchievements CustomerAchievement[]
+
+  @@unique([id, organizationId])
+  @@unique([organizationId, key])
+}
+
+model CustomerAchievement {
+  organizationId String      @db.Uuid
+  customerId     String      @db.Uuid
+  achievementId  String      @db.Uuid
+  earnedAt       DateTime    @default(now()) @db.Timestamptz(3)
+  customer       Customer    @relation(fields: [customerId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  achievement    Achievement @relation(fields: [achievementId, organizationId], references: [id, organizationId], onDelete: Cascade)
+
+  @@id([customerId, achievementId])
+  @@index([organizationId])
+}
+
+// ── Membership ──
+
+model MembershipTier {
+  id                    String        @id @default(uuid(7)) @db.Uuid
+  organizationId        String        @db.Uuid
+  code                  String // GUEST, BRONZE, SILVER, GOLD, PLATINUM, VIP
+  name                  String
+  rank                  Int // ordering; higher = better
+  color                 String?
+  price                 Decimal?      @db.Decimal(19, 4) // null = earned, not sold
+  durationDays          Int?
+  gamingDiscountPct     Decimal       @default(0) @db.Decimal(5, 2)
+  restaurantDiscountPct Decimal       @default(0) @db.Decimal(5, 2)
+  tournamentDiscountPct Decimal       @default(0) @db.Decimal(5, 2)
+  loyaltyMultiplier     Decimal       @default(1) @db.Decimal(5, 2)
+  bonusMinutesMonthly   Int           @default(0)
+  priorityBooking       Boolean       @default(false)
+  bookingWindowDays     Int           @default(7)
+  birthdayReward        Json? // {type:"FREE_MINUTES", value:120}
+  autoQualifyRules      Json? // {minSpend90d: 500, minHours90d: 40}
+  isActive              Boolean       @default(true)
+  createdAt             DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime      @updatedAt @db.Timestamptz(3)
+  organization          Organization  @relation(fields: [organizationId], references: [id])
+  customers             Customer[]
+  memberships           Membership[]
+  products              Product[]
+  pricingPlans          PricingPlan[]
+
+  @@unique([id, organizationId])
+  @@unique([organizationId, code])
+}
+
+enum MembershipStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+  SUSPENDED
+}
+
+model Membership {
+  id             String           @id @default(uuid(7)) @db.Uuid
+  organizationId String           @db.Uuid
+  customerId     String           @db.Uuid
+  tierId         String           @db.Uuid
+  status         MembershipStatus @default(ACTIVE)
+  startsAt       DateTime         @db.Timestamptz(3)
+  expiresAt      DateTime?        @db.Timestamptz(3)
+  autoRenew      Boolean          @default(false)
+  orderItemId    String?          @db.Uuid // how it was sold
+  createdAt      DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime         @updatedAt @db.Timestamptz(3)
+  customer       Customer         @relation(fields: [customerId, organizationId], references: [id, organizationId])
+  tier           MembershipTier   @relation(fields: [tierId, organizationId], references: [id, organizationId])
+
+  @@index([organizationId, customerId, status])
+}
+
+// ── Wallet (double-entry style, append-only ledger) ──
+
+/// Balances here are a *projection* of WalletTransaction, updated in the same
+/// DB transaction with `version` optimistic locking. A nightly job
+/// re-derives them from the ledger and alerts on drift.
+model Wallet {
+  id                 String              @id @default(uuid(7)) @db.Uuid
+  organizationId     String              @db.Uuid
+  customerId         String              @db.Uuid
+  currency           String              @db.Char(3)
+  cashBalance        Decimal             @default(0) @db.Decimal(19, 4)
+  bonusBalance       Decimal             @default(0) @db.Decimal(19, 4)
+  promoBalance       Decimal             @default(0) @db.Decimal(19, 4)
+  refundBalance      Decimal             @default(0) @db.Decimal(19, 4)
+  timeBalanceMin     Int                 @default(0) // prepaid gaming minutes (packages)
+  isFrozen           Boolean             @default(false)
+  version            Int                 @default(0)
+  createdAt          DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime            @updatedAt @db.Timestamptz(3)
+  customer           Customer            @relation(fields: [customerId, organizationId], references: [id, organizationId])
+  walletTransactions WalletTransaction[]
+
+  @@unique([id, organizationId])
+  @@unique([customerId, currency])
+  @@index([organizationId])
+}
+
+enum WalletBucket {
+  CASH
+  BONUS
+  PROMO
+  REFUND
+  TIME // minutes, amount column holds minutes
+}
+
+enum WalletTxType {
+  TOPUP
+  SPEND
+  REFUND
+  ADJUSTMENT
+  BONUS_GRANT
+  BONUS_EXPIRE
+  TRANSFER_IN
+  TRANSFER_OUT
+  REVERSAL
+}
+
+/// Immutable. Corrections are new REVERSAL rows pointing at `reversesId`.
+model WalletTransaction {
+  id             String             @id @default(uuid(7)) @db.Uuid
+  organizationId String             @db.Uuid
+  walletId       String             @db.Uuid
+  branchId       String?            @db.Uuid
+  type           WalletTxType
+  bucket         WalletBucket
+  amount         Decimal            @db.Decimal(19, 4) // signed: +credit / -debit
+  balanceAfter   Decimal            @db.Decimal(19, 4)
+  currency       String             @db.Char(3)
+  referenceType  String? // ORDER, SESSION, BOOKING, PAYMENT, REFUND, PROMOTION...
+  referenceId    String?            @db.Uuid
+  paymentId      String?            @db.Uuid
+  employeeId     String?            @db.Uuid
+  reason         String?
+  reversesId     String?            @db.Uuid
+  idempotencyKey String
+  expiresAt      DateTime?          @db.Timestamptz(3) // bonus/promo credit expiry
+  createdAt      DateTime           @default(now()) @db.Timestamptz(3)
+  wallet         Wallet             @relation(fields: [walletId, organizationId], references: [id, organizationId])
+  payment        Payment?           @relation(fields: [paymentId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  employee       Employee?          @relation(fields: [employeeId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  reverses       WalletTransaction? @relation("WalletReversal", fields: [reversesId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  reversedBy     WalletTransaction? @relation("WalletReversal")
+
+  @@unique([id, organizationId])
+  @@unique([reversesId, organizationId]) // a transaction can be reversed at most once
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId, walletId, createdAt])
+}
+
+// ── Loyalty ──
+
+enum LoyaltySource {
+  GAMING
+  RESTAURANT
+  BOOKING
+  TOURNAMENT
+  TOPUP
+  REFERRAL
+  ACHIEVEMENT
+  BIRTHDAY
+  MANUAL
+}
+
+model LoyaltyRule {
+  id             String        @id @default(uuid(7)) @db.Uuid
+  organizationId String        @db.Uuid
+  source         LoyaltySource
+  pointsPerUnit  Decimal       @db.Decimal(10, 4) // e.g. 1 pt per 1 AED, or per 60 min
+  unit           String // "CURRENCY" | "MINUTE" | "EVENT"
+  branchIds      String[]      @db.Uuid
+  isActive       Boolean       @default(true)
+  createdAt      DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime      @updatedAt @db.Timestamptz(3)
+  organization   Organization  @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, source])
+}
+
+enum RewardType {
+  FREE_MINUTES
+  PRODUCT
+  DISCOUNT_PERCENT
+  DISCOUNT_AMOUNT
+  TIER_UPGRADE
+  TOURNAMENT_ENTRY
+  WALLET_CREDIT
+}
+
+model LoyaltyReward {
+  id                  String               @id @default(uuid(7)) @db.Uuid
+  organizationId      String               @db.Uuid
+  name                String
+  description         String?
+  imageUrl            String?
+  costPoints          Int
+  rewardType          RewardType
+  value               Json // {minutes:60} | {productId} | {percent:10}
+  stock               Int?
+  isActive            Boolean              @default(true)
+  createdAt           DateTime             @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime             @updatedAt @db.Timestamptz(3)
+  organization        Organization         @relation(fields: [organizationId], references: [id])
+  loyaltyTransactions LoyaltyTransaction[]
+
+  @@unique([id, organizationId])
+}
+
+enum LoyaltyTxType {
+  EARN
+  REDEEM
+  EXPIRE
+  ADJUST
+  REVERSAL
+}
+
+/// Immutable points ledger.
+model LoyaltyTransaction {
+  id             String         @id @default(uuid(7)) @db.Uuid
+  organizationId String         @db.Uuid
+  customerId     String         @db.Uuid
+  type           LoyaltyTxType
+  source         LoyaltySource
+  points         Int // signed
+  balanceAfter   Int
+  rewardId       String?        @db.Uuid
+  referenceType  String?
+  referenceId    String?        @db.Uuid
+  employeeId     String?        @db.Uuid
+  reason         String?
+  idempotencyKey String
+  expiresAt      DateTime?      @db.Timestamptz(3)
+  createdAt      DateTime       @default(now()) @db.Timestamptz(3)
+  customer       Customer       @relation(fields: [customerId, organizationId], references: [id, organizationId])
+  reward         LoyaltyReward? @relation(fields: [rewardId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId, customerId, createdAt])
+}

@@ -1,0 +1,131 @@
+// ── Staff identity & RBAC ───────────────────────────────────────────────────
+// Permission keys are defined in code (@arena/rbac PERMISSIONS) and synced to
+// the Permission table at deploy time. Roles are per-org; `organizationId =
+// null` rows are platform-provided templates that orgs clone.
+
+enum EmployeeStatus {
+  INVITED
+  ACTIVE
+  SUSPENDED
+  TERMINATED
+}
+
+/// An org membership of a global User. PIN/RFID are for fast POS & shell
+/// maintenance-mode auth and are always hashed.
+model Employee {
+  id                      String                   @id @default(uuid(7)) @db.Uuid
+  organizationId          String                   @db.Uuid
+  userId                  String                   @db.Uuid
+  employeeCode            String
+  displayName             String
+  jobTitle                String?
+  status                  EmployeeStatus           @default(INVITED)
+  pinHash                 String?
+  rfidTagHash             String?
+  homeBranchId            String?                  @db.Uuid
+  hourlyRate              Decimal?                 @db.Decimal(19, 4)
+  hiredAt                 DateTime?                @db.Date
+  terminatedAt            DateTime?                @db.Timestamptz(3)
+  createdAt               DateTime                 @default(now()) @db.Timestamptz(3)
+  updatedAt               DateTime                 @updatedAt @db.Timestamptz(3)
+  organization            Organization             @relation(fields: [organizationId], references: [id])
+  user                    User                     @relation(fields: [userId], references: [id])
+  homeBranch              Branch?                  @relation(fields: [homeBranchId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  deviceEnrollmentTokens  DeviceEnrollmentToken[]
+  deviceCommands          DeviceCommand[]
+  maintenanceSessions     MaintenanceSession[]
+  remoteSupportSessions   RemoteSupportSession[]
+  employeeRoleAssignments EmployeeRoleAssignment[]
+  impersonationSessions   ImpersonationSession[]
+  sessionsStarted         GamingSession[]          @relation("SessionStartedBy")
+  sessionsEnded           GamingSession[]          @relation("SessionEndedBy")
+  restrictionsCreated     CustomerRestriction[]    @relation("RestrictionCreatedBy")
+  ordersTaken             Order[]                  @relation("OrderEmployee")
+  ordersCancelled         Order[]                  @relation("OrderCancelledBy")
+  purchaseOrdersCreated   PurchaseOrder[]          @relation("PoCreatedBy")
+  purchaseOrdersApproved  PurchaseOrder[]          @relation("PoApprovedBy")
+  refundsRequested        Refund[]                 @relation("RefundRequestedBy")
+  refundsApproved         Refund[]                 @relation("RefundApprovedBy")
+  shifts                  Shift[]                  @relation("ShiftEmployee")
+  shiftsApproved          Shift[]                  @relation("ShiftApprovedBy")
+  expensesCreated         Expense[]                @relation("ExpenseCreatedBy")
+  expensesApproved        Expense[]                @relation("ExpenseApprovedBy")
+  walletTransactions      WalletTransaction[]
+  tournaments             Tournament[]
+  payments                Payment[]
+  cashMovements           CashMovement[]
+  stockMovements          StockMovement[]
+  sessionExtensions       SessionExtension[]
+  sessionTransfers        SessionTransfer[]
+  notifications           Notification[]
+  pushSubscriptions       PushSubscription[]
+  supportTickets          SupportTicket[]
+
+  @@unique([id, organizationId])
+  @@unique([organizationId, userId])
+  @@unique([organizationId, employeeCode])
+  @@unique([organizationId, rfidTagHash])
+}
+
+model Permission {
+  key             String           @id // e.g. "station.start_session"
+  module          String
+  description     String
+  isSensitive     Boolean          @default(false) // requires reason + extra audit detail
+  createdAt       DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime         @updatedAt @db.Timestamptz(3)
+  rolePermissions RolePermission[]
+}
+
+model Role {
+  id                      String                   @id @default(uuid(7)) @db.Uuid
+  organizationId          String?                  @db.Uuid // null = platform template
+  key                     String // e.g. "cashier"
+  name                    String
+  description             String?
+  isSystem                Boolean                  @default(false) // system roles cannot be deleted
+  createdAt               DateTime                 @default(now()) @db.Timestamptz(3)
+  updatedAt               DateTime                 @updatedAt @db.Timestamptz(3)
+  organization            Organization?            @relation(fields: [organizationId], references: [id])
+  rolePermissions         RolePermission[]
+  employeeRoleAssignments EmployeeRoleAssignment[]
+
+  @@unique([organizationId, key])
+}
+
+model RolePermission {
+  roleId        String     @db.Uuid
+  permissionKey String
+  role          Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission    Permission @relation(fields: [permissionKey], references: [key], onDelete: Cascade)
+
+  @@id([roleId, permissionKey])
+}
+
+enum RoleScope {
+  ORGANIZATION
+  BRAND
+  BRANCH
+}
+
+/// Grants a role to an employee at a scope. A BRANCH-scoped cashier in DXB1
+/// has no rights in AUH1.
+model EmployeeRoleAssignment {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @db.Uuid
+  employeeId     String    @db.Uuid
+  roleId         String    @db.Uuid
+  scope          RoleScope
+  brandId        String?   @db.Uuid
+  branchId       String?   @db.Uuid
+  grantedById    String?   @db.Uuid
+  expiresAt      DateTime? @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @db.Timestamptz(3)
+  employee       Employee  @relation(fields: [employeeId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  role           Role      @relation(fields: [roleId], references: [id])
+  brand          Brand?    @relation(fields: [brandId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  branch         Branch?   @relation(fields: [branchId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@unique([employeeId, roleId, scope, brandId, branchId])
+  @@index([organizationId, employeeId])
+}

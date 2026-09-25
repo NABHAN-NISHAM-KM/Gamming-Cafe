@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- ArenaOS Gaming Shell host: a full-screen WebView2 window on the customer's
+       desktop. It renders apps/shell (built into wwwroot) and relays messages to
+       the ArenaAgent service over the ArenaOS.Shell named pipe. No network access
+       of its own. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <OutputType>WinExe</OutputType>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>ArenaShell</AssemblyName>
+    <RootNamespace>Arena.Shell</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Arena.Agent.Core\Arena.Agent.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Built by `npm run build -w @arena/shell`. -->
+    <None Include="wwwroot\**\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

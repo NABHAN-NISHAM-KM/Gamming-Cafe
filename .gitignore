@@ -1,0 +1,21 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+packages/db/src/generated/
+coverage/
+*.log
+.DS_Store
+bin/
+obj/
+.next/
+next-env.d.ts
+apps/api/.sim-devices.json
+apps/api/.sim-*.json
+clients/windows/.dev-agent/
+clients/windows/**/bin/
+clients/windows/**/obj/
+
+# Gaming Shell UI build output (npm run build -w @arena/shell)
+clients/windows/src/Arena.Shell/wwwroot/

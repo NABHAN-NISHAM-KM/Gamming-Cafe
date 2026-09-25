@@ -1,0 +1,77 @@
+{
+  "generatedBy": "apps/api/scripts/gen-agent-fixtures.ts",
+  "now": "2026-09-25T12:00:00.000Z",
+  "self": {
+    "organizationId": "0190a1b2-0000-7000-8000-00000000000a",
+    "branchId": "0190a1b2-0000-7000-8000-0000000000b1",
+    "deviceId": "0190a1b2-0000-7000-8000-0000000000d1"
+  },
+  "publicKeys": {
+    "bk_test": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEL45dXI3fJU88JSi+upWTSMt4eXqE\nVBVeACRohqqyw5aVSTojc9l1bPdOzlGGKKIRY7p7fjelhTmh/jybLzdMcQ==\n-----END PUBLIC KEY-----\n"
+  },
+  "cases": [
+    {
+      "name": "valid",
+      "expect": "Ok",
+      "command": {
+        "kid": "bk_test",
+        "envelope": "{\"v\":1,\"commandId\":\"0190a1b2-0000-7000-8000-00000000c001\",\"organizationId\":\"0190a1b2-0000-7000-8000-00000000000a\",\"branchId\":\"0190a1b2-0000-7000-8000-0000000000b1\",\"deviceId\":\"0190a1b2-0000-7000-8000-0000000000d1\",\"type\":\"SEND_MESSAGE\",\"payload\":{\"title\":\"Message from staff\",\"message\":\"Your burger is on its way! 🍔 — ñ\",\"timeoutSeconds\":30},\"requestedBy\":{\"type\":\"EMPLOYEE\",\"id\":\"0190a1b2-0000-7000-8000-0000000000e1\"},\"issuedAt\":\"2026-09-25T12:00:00.000Z\",\"expiresAt\":\"2026-09-25T12:02:00.000Z\",\"nonce\":\"n0nce\"}",
+        "signature": "M/4iJjxggbuMCJT14Ubwad0nbt7sy+sFirJcMl8+G39HD/4UtVNVqBp5wlfKdBNIhTJfWgT2ZziLRbFxPD8mWw=="
+      }
+    },
+    {
+      "name": "tampered",
+      "expect": "BadSignature",
+      "command": {
+        "kid": "bk_test",
+        "envelope": "{\"v\":1,\"commandId\":\"0190a1b2-0000-7000-8000-00000000c001\",\"organizationId\":\"0190a1b2-0000-7000-8000-00000000000a\",\"branchId\":\"0190a1b2-0000-7000-8000-0000000000b1\",\"deviceId\":\"0190a1b2-0000-7000-8000-0000000000d1\",\"type\":\"SEND_MESSAGE\",\"payload\":{\"title\":\"Message from staff\",\"message\":\"Your pizza is on its way! 🍔 — ñ\",\"timeoutSeconds\":30},\"requestedBy\":{\"type\":\"EMPLOYEE\",\"id\":\"0190a1b2-0000-7000-8000-0000000000e1\"},\"issuedAt\":\"2026-09-25T12:00:00.000Z\",\"expiresAt\":\"2026-09-25T12:02:00.000Z\",\"nonce\":\"n0nce\"}",
+        "signature": "M/4iJjxggbuMCJT14Ubwad0nbt7sy+sFirJcMl8+G39HD/4UtVNVqBp5wlfKdBNIhTJfWgT2ZziLRbFxPD8mWw=="
+      }
+    },
+    {
+      "name": "other_key",
+      "expect": "BadSignature",
+      "command": {
+        "kid": "bk_test",
+        "envelope": "{\"v\":1,\"commandId\":\"0190a1b2-0000-7000-8000-00000000c001\",\"organizationId\":\"0190a1b2-0000-7000-8000-00000000000a\",\"branchId\":\"0190a1b2-0000-7000-8000-0000000000b1\",\"deviceId\":\"0190a1b2-0000-7000-8000-0000000000d1\",\"type\":\"SEND_MESSAGE\",\"payload\":{\"title\":\"Message from staff\",\"message\":\"Your burger is on its way! 🍔 — ñ\",\"timeoutSeconds\":30},\"requestedBy\":{\"type\":\"EMPLOYEE\",\"id\":\"0190a1b2-0000-7000-8000-0000000000e1\"},\"issuedAt\":\"2026-09-25T12:00:00.000Z\",\"expiresAt\":\"2026-09-25T12:02:00.000Z\",\"nonce\":\"n0nce\"}",
+        "signature": "xf1QzRiOmiTvao6coCOz2GFrDw/1pVR8V5GgA5dBWcHPN0PVp8GvC+8Z2oY4zgPIXeX9bpvjwdRnRZmRTd66KQ=="
+      }
+    },
+    {
+      "name": "unknown_kid",
+      "expect": "UnknownKey",
+      "command": {
+        "kid": "bk_nope",
+        "envelope": "{\"v\":1,\"commandId\":\"0190a1b2-0000-7000-8000-00000000c001\",\"organizationId\":\"0190a1b2-0000-7000-8000-00000000000a\",\"branchId\":\"0190a1b2-0000-7000-8000-0000000000b1\",\"deviceId\":\"0190a1b2-0000-7000-8000-0000000000d1\",\"type\":\"SEND_MESSAGE\",\"payload\":{\"title\":\"Message from staff\",\"message\":\"Your burger is on its way! 🍔 — ñ\",\"timeoutSeconds\":30},\"requestedBy\":{\"type\":\"EMPLOYEE\",\"id\":\"0190a1b2-0000-7000-8000-0000000000e1\"},\"issuedAt\":\"2026-09-25T12:00:00.000Z\",\"expiresAt\":\"2026-09-25T12:02:00.000Z\",\"nonce\":\"n0nce\"}",
+        "signature": "7+A4irHKcBv3c8C1q7vtKsF3kknnxboOF9zQw467sVr0Q3MNjq0+gDUuwNNPHFsbVZTp9TNMwW4jvvabvkyKfA=="
+      }
+    },
+    {
+      "name": "wrong_device",
+      "expect": "WrongDevice",
+      "command": {
+        "kid": "bk_test",
+        "envelope": "{\"v\":1,\"commandId\":\"0190a1b2-0000-7000-8000-00000000c001\",\"organizationId\":\"0190a1b2-0000-7000-8000-00000000000a\",\"branchId\":\"0190a1b2-0000-7000-8000-0000000000b1\",\"deviceId\":\"0190a1b2-0000-7000-8000-0000000000d2\",\"type\":\"SEND_MESSAGE\",\"payload\":{\"title\":\"Message from staff\",\"message\":\"Your burger is on its way! 🍔 — ñ\",\"timeoutSeconds\":30},\"requestedBy\":{\"type\":\"EMPLOYEE\",\"id\":\"0190a1b2-0000-7000-8000-0000000000e1\"},\"issuedAt\":\"2026-09-25T12:00:00.000Z\",\"expiresAt\":\"2026-09-25T12:02:00.000Z\",\"nonce\":\"n0nce\"}",
+        "signature": "NvePrIgStyoBrPSjs3PlPjM8y04PX9T7sxzyLYu4PD8zU8bZORsmDIhG6QcqzdWf6+QDoE7HO6samOqaKoG+WA=="
+      }
+    },
+    {
+      "name": "wrong_tenant",
+      "expect": "WrongTenant",
+      "command": {
+        "kid": "bk_test",
+        "envelope": "{\"v\":1,\"commandId\":\"0190a1b2-0000-7000-8000-00000000c001\",\"organizationId\":\"0190a1b2-0000-7000-8000-00000000000b\",\"branchId\":\"0190a1b2-0000-7000-8000-0000000000b1\",\"deviceId\":\"0190a1b2-0000-7000-8000-0000000000d1\",\"type\":\"SEND_MESSAGE\",\"payload\":{\"title\":\"Message from staff\",\"message\":\"Your burger is on its way! 🍔 — ñ\",\"timeoutSeconds\":30},\"requestedBy\":{\"type\":\"EMPLOYEE\",\"id\":\"0190a1b2-0000-7000-8000-0000000000e1\"},\"issuedAt\":\"2026-09-25T12:00:00.000Z\",\"expiresAt\":\"2026-09-25T12:02:00.000Z\",\"nonce\":\"n0nce\"}",
+        "signature": "XleSPfD7x7gkmZ5mYnTdJX4b14Jt+J3QdBUkk1TepdpldMSIZcdXerkx0jIh56NFDrXolvYKdj/1Ob4lYEk4QQ=="
+      }
+    },
+    {
+      "name": "expired",
+      "expect": "Expired",
+      "command": {
+        "kid": "bk_test",
+        "envelope": "{\"v\":1,\"commandId\":\"0190a1b2-0000-7000-8000-00000000c001\",\"organizationId\":\"0190a1b2-0000-7000-8000-00000000000a\",\"branchId\":\"0190a1b2-0000-7000-8000-0000000000b1\",\"deviceId\":\"0190a1b2-0000-7000-8000-0000000000d1\",\"type\":\"SEND_MESSAGE\",\"payload\":{\"title\":\"Message from staff\",\"message\":\"Your burger is on its way! 🍔 — ñ\",\"timeoutSeconds\":30},\"requestedBy\":{\"type\":\"EMPLOYEE\",\"id\":\"0190a1b2-0000-7000-8000-0000000000e1\"},\"issuedAt\":\"2026-09-25T10:59:00.000Z\",\"expiresAt\":\"2026-09-25T11:00:00.000Z\",\"nonce\":\"n0nce\"}",
+        "signature": "w63tOJWTWdlRDtAfsfsptUq4esQsIuSJrY55xIJgsibjWOPCk3hm8l7j4RKt4PvjQ/rWtofKrxinlDJjLeuMOA=="
+      }
+    }
+  ]
+}

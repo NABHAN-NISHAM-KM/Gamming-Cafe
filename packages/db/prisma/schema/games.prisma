@@ -1,0 +1,234 @@
+// ── Launchers, game catalog, installations, updates, account pool ───────────
+// Launcher / Game / ShellApp rows with organizationId = NULL are the platform
+// catalog, readable by every tenant (RLS: org_id IS NULL OR org_id = current).
+// Tenants add their own custom entries.
+
+enum GameCategory {
+  FPS
+  MOBA
+  SPORTS
+  RACING
+  BATTLE_ROYALE
+  STORY
+  MULTIPLAYER
+  COMPETITIVE
+  KIDS
+  VR
+  STRATEGY
+  RPG
+  FIGHTING
+  CASUAL
+  SIMULATION
+}
+
+model Launcher {
+  id              String        @id @default(uuid(7)) @db.Uuid
+  organizationId  String?       @db.Uuid
+  key             String // STEAM, EPIC, RIOT, BATTLENET, EA, UBISOFT, XBOX, ROCKSTAR, GOG, CUSTOM_*
+  name            String
+  executablePath  String?
+  arguments       String?
+  processNames    String[]      @default([]) // for detection/cleanup at session end
+  iconUrl         String?
+  requiresAccount Boolean       @default(true)
+  logoutScript    String? // how the agent wipes launcher credentials after a session
+  isActive        Boolean       @default(true)
+  createdAt       DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime      @updatedAt @db.Timestamptz(3)
+  organization    Organization? @relation(fields: [organizationId], references: [id])
+  games           Game[]
+  gameLicenses    GameLicense[]
+
+  @@unique([organizationId, key])
+}
+
+model Game {
+  id                    String                 @id @default(uuid(7)) @db.Uuid
+  organizationId        String?                @db.Uuid // null = platform catalog
+  slug                  String
+  title                 String
+  developer             String?
+  publisher             String?
+  genres                String[]               @default([])
+  categories            GameCategory[]         @default([])
+  platform              DevicePlatform         @default(WINDOWS)
+  launcherId            String?                @db.Uuid
+  launcherGameId        String? // e.g. Steam appid "730" — for update detection & launch URIs
+  executablePath        String?
+  arguments             String?
+  workingDirectory      String?
+  processNames          String[]               @default([])
+  coverUrl              String?
+  bannerUrl             String?
+  iconUrl               String?
+  trailerUrl            String?
+  ageRating             String? // "PEGI 16", "ESRB M"
+  minAge                Int?
+  requiresAccount       Boolean                @default(false)
+  isActive              Boolean                @default(true)
+  createdAt             DateTime               @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime               @updatedAt @db.Timestamptz(3)
+  organization          Organization?          @relation(fields: [organizationId], references: [id])
+  launcher              Launcher?              @relation(fields: [launcherId], references: [id])
+  customerFavoriteGames CustomerFavoriteGame[]
+  tournaments           Tournament[]
+  orgGameSettings       OrgGameSetting[]
+  gameInstallations     GameInstallation[]
+  gameUpdateJobs        GameUpdateJob[]
+  gameLicenses          GameLicense[]
+
+  @@unique([organizationId, slug])
+  @@index([title])
+}
+
+/// Tenant-level enablement of a (catalog or custom) game + per-zone access.
+model OrgGameSetting {
+  id             String       @id @default(uuid(7)) @db.Uuid
+  organizationId String       @db.Uuid
+  gameId         String       @db.Uuid
+  isEnabled      Boolean      @default(true)
+  isFeatured     Boolean      @default(false)
+  sortOrder      Int          @default(0)
+  minAgeOverride Int?
+  allowedZoneIds String[]     @db.Uuid // empty = all zones
+  createdAt      DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime     @updatedAt @db.Timestamptz(3)
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  game           Game         @relation(fields: [gameId], references: [id])
+
+  @@unique([organizationId, gameId])
+}
+
+enum InstallStatus {
+  NOT_INSTALLED
+  INSTALLED
+  UPDATE_REQUIRED
+  QUEUED
+  DOWNLOADING
+  UPDATING
+  VERIFYING
+  CORRUPTED
+  FAILED
+}
+
+model GameInstallation {
+  id             String        @id @default(uuid(7)) @db.Uuid
+  organizationId String        @db.Uuid
+  deviceId       String        @db.Uuid
+  gameId         String        @db.Uuid
+  version        String?
+  buildId        String?
+  installPath    String?
+  sizeBytes      BigInt?
+  status         InstallStatus @default(NOT_INSTALLED)
+  progressPct    Float?
+  lastCheckedAt  DateTime?     @db.Timestamptz(3)
+  lastPlayedAt   DateTime?     @db.Timestamptz(3)
+  updatedAt      DateTime      @updatedAt @db.Timestamptz(3)
+  device         Device        @relation(fields: [deviceId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  game           Game          @relation(fields: [gameId], references: [id])
+
+  @@unique([deviceId, gameId])
+  @@index([organizationId, gameId, status])
+}
+
+enum UpdateJobStatus {
+  SCHEDULED
+  RUNNING
+  PAUSED
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+/// Branch-level orchestration: update master copy, then LAN-distribute.
+model GameUpdateJob {
+  id                 String          @id @default(uuid(7)) @db.Uuid
+  organizationId     String          @db.Uuid
+  branchId           String          @db.Uuid
+  gameId             String          @db.Uuid
+  targetVersion      String?
+  status             UpdateJobStatus @default(SCHEDULED)
+  scheduledFor       DateTime        @db.Timestamptz(3)
+  bandwidthLimitKbps Int?
+  progressPct        Float           @default(0)
+  devicesTotal       Int             @default(0)
+  devicesDone        Int             @default(0)
+  startedAt          DateTime?       @db.Timestamptz(3)
+  completedAt        DateTime?       @db.Timestamptz(3)
+  error              String?
+  createdById        String?         @db.Uuid
+  createdAt          DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime        @updatedAt @db.Timestamptz(3)
+  branch             Branch          @relation(fields: [branchId, organizationId], references: [id, organizationId])
+  game               Game            @relation(fields: [gameId], references: [id])
+
+  @@index([organizationId, branchId, status])
+}
+
+enum LicenseStatus {
+  AVAILABLE
+  IN_USE
+  COOLDOWN
+  DISABLED
+  LOCKED_BY_PROVIDER
+}
+
+/// Pooled launcher/game accounts — only where the publisher's terms permit
+/// commercial/café use. The secret lives in the vault; the agent receives a
+/// short-lived, session-bound credential and wipes it at session end.
+model GameLicense {
+  id                String         @id @default(uuid(7)) @db.Uuid
+  organizationId    String         @db.Uuid
+  branchId          String?        @db.Uuid // null = shared across org
+  launcherId        String         @db.Uuid
+  gameId            String?        @db.Uuid
+  accountLabel      String
+  accountUsername   String
+  secretRef         String // vault reference; NEVER the password
+  status            LicenseStatus  @default(AVAILABLE)
+  assignedSessionId String?        @db.Uuid
+  assignedDeviceId  String?        @db.Uuid
+  assignedAt        DateTime?      @db.Timestamptz(3)
+  releasedAt        DateTime?      @db.Timestamptz(3)
+  notes             String?
+  createdAt         DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime       @updatedAt @db.Timestamptz(3)
+  organization      Organization   @relation(fields: [organizationId], references: [id])
+  branch            Branch?        @relation(fields: [branchId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  launcher          Launcher       @relation(fields: [launcherId], references: [id])
+  game              Game?          @relation(fields: [gameId], references: [id])
+  assignedSession   GamingSession? @relation(fields: [assignedSessionId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@unique([organizationId, launcherId, accountUsername])
+  @@index([organizationId, launcherId, status])
+}
+
+enum ShellAppKind {
+  BROWSER
+  OFFICE
+  COMMUNICATION
+  MEDIA
+  UTILITY
+  PERIPHERAL_UTILITY
+  PLATFORM_LAUNCHER
+}
+
+/// Non-game applications shown under APPS / INTERNET in the shell.
+model ShellApp {
+  id             String        @id @default(uuid(7)) @db.Uuid
+  organizationId String?       @db.Uuid
+  name           String
+  kind           ShellAppKind
+  executablePath String
+  arguments      String?
+  iconUrl        String?
+  allowedZoneIds String[]      @db.Uuid
+  isActive       Boolean       @default(true)
+  sortOrder      Int           @default(0)
+  createdAt      DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime      @updatedAt @db.Timestamptz(3)
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
+}

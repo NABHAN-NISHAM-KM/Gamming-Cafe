@@ -1,0 +1,101 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+namespace Arena.Agent.Core;
+
+// Mirrors packages/contracts/src/device-protocol.ts. Field names are camelCase on the wire.
+
+public static class Json
+{
+    public static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web)
+    {
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        WriteIndented = false,
+    };
+}
+
+/// <summary>What arrives from the server. <see cref="Envelope"/> is the exact signed JSON text.</summary>
+public sealed record SignedCommand(string Kid, string Envelope, string Signature);
+
+public sealed record RequestedBy(string Type, string? Id);
+
+public sealed record CommandEnvelope(
+    int V,
+    string CommandId,
+    string OrganizationId,
+    string BranchId,
+    string DeviceId,
+    string Type,
+    JsonElement Payload,
+    RequestedBy RequestedBy,
+    DateTimeOffset IssuedAt,
+    DateTimeOffset ExpiresAt,
+    string Nonce);
+
+public sealed record DeviceMetrics
+{
+    public double? CpuPct { get; init; }
+    public double? GpuPct { get; init; }
+    public double? RamPct { get; init; }
+    public double? DiskPct { get; init; }
+    public double? CpuTempC { get; init; }
+    public double? GpuTempC { get; init; }
+    public double? PingMs { get; init; }
+    public double? PacketLossPct { get; init; }
+    public double? Fps { get; init; }
+    public long? UptimeSec { get; init; }
+    public string? ForegroundApp { get; init; }
+    public string? ShellState { get; init; }
+}
+
+public sealed record DiskInfo(string? Model, string? Serial, double? SizeGb, double? FreeGb);
+public sealed record NicInfo(string? Name, string? Mac, double? SpeedMbps, string? Ip);
+
+public sealed record HardwareSnapshot
+{
+    public string? Cpu { get; init; }
+    public int? CpuCores { get; init; }
+    public string? Gpu { get; init; }
+    public double? GpuVramMb { get; init; }
+    public double? RamMb { get; init; }
+    public string? Motherboard { get; init; }
+    public string? BiosVersion { get; init; }
+    public string? OsVersion { get; init; }
+    public List<DiskInfo> Disks { get; init; } = [];
+    public List<NicInfo> Nics { get; init; } = [];
+}
+
+/// <summary>Outgoing messages (device → server).</summary>
+public static class Outgoing
+{
+    /// <param name="activeSessionId">The session this PC believes it is running, so the server can resync it after a restart.</param>
+    public static string Hello(string agentVersion, string? ip, string? hostname, string? mac, string? activeSessionId = null, string? shellVersion = null) =>
+        JsonSerializer.Serialize(new { type = "hello", agentVersion, shellVersion, ipAddress = ip, hostname, macAddress = mac, activeSessionId }, Json.Options);
+
+    public static string ShellLogin(string requestId, string username, string secret) =>
+        JsonSerializer.Serialize(new { type = "shell_login", requestId, username, secret }, Json.Options);
+
+    public static string ShellLogout(string requestId, string sessionId) =>
+        JsonSerializer.Serialize(new { type = "shell_logout", requestId, sessionId }, Json.Options);
+
+    public static string Heartbeat(DeviceMetrics metrics) =>
+        JsonSerializer.Serialize(new { type = "heartbeat", metrics }, Json.Options);
+
+    public static string Hardware(HardwareSnapshot snapshot) =>
+        JsonSerializer.Serialize(new { type = "hardware", snapshot }, Json.Options);
+
+    /// <param name="status">RECEIVED | EXECUTING | SUCCESS | FAILED</param>
+    public static string Ack(string commandId, string status, string? errorCode = null, string? errorMessage = null, object? result = null) =>
+        JsonSerializer.Serialize(new { type = "ack", commandId, status, errorCode, errorMessage, result }, Json.Options);
+}
+
+/// <summary>Enrolment response from POST /v1/device/enroll.</summary>
+public sealed record EnrollResponse(
+    string DeviceId,
+    string OrganizationId,
+    string BranchId,
+    string ZoneId,
+    string Name,
+    Dictionary<string, string> SigningKeys,
+    int HeartbeatSeconds,
+    string WebsocketPath);

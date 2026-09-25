@@ -1,0 +1,250 @@
+// ── Pricing engine & gaming sessions ────────────────────────────────────────
+
+enum BillingMode {
+  PER_MINUTE
+  PER_HOUR
+  FIXED_DURATION
+  DAY_PASS
+  NIGHT_PASS
+  PACKAGE
+}
+
+enum PaymentTiming {
+  PREPAID
+  POSTPAID
+}
+
+enum StationClass {
+  PC
+  CONSOLE
+  VR
+  SIMULATOR
+  INTERNET
+  PRIVATE_ROOM
+}
+
+/// A rate card. The pricing engine picks the highest-priority plan whose
+/// scope (branch/zone/tier/stationClass) and `schedule` match "now".
+model PricingPlan {
+  id               String           @id @default(uuid(7)) @db.Uuid
+  organizationId   String           @db.Uuid
+  branchId         String?          @db.Uuid // null = all branches
+  zoneId           String?          @db.Uuid // null = all zones in scope
+  membershipTierId String?          @db.Uuid // null = everyone
+  name             String
+  stationClass     StationClass
+  billingMode      BillingMode
+  paymentTiming    PaymentTiming    @default(PREPAID)
+  rate             Decimal          @db.Decimal(19, 4) // per unit (minute/hour) or flat for pass
+  currency         String           @db.Char(3)
+  minMinutes       Int              @default(0)
+  roundingMinutes  Int              @default(1) // bill in N-minute increments
+  graceMinutes     Int              @default(0)
+  // Time windows: [{days:["mon",..], from:"00:00", to:"06:00"}] in branch tz
+  schedule         Json             @default("[]")
+  passStartTime    String? // NIGHT_PASS "00:00"
+  passEndTime      String? //            "06:00"
+  priority         Int              @default(0)
+  validFrom        DateTime?        @db.Timestamptz(3)
+  validTo          DateTime?        @db.Timestamptz(3)
+  isActive         Boolean          @default(true)
+  createdAt        DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime         @updatedAt @db.Timestamptz(3)
+  organization     Organization     @relation(fields: [organizationId], references: [id])
+  branch           Branch?          @relation(fields: [branchId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  zone             Zone?            @relation(fields: [zoneId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  membershipTier   MembershipTier?  @relation(fields: [membershipTierId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  pricingPackages  PricingPackage[]
+  gamingSessions   GamingSession[]
+
+  @@unique([id, organizationId])
+  @@index([organizationId, branchId, zoneId, isActive])
+}
+
+/// Bundles such as "3 hours = AED 40".
+model PricingPackage {
+  id               String          @id @default(uuid(7)) @db.Uuid
+  organizationId   String          @db.Uuid
+  pricingPlanId    String          @db.Uuid
+  name             String
+  durationMinutes  Int
+  price            Decimal         @db.Decimal(19, 4)
+  bonusMinutes     Int             @default(0)
+  expiresAfterDays Int? // unused time balance validity if sold as time-credit
+  sortOrder        Int             @default(0)
+  isActive         Boolean         @default(true)
+  pricingPlan      PricingPlan     @relation(fields: [pricingPlanId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  products         Product[]
+  gamingSessions   GamingSession[]
+
+  @@unique([id, organizationId])
+  @@index([organizationId, pricingPlanId])
+}
+
+enum SessionStatus {
+  PENDING // created, waiting for device ACK
+  ACTIVE
+  PAUSED
+  ENDING // expiry flow running on client
+  ENDED
+  CANCELLED
+}
+
+enum SessionEndReason {
+  EXPIRED
+  STAFF_ENDED
+  CUSTOMER_LOGOUT
+  MOVED
+  DEVICE_FAILURE
+  BALANCE_EXHAUSTED
+  ADMIN_FORCE
+}
+
+/// Server-authoritative timer: the truth is `expiresAt` (+pauses). The client
+/// only renders `expiresAt - serverNow`. Expiry is driven by a BullMQ delayed
+/// job AND a periodic sweeper, so it fires even if the shell UI restarts.
+model GamingSession {
+  id                   String                @id @default(uuid(7)) @db.Uuid
+  organizationId       String                @db.Uuid
+  branchId             String                @db.Uuid
+  zoneId               String                @db.Uuid
+  deviceId             String                @db.Uuid
+  customerId           String?               @db.Uuid // null = anonymous guest
+  guestLabel           String?
+  bookingId            String?               @db.Uuid
+  billId               String?               @db.Uuid
+  stationClass         StationClass
+  status               SessionStatus         @default(PENDING)
+  pricingPlanId        String?               @db.Uuid
+  pricingPackageId     String?               @db.Uuid
+  billingMode          BillingMode
+  paymentTiming        PaymentTiming
+  rateSnapshot         Json // frozen pricing inputs for auditability
+  allocatedMinutes     Int? // null for open-ended postpaid
+  startedAt            DateTime?             @db.Timestamptz(3)
+  expiresAt            DateTime?             @db.Timestamptz(3)
+  pausedAt             DateTime?             @db.Timestamptz(3)
+  totalPausedSeconds   Int                   @default(0)
+  endedAt              DateTime?             @db.Timestamptz(3)
+  endReason            SessionEndReason?
+  billedSeconds        Int                   @default(0)
+  amountDue            Decimal               @default(0) @db.Decimal(19, 4)
+  discountAmount       Decimal               @default(0) @db.Decimal(19, 4)
+  currency             String                @db.Char(3)
+  warningsSent         Int[]                 @default([]) // minutes-remaining marks already notified
+  postSessionAction    PostSessionAction
+  startedById          String?               @db.Uuid
+  endedById            String?               @db.Uuid
+  version              Int                   @default(0) // optimistic concurrency
+  offlineOrigin        Boolean               @default(false) // created on edge during outage
+  idempotencyKey       String?
+  createdAt            DateTime              @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime              @updatedAt @db.Timestamptz(3)
+  branch               Branch                @relation(fields: [branchId, organizationId], references: [id, organizationId])
+  zone                 Zone                  @relation(fields: [zoneId, organizationId], references: [id, organizationId])
+  device               Device                @relation(fields: [deviceId, organizationId], references: [id, organizationId])
+  customer             Customer?             @relation(fields: [customerId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  booking              Booking?              @relation(fields: [bookingId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  bill                 Bill?                 @relation(fields: [billId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  pricingPlan          PricingPlan?          @relation(fields: [pricingPlanId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  pricingPackage       PricingPackage?       @relation(fields: [pricingPackageId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  startedBy            Employee?             @relation("SessionStartedBy", fields: [startedById, organizationId], references: [id, organizationId], onDelete: Restrict)
+  endedBy              Employee?             @relation("SessionEndedBy", fields: [endedById, organizationId], references: [id, organizationId], onDelete: Restrict)
+  customerSessions     CustomerSession[]
+  gameLicenses         GameLicense[]
+  promotionRedemptions PromotionRedemption[]
+  orders               Order[]
+  orderItems           OrderItem[]
+  sessionExtensions    SessionExtension[]
+  sessionTransfers     SessionTransfer[]
+  printJobs            PrintJob[]
+
+  @@unique([id, organizationId])
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId, branchId, status])
+  @@index([organizationId, customerId])
+  @@index([status, expiresAt]) // expiry sweeper
+}
+
+enum ExtensionSource {
+  STAFF
+  CUSTOMER_SHELL
+  CUSTOMER_APP
+  PROMOTION
+  COMPENSATION
+}
+
+model SessionExtension {
+  id             String          @id @default(uuid(7)) @db.Uuid
+  organizationId String          @db.Uuid
+  sessionId      String          @db.Uuid
+  minutes        Int
+  amount         Decimal         @db.Decimal(19, 4)
+  source         ExtensionSource
+  employeeId     String?         @db.Uuid
+  reason         String?
+  idempotencyKey String
+  createdAt      DateTime        @default(now()) @db.Timestamptz(3)
+  session        GamingSession   @relation(fields: [sessionId, organizationId], references: [id, organizationId])
+  employee       Employee?       @relation(fields: [employeeId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId, sessionId])
+}
+
+/// "Move session" from one station to another (hardware fault, upgrade to VIP...).
+model SessionTransfer {
+  id             String        @id @default(uuid(7)) @db.Uuid
+  organizationId String        @db.Uuid
+  sessionId      String        @db.Uuid
+  fromDeviceId   String        @db.Uuid
+  toDeviceId     String        @db.Uuid
+  employeeId     String?       @db.Uuid
+  reason         String?
+  priceDelta     Decimal       @default(0) @db.Decimal(19, 4)
+  createdAt      DateTime      @default(now()) @db.Timestamptz(3)
+  session        GamingSession @relation(fields: [sessionId, organizationId], references: [id, organizationId])
+  fromDevice     Device        @relation("TransferFrom", fields: [fromDeviceId, organizationId], references: [id, organizationId])
+  toDevice       Device        @relation("TransferTo", fields: [toDeviceId, organizationId], references: [id, organizationId])
+  employee       Employee?     @relation(fields: [employeeId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@index([organizationId, sessionId])
+}
+
+enum PrintJobStatus {
+  QUEUED
+  HELD // awaiting payment/approval
+  PRINTING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+/// Internet-café printing & scanning with per-page billing and quotas.
+model PrintJob {
+  id             String         @id @default(uuid(7)) @db.Uuid
+  organizationId String         @db.Uuid
+  branchId       String         @db.Uuid
+  deviceId       String         @db.Uuid // originating PC
+  printerId      String?        @db.Uuid // Device(kind=PRINTER)
+  customerId     String?        @db.Uuid
+  sessionId      String?        @db.Uuid
+  documentName   String?
+  pages          Int
+  copies         Int            @default(1)
+  isColor        Boolean        @default(false)
+  isScan         Boolean        @default(false)
+  unitPrice      Decimal        @db.Decimal(19, 4)
+  total          Decimal        @db.Decimal(19, 4)
+  status         PrintJobStatus @default(QUEUED)
+  orderItemId    String?        @db.Uuid
+  createdAt      DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime       @updatedAt @db.Timestamptz(3)
+  branch         Branch         @relation(fields: [branchId, organizationId], references: [id, organizationId])
+  device         Device         @relation("PrintSource", fields: [deviceId, organizationId], references: [id, organizationId])
+  printer        Device?        @relation("PrintTarget", fields: [printerId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  customer       Customer?      @relation(fields: [customerId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  session        GamingSession? @relation(fields: [sessionId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@index([organizationId, branchId, createdAt])
+}

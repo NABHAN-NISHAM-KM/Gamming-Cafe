@@ -1,0 +1,211 @@
+// ── Platform (non-tenant) ───────────────────────────────────────────────────
+// Rows here are owned by the SaaS operator. Tenants may READ reference data
+// (countries, currencies, plans) but never write it.
+
+model Country {
+  code            String   @id @db.Char(2) // ISO-3166-1 alpha-2
+  name            String
+  defaultCurrency String   @db.Char(3)
+  defaultTimezone String
+  defaultLocale   String
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime @updatedAt @db.Timestamptz(3)
+}
+
+model Currency {
+  code      String   @id @db.Char(3) // ISO-4217
+  name      String
+  symbol    String
+  minorUnit Int      @default(2) // AED=2, KWD=3, JPY=0
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+}
+
+enum PlanInterval {
+  MONTHLY
+  YEARLY
+}
+
+model SubscriptionPlan {
+  id           String       @id @default(uuid(7)) @db.Uuid
+  code         String       @unique
+  name         String
+  description  String?
+  price        Decimal      @db.Decimal(19, 4)
+  currency     String       @db.Char(3)
+  interval     PlanInterval @default(MONTHLY)
+  maxBranches  Int?
+  maxDevices   Int?
+  maxEmployees Int?
+  isPublic     Boolean      @default(true)
+  isActive     Boolean      @default(true)
+  createdAt    DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime     @updatedAt @db.Timestamptz(3)
+
+  features      PlanFeature[]
+  subscriptions Subscription[]
+}
+
+/// Feature-flag defaults per plan. Keys come from @arena/contracts FEATURES.
+model PlanFeature {
+  id         String           @id @default(uuid(7)) @db.Uuid
+  planId     String           @db.Uuid
+  featureKey String
+  enabled    Boolean          @default(true)
+  limitValue Int?
+  plan       SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, featureKey])
+}
+
+enum ReleaseChannel {
+  STABLE
+  BETA
+  CANARY
+}
+
+enum ReleaseComponent {
+  WINDOWS_SHELL
+  WINDOWS_AGENT
+  EDGE_SERVER
+  KDS
+  POS
+}
+
+/// Signed client binaries pushed by Super Admin.
+model ClientRelease {
+  id           String           @id @default(uuid(7)) @db.Uuid
+  component    ReleaseComponent
+  channel      ReleaseChannel   @default(STABLE)
+  version      String
+  artifactUrl  String
+  sha256       String
+  signature    String // detached code-signing signature, verified by the agent before install
+  releaseNotes String?
+  minVersion   String? // clients below this must force-update
+  publishedAt  DateTime?        @db.Timestamptz(3)
+  isRevoked    Boolean          @default(false)
+  createdAt    DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime         @updatedAt @db.Timestamptz(3)
+
+  @@unique([component, channel, version])
+}
+
+enum PaymentProvider {
+  STRIPE
+  CHECKOUT_COM
+  NETWORK_INTERNATIONAL
+  TELR
+  PAYTABS
+  OTTU
+  MANUAL
+}
+
+/// Global identity for staff & platform admins. Customers are separate and org-scoped.
+model User {
+  id                      String                   @id @default(uuid(7)) @db.Uuid
+  email                   String                   @unique
+  emailVerified           Boolean                  @default(false)
+  passwordHash            String? // argon2id; null for SSO-only users
+  displayName             String
+  phone                   String?
+  locale                  String                   @default("en")
+  mfaRequired             Boolean                  @default(false)
+  isDisabled              Boolean                  @default(false)
+  lastLoginAt             DateTime?                @db.Timestamptz(3)
+  failedLogins            Int                      @default(0)
+  lockedUntil             DateTime?                @db.Timestamptz(3)
+  createdAt               DateTime                 @default(now()) @db.Timestamptz(3)
+  updatedAt               DateTime                 @updatedAt @db.Timestamptz(3)
+  employees               Employee[]
+  mfaFactors              MfaFactor[]
+  platformRoleAssignments PlatformRoleAssignment[]
+  refreshTokens           RefreshToken[]
+  impersonationSessions   ImpersonationSession[]
+}
+
+enum MfaType {
+  TOTP
+  WEBAUTHN
+  RECOVERY_CODE
+}
+
+model MfaFactor {
+  id          String    @id @default(uuid(7)) @db.Uuid
+  userId      String    @db.Uuid
+  type        MfaType
+  label       String?
+  secretEnc   String // envelope-encrypted with KMS; never stored in clear
+  confirmedAt DateTime? @db.Timestamptz(3)
+  lastUsedAt  DateTime? @db.Timestamptz(3)
+  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+enum PlatformRole {
+  SUPER_ADMIN
+  PLATFORM_SUPPORT
+  PLATFORM_BILLING
+  PLATFORM_READONLY
+}
+
+model PlatformRoleAssignment {
+  id        String       @id @default(uuid(7)) @db.Uuid
+  userId    String       @db.Uuid
+  role      PlatformRole
+  createdAt DateTime     @default(now()) @db.Timestamptz(3)
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, role])
+}
+
+enum TokenSubject {
+  USER
+  CUSTOMER
+}
+
+/// Refresh-token rotation with reuse detection: every token belongs to a
+/// `familyId`; presenting an already-rotated token revokes the whole family.
+model RefreshToken {
+  id             String       @id @default(uuid(7)) @db.Uuid
+  subjectType    TokenSubject
+  userId         String?      @db.Uuid
+  customerId     String?      @db.Uuid
+  organizationId String?      @db.Uuid
+  familyId       String       @db.Uuid
+  tokenHash      String       @unique
+  expiresAt      DateTime     @db.Timestamptz(3)
+  rotatedAt      DateTime?    @db.Timestamptz(3)
+  revokedAt      DateTime?    @db.Timestamptz(3)
+  revokeReason   String?
+  ip             String?
+  userAgent      String?
+  createdAt      DateTime     @default(now()) @db.Timestamptz(3)
+  user           User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([familyId])
+  @@index([userId])
+  @@index([customerId])
+}
+
+/// Audited, time-boxed Super Admin impersonation of an org employee.
+model ImpersonationSession {
+  id               String       @id @default(uuid(7)) @db.Uuid
+  platformUserId   String       @db.Uuid
+  organizationId   String       @db.Uuid
+  targetEmployeeId String       @db.Uuid
+  reason           String
+  ticketRef        String?
+  startedAt        DateTime     @default(now()) @db.Timestamptz(3)
+  expiresAt        DateTime     @db.Timestamptz(3)
+  endedAt          DateTime?    @db.Timestamptz(3)
+  platformUser     User         @relation(fields: [platformUserId], references: [id])
+  organization     Organization @relation(fields: [organizationId], references: [id])
+  targetEmployee   Employee     @relation(fields: [targetEmployeeId, organizationId], references: [id, organizationId])
+
+  @@index([organizationId])
+}

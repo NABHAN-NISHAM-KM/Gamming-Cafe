@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: arena_owner
+          POSTGRES_PASSWORD: arena_owner_dev
+          POSTGRES_DB: arena
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U arena_owner -d arena"
+          --health-interval 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://arena_owner:arena_owner_dev@localhost:5432/arena
+      TEST_DATABASE_URL: postgresql://arena_owner:arena_owner_dev@localhost:5432/arena
+      TEST_APP_DATABASE_URL: postgresql://arena_api:arena_api_dev@localhost:5432/arena
+      APP_DATABASE_URL: postgresql://arena_api:arena_api_dev@localhost:5432/arena
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Create database roles
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f infra/postgres/init/001_roles.sql
+      - name: Generate Prisma client
+        run: npm run codegen -w @arena/db
+      - name: Apply migrations
+        run: npx prisma migrate deploy
+        working-directory: packages/db
+      - name: Schema matches migrations (no drift)
+        run: npx prisma migrate diff --from-config-datasource --to-schema prisma/schema --exit-code
+        working-directory: packages/db
+      - name: Generate API dev secrets
+        run: npm run keys -w @arena/api
+      - name: Build admin app
+        run: npm run build -w @arena/admin
+      - name: Build Gaming Shell UI
+        run: npm run build -w @arena/shell
+      - run: npm run typecheck
+      - run: npm test
+
+  windows-agent:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - run: npm ci
+      - name: Regenerate cross-language fixtures from the server's signing code
+        run: npx tsx apps/api/scripts/gen-agent-fixtures.ts
+      - name: Build Gaming Shell UI (bundled into ArenaShell.exe)
+        run: npm run build -w @arena/shell
+      - name: Build agent + Shell host
+        run: dotnet build clients/windows/ArenaOS.Windows.sln -c Release
+      - name: Test agent (verifies server-signed commands in C#)
+        run: dotnet test clients/windows/ArenaOS.Windows.sln -c Release --no-build

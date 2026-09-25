@@ -1,0 +1,343 @@
+// ── Tenancy hierarchy: Organization → Brand → Branch → Zone → Device ─────────
+
+enum OrganizationStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  SUSPENDED
+  CANCELLED
+}
+
+/// The tenant. `id` is the value placed in `app.current_org` for RLS.
+model Organization {
+  id                    String                 @id @default(uuid(7)) @db.Uuid
+  slug                  String                 @unique
+  legalName             String
+  displayName           String
+  status                OrganizationStatus     @default(TRIAL)
+  countryCode           String                 @db.Char(2)
+  defaultCurrency       String                 @db.Char(3)
+  defaultTimezone       String
+  defaultLocale         String                 @default("en")
+  supportedLocales      String[]               @default(["en"])
+  taxNumber             String?
+  billingEmail          String
+  suspendedAt           DateTime?              @db.Timestamptz(3)
+  suspendReason         String?
+  settings              Json                   @default("{}")
+  createdAt             DateTime               @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime               @updatedAt @db.Timestamptz(3)
+  alerts                Alert[]
+  peripheralProfiles    PeripheralProfile[]
+  employees             Employee[]
+  roles                 Role[]
+  impersonationSessions ImpersonationSession[]
+  subscriptions         Subscription[]
+  organizationFeatures  OrganizationFeature[]
+  brands                Brand[]
+  branches              Branch[]
+  taxProfiles           TaxProfile[]
+  paymentGatewayConfigs PaymentGatewayConfig[]
+  customers             Customer[]
+  achievements          Achievement[]
+  membershipTiers       MembershipTier[]
+  loyaltyRules          LoyaltyRule[]
+  loyaltyRewards        LoyaltyReward[]
+  ledgerAccounts        LedgerAccount[]
+  launchers             Launcher[]
+  games                 Game[]
+  orgGameSettings       OrgGameSetting[]
+  gameLicenses          GameLicense[]
+  shellApps             ShellApp[]
+  warehouses            Warehouse[]
+  inventoryItems        InventoryItem[]
+  suppliers             Supplier[]
+  promotions            Promotion[]
+  customerSegments      CustomerSegment[]
+  campaigns             Campaign[]
+  productCategories     ProductCategory[]
+  modifierGroups        ModifierGroup[]
+  pricingPlans          PricingPlan[]
+  notificationTemplates NotificationTemplate[]
+  notifications         Notification[]
+  apiKeys               ApiKey[]
+  webhookEndpoints      WebhookEndpoint[]
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  EXPIRED
+}
+
+model Subscription {
+  id                   String                @id @default(uuid(7)) @db.Uuid
+  organizationId       String                @db.Uuid
+  planId               String                @db.Uuid
+  status               SubscriptionStatus    @default(TRIALING)
+  currentPeriodStart   DateTime              @db.Timestamptz(3)
+  currentPeriodEnd     DateTime              @db.Timestamptz(3)
+  cancelAtPeriodEnd    Boolean               @default(false)
+  // Per-org overrides of plan limits (null = inherit from plan)
+  maxBranches          Int?
+  maxDevices           Int?
+  maxEmployees         Int?
+  externalRef          String? // billing-provider subscription id
+  createdAt            DateTime              @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime              @updatedAt @db.Timestamptz(3)
+  organization         Organization          @relation(fields: [organizationId], references: [id])
+  plan                 SubscriptionPlan      @relation(fields: [planId], references: [id])
+  subscriptionInvoices SubscriptionInvoice[]
+
+  @@unique([id, organizationId])
+  @@index([organizationId])
+}
+
+enum SubscriptionInvoiceStatus {
+  DRAFT
+  OPEN
+  PAID
+  FAILED
+  VOID
+}
+
+/// Platform → tenant invoices (SaaS revenue).
+model SubscriptionInvoice {
+  id             String                    @id @default(uuid(7)) @db.Uuid
+  organizationId String                    @db.Uuid
+  subscriptionId String                    @db.Uuid
+  number         String                    @unique
+  amount         Decimal                   @db.Decimal(19, 4)
+  taxAmount      Decimal                   @default(0) @db.Decimal(19, 4)
+  currency       String                    @db.Char(3)
+  status         SubscriptionInvoiceStatus @default(OPEN)
+  periodStart    DateTime                  @db.Timestamptz(3)
+  periodEnd      DateTime                  @db.Timestamptz(3)
+  dueAt          DateTime                  @db.Timestamptz(3)
+  paidAt         DateTime?                 @db.Timestamptz(3)
+  failureReason  String?
+  attempts       Int                       @default(0)
+  createdAt      DateTime                  @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime                  @updatedAt @db.Timestamptz(3)
+  subscription   Subscription              @relation(fields: [subscriptionId, organizationId], references: [id, organizationId])
+
+  @@index([organizationId])
+  @@index([status])
+}
+
+/// Per-organization feature-flag override (wins over PlanFeature).
+model OrganizationFeature {
+  id              String       @id @default(uuid(7)) @db.Uuid
+  organizationId  String       @db.Uuid
+  featureKey      String
+  enabled         Boolean
+  limitValue      Int?
+  reason          String?
+  updatedByUserId String?      @db.Uuid
+  createdAt       DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime     @updatedAt @db.Timestamptz(3)
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, featureKey])
+}
+
+model Brand {
+  id                      String                   @id @default(uuid(7)) @db.Uuid
+  organizationId          String                   @db.Uuid
+  name                    String
+  logoUrl                 String?
+  primaryColor            String?
+  shellTheme              Json                     @default("{}") // Gaming-shell branding (logo, colors, background)
+  isActive                Boolean                  @default(true)
+  createdAt               DateTime                 @default(now()) @db.Timestamptz(3)
+  updatedAt               DateTime                 @updatedAt @db.Timestamptz(3)
+  organization            Organization             @relation(fields: [organizationId], references: [id])
+  employeeRoleAssignments EmployeeRoleAssignment[]
+  branches                Branch[]
+
+  @@unique([id, organizationId])
+  @@index([organizationId])
+}
+
+enum BranchStatus {
+  SETUP
+  OPEN
+  TEMPORARILY_CLOSED
+  CLOSED
+}
+
+model Branch {
+  id                      String                   @id @default(uuid(7)) @db.Uuid
+  organizationId          String                   @db.Uuid
+  brandId                 String                   @db.Uuid
+  code                    String // short code, unique per org, used in order numbers (e.g. "DXB1")
+  name                    String
+  status                  BranchStatus             @default(SETUP)
+  countryCode             String                   @db.Char(2)
+  currency                String                   @db.Char(3)
+  timezone                String // IANA, e.g. "Asia/Dubai"
+  locale                  String                   @default("en")
+  addressLine1            String?
+  addressLine2            String?
+  city                    String?
+  region                  String?
+  postalCode              String?
+  latitude                Decimal?                 @db.Decimal(9, 6)
+  longitude               Decimal?                 @db.Decimal(9, 6)
+  phone                   String?
+  email                   String?
+  taxProfileId            String?                  @db.Uuid
+  openingHours            Json                     @default("{}") // { mon: [{open:"10:00",close:"02:00"}], ... }
+  allowedIpCidrs          String[]                 @default([]) // optional IP allow-list for staff/admin logins
+  settings                Json                     @default("{}")
+  createdAt               DateTime                 @default(now()) @db.Timestamptz(3)
+  updatedAt               DateTime                 @updatedAt @db.Timestamptz(3)
+  organization            Organization             @relation(fields: [organizationId], references: [id])
+  brand                   Brand                    @relation(fields: [brandId, organizationId], references: [id, organizationId])
+  taxProfile              TaxProfile?              @relation(fields: [taxProfileId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  devices                 Device[]
+  deviceEnrollmentTokens  DeviceEnrollmentToken[]
+  deviceCommands          DeviceCommand[]
+  disklessIntegrations    DisklessIntegration[]
+  alerts                  Alert[]
+  employees               Employee[]
+  employeeRoleAssignments EmployeeRoleAssignment[]
+  zones                   Zone[]
+  paymentGatewayConfigs   PaymentGatewayConfig[]
+  bookings                Booking[]
+  customers               Customer[]
+  tournaments             Tournament[]
+  payments                Payment[]
+  cashDrawers             CashDrawer[]
+  shifts                  Shift[]
+  invoices                Invoice[]
+  journalEntries          JournalEntry[]
+  expenses                Expense[]
+  gameUpdateJobs          GameUpdateJob[]
+  gameLicenses            GameLicense[]
+  warehouses              Warehouse[]
+  purchaseOrders          PurchaseOrder[]
+  productBranchPrices     ProductBranchPrice[]
+  bills                   Bill[]
+  orders                  Order[]
+  kitchenStations         KitchenStation[]
+  kitchenTickets          KitchenTicket[]
+  restaurantTables        RestaurantTable[]
+  pricingPlans            PricingPlan[]
+  gamingSessions          GamingSession[]
+  printJobs               PrintJob[]
+  edgeNodes               EdgeNode[]
+  supportTickets          SupportTicket[]
+  branchSigningKeys       BranchSigningKey[]
+
+  @@unique([id, organizationId])
+  @@unique([organizationId, code])
+  @@index([organizationId, brandId])
+}
+
+enum ZoneType {
+  PC_STANDARD
+  PC_VIP
+  BOOTCAMP
+  STREAMING
+  CONSOLE
+  VR
+  SIMULATOR
+  INTERNET
+  RESTAURANT
+  PRIVATE_ROOM
+  OTHER
+}
+
+model Zone {
+  id               String            @id @default(uuid(7)) @db.Uuid
+  organizationId   String            @db.Uuid
+  branchId         String            @db.Uuid
+  name             String
+  type             ZoneType
+  color            String?
+  sortOrder        Int               @default(0)
+  minAge           Int?
+  openingHours     Json? // null = inherit branch hours
+  bookingRules     Json              @default("{}") // lead time, min/max duration, deposit %, cancellation window
+  floorMap         Json              @default("{}") // canvas size, background, walls (station positions live on Device)
+  isActive         Boolean           @default(true)
+  createdAt        DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime          @updatedAt @db.Timestamptz(3)
+  branch           Branch            @relation(fields: [branchId, organizationId], references: [id, organizationId])
+  devices          Device[]
+  bookings         Booking[]
+  restaurantTables RestaurantTable[]
+  pricingPlans     PricingPlan[]
+  gamingSessions   GamingSession[]
+
+  @@unique([id, organizationId])
+  @@index([organizationId, branchId])
+}
+
+model TaxProfile {
+  id               String       @id @default(uuid(7)) @db.Uuid
+  organizationId   String       @db.Uuid
+  name             String // e.g. "UAE VAT 5%"
+  countryCode      String       @db.Char(2)
+  pricesIncludeTax Boolean      @default(true)
+  createdAt        DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime     @updatedAt @db.Timestamptz(3)
+  organization     Organization @relation(fields: [organizationId], references: [id])
+  branches         Branch[]
+  taxRates         TaxRate[]
+
+  @@unique([id, organizationId])
+  @@index([organizationId])
+}
+
+enum TaxAppliesTo {
+  ALL
+  GAMING
+  FOOD
+  BEVERAGE
+  MERCHANDISE
+  SERVICE
+}
+
+model TaxRate {
+  id             String       @id @default(uuid(7)) @db.Uuid
+  organizationId String       @db.Uuid
+  taxProfileId   String       @db.Uuid
+  name           String
+  ratePercent    Decimal      @db.Decimal(7, 4)
+  appliesTo      TaxAppliesTo @default(ALL)
+  isCompound     Boolean      @default(false)
+  sortOrder      Int          @default(0)
+  createdAt      DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime     @updatedAt @db.Timestamptz(3)
+  taxProfile     TaxProfile   @relation(fields: [taxProfileId, organizationId], references: [id, organizationId], onDelete: Cascade)
+
+  @@index([organizationId, taxProfileId])
+}
+
+enum GatewayMode {
+  TEST
+  LIVE
+}
+
+/// Tenant's payment-gateway configuration. Credentials live in the secret
+/// manager; only an opaque reference is stored here.
+model PaymentGatewayConfig {
+  id               String          @id @default(uuid(7)) @db.Uuid
+  organizationId   String          @db.Uuid
+  branchId         String?         @db.Uuid
+  provider         PaymentProvider
+  mode             GatewayMode     @default(TEST)
+  credentialsRef   String // e.g. "aws-sm://arena/org/<id>/stripe"
+  webhookSecretRef String?
+  isActive         Boolean         @default(true)
+  createdAt        DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime        @updatedAt @db.Timestamptz(3)
+  organization     Organization    @relation(fields: [organizationId], references: [id])
+  branch           Branch?         @relation(fields: [branchId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@index([organizationId])
+}

@@ -1,0 +1,311 @@
+// ── Notifications, audit, idempotency, outbox, edge sync, integrations ──────
+
+enum NotificationChannel {
+  IN_APP
+  SHELL
+  PUSH
+  EMAIL
+  SMS
+  WHATSAPP
+  KDS
+  STAFF_CONSOLE
+}
+
+enum NotificationStatus {
+  QUEUED
+  SENT
+  DELIVERED
+  READ
+  FAILED
+  SUPPRESSED // consent/quiet hours
+}
+
+enum RecipientType {
+  CUSTOMER
+  EMPLOYEE
+  DEVICE
+  BRANCH_STAFF // broadcast to everyone on shift at a branch
+}
+
+model NotificationTemplate {
+  id                 String              @id @default(uuid(7)) @db.Uuid
+  organizationId     String?             @db.Uuid // null = platform default
+  event              String // SESSION_ENDING, BOOKING_REMINDER, ORDER_READY, WALLET_LOW...
+  channel            NotificationChannel
+  locale             String              @default("en")
+  subject            String?
+  body               String // Handlebars-style template
+  providerTemplateId String? // pre-approved WhatsApp/SMS template id
+  isActive           Boolean             @default(true)
+  createdAt          DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime            @updatedAt @db.Timestamptz(3)
+  organization       Organization?       @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, event, channel, locale])
+}
+
+model Notification {
+  id             String              @id @default(uuid(7)) @db.Uuid
+  organizationId String              @db.Uuid
+  branchId       String?             @db.Uuid
+  recipientType  RecipientType
+  customerId     String?             @db.Uuid
+  employeeId     String?             @db.Uuid
+  deviceId       String?             @db.Uuid
+  channel        NotificationChannel
+  event          String
+  title          String?
+  body           String
+  data           Json                @default("{}")
+  status         NotificationStatus  @default(QUEUED)
+  providerRef    String?
+  error          String?
+  dedupeKey      String?
+  scheduledFor   DateTime?           @db.Timestamptz(3)
+  sentAt         DateTime?           @db.Timestamptz(3)
+  readAt         DateTime?           @db.Timestamptz(3)
+  createdAt      DateTime            @default(now()) @db.Timestamptz(3)
+  organization   Organization        @relation(fields: [organizationId], references: [id])
+  customer       Customer?           @relation(fields: [customerId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  employee       Employee?           @relation(fields: [employeeId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  device         Device?             @relation(fields: [deviceId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@unique([organizationId, dedupeKey])
+  @@index([organizationId, customerId, createdAt])
+  @@index([status, scheduledFor])
+}
+
+model PushSubscription {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @db.Uuid
+  customerId     String?   @db.Uuid
+  employeeId     String?   @db.Uuid
+  platform       String // WEB_PUSH | FCM | APNS
+  token          String
+  createdAt      DateTime  @default(now()) @db.Timestamptz(3)
+  lastUsedAt     DateTime? @db.Timestamptz(3)
+  customer       Customer? @relation(fields: [customerId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  employee       Employee? @relation(fields: [employeeId, organizationId], references: [id, organizationId], onDelete: Cascade)
+
+  @@unique([platform, token])
+  @@index([organizationId])
+}
+
+// ── Audit ──
+
+enum ActorType {
+  PLATFORM_ADMIN
+  EMPLOYEE
+  CUSTOMER
+  DEVICE
+  SYSTEM
+  API_KEY
+}
+
+/// Append-only, hash-chained per organization (hash = sha256(prevHash ||
+/// canonical(row))). UPDATE/DELETE are blocked by trigger and by revoking
+/// privileges from the runtime role. Retention/archival happens by
+/// exporting partitions to WORM object storage, never by deleting rows.
+model AuditLog {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String?   @db.Uuid // null = platform-level event
+  branchId       String?   @db.Uuid
+  actorType      ActorType
+  actorId        String?   @db.Uuid
+  actorRole      String?
+  impersonatorId String?   @db.Uuid // platform user when impersonating
+  deviceId       String?   @db.Uuid
+  action         String // "session.extend", "pos.refund", "pricing.update"
+  entityType     String
+  entityId       String?
+  before         Json?
+  after          Json?
+  reason         String?
+  ip             String?
+  userAgent      String?
+  requestId      String?
+  prevHash       String?
+  chainSeq       BigInt    @default(0) // position in the org chain; set by trigger
+  hash           String
+  createdAt      DateTime  @default(now()) @db.Timestamptz(3)
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, entityType, entityId])
+  @@index([organizationId, actorId, createdAt])
+  @@index([organizationId, chainSeq])
+}
+
+/// Head of each org's audit hash chain. Maintained exclusively by the
+/// AuditLog BEFORE INSERT trigger; the row lock serialises chain appends.
+model AuditChainHead {
+  chainKey  String   @id @db.Uuid // organizationId, or the nil UUID for platform events
+  lastHash  String
+  length    BigInt   @default(0)
+  updatedAt DateTime @default(now()) @db.Timestamptz(3)
+}
+
+/// Server-side idempotency for every mutating financial/command endpoint.
+model IdempotencyRecord {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @db.Uuid
+  scope          String // "POST /payments", "sync:pos"
+  key            String
+  requestHash    String // same key + different body → 422
+  status         String    @default("IN_PROGRESS") // IN_PROGRESS | COMPLETED
+  responseCode   Int?
+  responseBody   Json?
+  lockedUntil    DateTime? @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @db.Timestamptz(3)
+  expiresAt      DateTime  @db.Timestamptz(3)
+
+  @@unique([organizationId, scope, key])
+  @@index([expiresAt])
+}
+
+/// Transactional outbox: domain events are written in the same transaction
+/// as the state change, then relayed to Redis pub/sub, WebSockets, BullMQ,
+/// webhooks and edge nodes. Guarantees at-least-once delivery.
+model OutboxEvent {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @db.Uuid
+  branchId       String?   @db.Uuid
+  aggregateType  String
+  aggregateId    String
+  eventType      String // "session.started", "order.placed", "device.status_changed"
+  payload        Json
+  createdAt      DateTime  @default(now()) @db.Timestamptz(3)
+  publishedAt    DateTime? @db.Timestamptz(3)
+  attempts       Int       @default(0)
+
+  @@index([publishedAt, createdAt])
+  @@index([organizationId, branchId, createdAt])
+}
+
+// ── Branch edge / offline sync ──
+
+enum EdgeNodeStatus {
+  PROVISIONING
+  ONLINE
+  DEGRADED
+  OFFLINE
+  DECOMMISSIONED
+}
+
+model EdgeNode {
+  id             String         @id @default(uuid(7)) @db.Uuid
+  organizationId String         @db.Uuid
+  branchId       String         @db.Uuid
+  name           String
+  version        String?
+  status         EdgeNodeStatus @default(PROVISIONING)
+  certThumbprint String?        @unique
+  lanAddress     String?
+  lastSeenAt     DateTime?      @db.Timestamptz(3)
+  lastSyncAt     DateTime?      @db.Timestamptz(3)
+  syncCursor     BigInt         @default(0) // last cloud→edge change sequence applied
+  pendingUpload  Int            @default(0) // queued edge→cloud mutations
+  createdAt      DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime       @updatedAt @db.Timestamptz(3)
+  branch         Branch         @relation(fields: [branchId, organizationId], references: [id, organizationId])
+  syncBatches    SyncBatch[]
+
+  @@unique([id, organizationId])
+  @@index([organizationId, branchId])
+}
+
+enum SyncBatchStatus {
+  RECEIVED
+  APPLIED
+  PARTIALLY_APPLIED
+  REJECTED
+}
+
+/// Edge→cloud mutation batches. Each mutation carries its own idempotency
+/// key; replaying a batch is a no-op for already-applied mutations.
+model SyncBatch {
+  id             String          @id @default(uuid(7)) @db.Uuid
+  organizationId String          @db.Uuid
+  edgeNodeId     String          @db.Uuid
+  batchKey       String
+  mutationCount  Int
+  appliedCount   Int             @default(0)
+  conflictCount  Int             @default(0)
+  status         SyncBatchStatus @default(RECEIVED)
+  conflicts      Json            @default("[]")
+  receivedAt     DateTime        @default(now()) @db.Timestamptz(3)
+  appliedAt      DateTime?       @db.Timestamptz(3)
+  edgeNode       EdgeNode        @relation(fields: [edgeNodeId, organizationId], references: [id, organizationId])
+
+  @@unique([edgeNodeId, batchKey])
+  @@index([organizationId, receivedAt])
+}
+
+// ── Public API & webhooks ──
+
+model ApiKey {
+  id             String       @id @default(uuid(7)) @db.Uuid
+  organizationId String       @db.Uuid
+  name           String
+  prefix         String       @unique // shown to users: "ak_live_3f9a"
+  keyHash        String // sha256 of the secret part
+  scopes         String[] // subset of permission keys
+  branchIds      String[]     @db.Uuid // empty = all branches
+  allowedIps     String[]     @default([])
+  lastUsedAt     DateTime?    @db.Timestamptz(3)
+  expiresAt      DateTime?    @db.Timestamptz(3)
+  revokedAt      DateTime?    @db.Timestamptz(3)
+  createdById    String       @db.Uuid
+  createdAt      DateTime     @default(now()) @db.Timestamptz(3)
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
+}
+
+model WebhookEndpoint {
+  id             String       @id @default(uuid(7)) @db.Uuid
+  organizationId String       @db.Uuid
+  url            String
+  events         String[]
+  secretRef      String // HMAC signing secret in vault
+  isActive       Boolean      @default(true)
+  failureCount   Int          @default(0)
+  lastDeliveryAt DateTime?    @db.Timestamptz(3)
+  createdAt      DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime     @updatedAt @db.Timestamptz(3)
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING
+  RESOLVED
+  CLOSED
+}
+
+/// Customer "Contact staff" / "Help" requests from the shell or app,
+/// and internal technician tickets.
+model SupportTicket {
+  id             String       @id @default(uuid(7)) @db.Uuid
+  organizationId String       @db.Uuid
+  branchId       String       @db.Uuid
+  deviceId       String?      @db.Uuid
+  customerId     String?      @db.Uuid
+  assigneeId     String?      @db.Uuid
+  category       String // HARDWARE, GAME, PAYMENT, FOOD, OTHER
+  subject        String
+  message        String?
+  status         TicketStatus @default(OPEN)
+  priority       Int          @default(0)
+  resolvedAt     DateTime?    @db.Timestamptz(3)
+  createdAt      DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime     @updatedAt @db.Timestamptz(3)
+  branch         Branch       @relation(fields: [branchId, organizationId], references: [id, organizationId])
+  device         Device?      @relation(fields: [deviceId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  customer       Customer?    @relation(fields: [customerId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  assignee       Employee?    @relation(fields: [assigneeId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@index([organizationId, branchId, status])
+}

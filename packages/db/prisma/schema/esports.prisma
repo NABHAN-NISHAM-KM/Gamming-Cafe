@@ -1,0 +1,177 @@
+// ── Tournaments & esports ────────────────────────────────────────────────────
+
+enum TournamentFormat {
+  SINGLE_ELIMINATION
+  DOUBLE_ELIMINATION
+  ROUND_ROBIN
+  LEAGUE
+  SWISS
+}
+
+enum TournamentStatus {
+  DRAFT
+  REGISTRATION_OPEN
+  REGISTRATION_CLOSED
+  CHECK_IN
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model Tournament {
+  id                   String             @id @default(uuid(7)) @db.Uuid
+  organizationId       String             @db.Uuid
+  branchId             String             @db.Uuid
+  gameId               String?            @db.Uuid
+  customGameName       String?
+  name                 String
+  slug                 String
+  description          String?
+  bannerUrl            String?
+  format               TournamentFormat
+  teamSize             Int                @default(1) // 1v1=1, 5v5=5
+  maxTeams             Int
+  minTeams             Int                @default(2)
+  entryFee             Decimal            @default(0) @db.Decimal(19, 4)
+  entryFeeProductId    String?            @db.Uuid
+  prizePool            Decimal            @default(0) @db.Decimal(19, 4)
+  prizeDistribution    Json               @default("[]") // [{place:1, amount:500}]
+  currency             String             @db.Char(3)
+  status               TournamentStatus   @default(DRAFT)
+  rules                String?
+  sponsors             Json               @default("[]")
+  registrationOpensAt  DateTime?          @db.Timestamptz(3)
+  registrationClosesAt DateTime?          @db.Timestamptz(3)
+  startsAt             DateTime           @db.Timestamptz(3)
+  endsAt               DateTime?          @db.Timestamptz(3)
+  isPublic             Boolean            @default(true)
+  createdById          String             @db.Uuid
+  createdAt            DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime           @updatedAt @db.Timestamptz(3)
+  branch               Branch             @relation(fields: [branchId, organizationId], references: [id, organizationId])
+  game                 Game?              @relation(fields: [gameId], references: [id])
+  createdBy            Employee           @relation(fields: [createdById, organizationId], references: [id, organizationId])
+  teams                Team[]
+  tournamentPlayers    TournamentPlayer[]
+  matches              Match[]
+
+  @@unique([id, organizationId])
+  @@unique([organizationId, slug])
+  @@index([organizationId, status, startsAt])
+}
+
+enum EntryStatus {
+  REGISTERED
+  PAYMENT_PENDING
+  CONFIRMED
+  CHECKED_IN
+  ELIMINATED
+  WITHDRAWN
+  DISQUALIFIED
+  WINNER
+}
+
+/// A team inside a tournament (a solo player in 1v1 is a team of one).
+model Team {
+  id                String             @id @default(uuid(7)) @db.Uuid
+  organizationId    String             @db.Uuid
+  tournamentId      String             @db.Uuid
+  name              String
+  tag               String?
+  logoUrl           String?
+  captainId         String?            @db.Uuid
+  seed              Int?
+  status            EntryStatus        @default(REGISTERED)
+  paymentId         String?            @db.Uuid
+  finalPlacement    Int?
+  createdAt         DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime           @updatedAt @db.Timestamptz(3)
+  tournament        Tournament         @relation(fields: [tournamentId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  captain           Customer?          @relation("TeamCaptain", fields: [captainId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  payment           Payment?           @relation(fields: [paymentId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  matchesAsA        Match[]            @relation("MatchTeamA")
+  matchesAsB        Match[]            @relation("MatchTeamB")
+  matchesWon        Match[]            @relation("MatchWinner")
+  tournamentPlayers TournamentPlayer[]
+
+  @@unique([id, organizationId])
+  @@unique([tournamentId, name])
+}
+
+model TournamentPlayer {
+  id             String     @id @default(uuid(7)) @db.Uuid
+  organizationId String     @db.Uuid
+  tournamentId   String     @db.Uuid
+  teamId         String     @db.Uuid
+  customerId     String     @db.Uuid
+  inGameName     String?
+  role           String? // "IGL", "Sub"
+  isSubstitute   Boolean    @default(false)
+  checkedInAt    DateTime?  @db.Timestamptz(3)
+  createdAt      DateTime   @default(now()) @db.Timestamptz(3)
+  tournament     Tournament @relation(fields: [tournamentId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  team           Team       @relation(fields: [teamId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  customer       Customer   @relation(fields: [customerId, organizationId], references: [id, organizationId])
+
+  @@unique([tournamentId, customerId]) // a player can be in only one team per tournament
+  @@index([organizationId, teamId])
+}
+
+enum BracketSide {
+  WINNERS
+  LOSERS
+  GRAND_FINAL
+  GROUP
+  LEAGUE
+}
+
+enum MatchStatus {
+  PENDING // waiting for participants
+  SCHEDULED
+  READY
+  LIVE
+  AWAITING_CONFIRMATION
+  COMPLETED
+  DISPUTED
+  WALKOVER
+  CANCELLED
+}
+
+model Match {
+  id               String      @id @default(uuid(7)) @db.Uuid
+  organizationId   String      @db.Uuid
+  tournamentId     String      @db.Uuid
+  bracket          BracketSide @default(WINNERS)
+  round            Int
+  position         Int // slot within round
+  bestOf           Int         @default(1)
+  teamAId          String?     @db.Uuid
+  teamBId          String?     @db.Uuid
+  scoreA           Int?
+  scoreB           Int?
+  winnerTeamId     String?     @db.Uuid
+  status           MatchStatus @default(PENDING)
+  nextMatchId      String?     @db.Uuid // winner advances to
+  loserNextMatchId String?     @db.Uuid // double-elim drop
+  scheduledAt      DateTime?   @db.Timestamptz(3)
+  startedAt        DateTime?   @db.Timestamptz(3)
+  completedAt      DateTime?   @db.Timestamptz(3)
+  stationIds       String[]    @db.Uuid // devices assigned
+  games            Json        @default("[]") // per-map scores
+  reportedById     String?     @db.Uuid
+  confirmedById    String?     @db.Uuid
+  notes            String?
+  createdAt        DateTime    @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime    @updatedAt @db.Timestamptz(3)
+  tournament       Tournament  @relation(fields: [tournamentId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  teamA            Team?       @relation("MatchTeamA", fields: [teamAId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  teamB            Team?       @relation("MatchTeamB", fields: [teamBId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  winnerTeam       Team?       @relation("MatchWinner", fields: [winnerTeamId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  nextMatch        Match?      @relation("WinnerPath", fields: [nextMatchId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  feedersWin       Match[]     @relation("WinnerPath")
+  loserNextMatch   Match?      @relation("LoserPath", fields: [loserNextMatchId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  feedersLose      Match[]     @relation("LoserPath")
+
+  @@unique([id, organizationId])
+  @@unique([tournamentId, bracket, round, position])
+}

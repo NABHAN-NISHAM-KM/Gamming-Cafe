@@ -1,0 +1,28 @@
+{
+  "name": "@arena/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "validate": "prisma validate",
+    "format": "prisma format",
+    "codegen": "prisma generate && node scripts/gen-tenant-models.mjs",
+    "generate": "npm run codegen",
+    "rls:print": "node scripts/gen-rls.mjs",
+    "migrate:dev": "prisma migrate dev",
+    "migrate:deploy": "prisma migrate deploy",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.23.1",
+    "prisma": "^7.10.0"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.10.0",
+    "@prisma/client": "^7.10.0",
+    "pg": "^8.23.0",
+    "@arena/contracts": "0.1.0"
+  }
+}

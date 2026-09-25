@@ -1,0 +1,266 @@
+// ── Inventory, warehouses, suppliers, purchasing ─────────────────────────────
+
+enum WarehouseType {
+  CENTRAL
+  BRANCH_STORE
+  KITCHEN
+  BAR
+  TECH_STORE
+}
+
+model Warehouse {
+  id             String          @id @default(uuid(7)) @db.Uuid
+  organizationId String          @db.Uuid
+  branchId       String?         @db.Uuid // null = central warehouse
+  name           String
+  type           WarehouseType
+  isActive       Boolean         @default(true)
+  createdAt      DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime        @updatedAt @db.Timestamptz(3)
+  organization   Organization    @relation(fields: [organizationId], references: [id])
+  branch         Branch?         @relation(fields: [branchId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  stockLevels    StockLevel[]
+  stockLots      StockLot[]
+  stockMovements StockMovement[]
+  purchaseOrders PurchaseOrder[]
+
+  @@unique([id, organizationId])
+}
+
+enum InventoryCategory {
+  FOOD
+  DRINK
+  INGREDIENT
+  GAMING_ACCESSORY
+  CONTROLLER
+  HEADSET
+  MERCHANDISE
+  PC_PART
+  CONSUMABLE
+  PACKAGING
+  OTHER
+}
+
+model InventoryItem {
+  id                 String              @id @default(uuid(7)) @db.Uuid
+  organizationId     String              @db.Uuid
+  sku                String
+  barcode            String?
+  name               String
+  category           InventoryCategory
+  baseUnit           String // "pcs", "g", "ml"
+  purchaseUnit       String? // "case"
+  purchaseUnitQty    Decimal?            @db.Decimal(14, 4) // 1 case = 24 pcs
+  averageCost        Decimal             @default(0) @db.Decimal(19, 4) // moving average per base unit
+  lastPurchaseCost   Decimal?            @db.Decimal(19, 4)
+  minStock           Decimal             @default(0) @db.Decimal(14, 4)
+  reorderQty         Decimal?            @db.Decimal(14, 4)
+  trackExpiry        Boolean             @default(false)
+  trackSerial        Boolean             @default(false) // controllers, headsets, PC parts
+  defaultSupplierId  String?             @db.Uuid
+  isActive           Boolean             @default(true)
+  createdAt          DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime            @updatedAt @db.Timestamptz(3)
+  organization       Organization        @relation(fields: [organizationId], references: [id])
+  defaultSupplier    Supplier?           @relation(fields: [defaultSupplierId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  stockLevels        StockLevel[]
+  stockLots          StockLot[]
+  stockMovements     StockMovement[]
+  purchaseOrderLines PurchaseOrderLine[]
+  products           Product[]
+  modifiers          Modifier[]
+  recipeLines        RecipeLine[]
+
+  @@unique([id, organizationId])
+  @@unique([organizationId, sku])
+  @@index([organizationId, barcode])
+}
+
+/// Current on-hand projection per item & warehouse (rebuildable from StockMovement).
+model StockLevel {
+  id             String        @id @default(uuid(7)) @db.Uuid
+  organizationId String        @db.Uuid
+  itemId         String        @db.Uuid
+  warehouseId    String        @db.Uuid
+  quantity       Decimal       @default(0) @db.Decimal(14, 4)
+  reserved       Decimal       @default(0) @db.Decimal(14, 4)
+  version        Int           @default(0)
+  updatedAt      DateTime      @updatedAt @db.Timestamptz(3)
+  item           InventoryItem @relation(fields: [itemId, organizationId], references: [id, organizationId])
+  warehouse      Warehouse     @relation(fields: [warehouseId, organizationId], references: [id, organizationId])
+
+  @@unique([itemId, warehouseId])
+  @@index([organizationId, warehouseId])
+}
+
+model StockLot {
+  id             String        @id @default(uuid(7)) @db.Uuid
+  organizationId String        @db.Uuid
+  itemId         String        @db.Uuid
+  warehouseId    String        @db.Uuid
+  lotCode        String?
+  serialNumber   String?
+  expiresAt      DateTime?     @db.Date
+  quantity       Decimal       @db.Decimal(14, 4)
+  unitCost       Decimal       @db.Decimal(19, 4)
+  receivedAt     DateTime      @default(now()) @db.Timestamptz(3)
+  item           InventoryItem @relation(fields: [itemId, organizationId], references: [id, organizationId])
+  warehouse      Warehouse     @relation(fields: [warehouseId, organizationId], references: [id, organizationId])
+
+  @@index([organizationId, itemId, expiresAt])
+}
+
+enum StockMovementType {
+  PURCHASE_RECEIPT
+  SALE
+  RECIPE_CONSUMPTION
+  ADJUSTMENT
+  WASTE
+  TRANSFER_OUT
+  TRANSFER_IN
+  RETURN_TO_SUPPLIER
+  CUSTOMER_RETURN
+  STOCK_COUNT
+  ISSUE_TO_STATION // e.g. headset issued to a PC
+}
+
+/// Immutable stock ledger.
+model StockMovement {
+  id             String            @id @default(uuid(7)) @db.Uuid
+  organizationId String            @db.Uuid
+  itemId         String            @db.Uuid
+  warehouseId    String            @db.Uuid
+  lotId          String?           @db.Uuid
+  type           StockMovementType
+  quantity       Decimal           @db.Decimal(14, 4) // signed, base units
+  unitCost       Decimal           @db.Decimal(19, 4)
+  quantityAfter  Decimal           @db.Decimal(14, 4)
+  referenceType  String? // ORDER_ITEM, PO_LINE, TRANSFER, COUNT
+  referenceId    String?           @db.Uuid
+  transferId     String?           @db.Uuid // pairs TRANSFER_OUT / TRANSFER_IN
+  employeeId     String?           @db.Uuid
+  reason         String?
+  idempotencyKey String
+  createdAt      DateTime          @default(now()) @db.Timestamptz(3)
+  item           InventoryItem     @relation(fields: [itemId, organizationId], references: [id, organizationId])
+  warehouse      Warehouse         @relation(fields: [warehouseId, organizationId], references: [id, organizationId])
+  employee       Employee?         @relation(fields: [employeeId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId, itemId, createdAt])
+  @@index([organizationId, warehouseId, createdAt])
+}
+
+model Supplier {
+  id               String            @id @default(uuid(7)) @db.Uuid
+  organizationId   String            @db.Uuid
+  name             String
+  contactName      String?
+  email            String?
+  phone            String?
+  taxNumber        String?
+  address          String?
+  paymentTermsDays Int               @default(30)
+  currency         String            @db.Char(3)
+  notes            String?
+  isActive         Boolean           @default(true)
+  createdAt        DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime          @updatedAt @db.Timestamptz(3)
+  organization     Organization      @relation(fields: [organizationId], references: [id])
+  expenses         Expense[]
+  inventoryItems   InventoryItem[]
+  purchaseOrders   PurchaseOrder[]
+  supplierInvoices SupplierInvoice[]
+
+  @@unique([id, organizationId])
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  ORDERED
+  PARTIALLY_RECEIVED
+  RECEIVED
+  CANCELLED
+}
+
+model PurchaseOrder {
+  id                 String              @id @default(uuid(7)) @db.Uuid
+  organizationId     String              @db.Uuid
+  branchId           String?             @db.Uuid
+  warehouseId        String              @db.Uuid
+  supplierId         String              @db.Uuid
+  number             String
+  status             PurchaseOrderStatus @default(DRAFT)
+  currency           String              @db.Char(3)
+  subtotal           Decimal             @default(0) @db.Decimal(19, 4)
+  taxTotal           Decimal             @default(0) @db.Decimal(19, 4)
+  total              Decimal             @default(0) @db.Decimal(19, 4)
+  expectedAt         DateTime?           @db.Date
+  orderedAt          DateTime?           @db.Timestamptz(3)
+  notes              String?
+  createdById        String              @db.Uuid
+  approvedById       String?             @db.Uuid
+  approvedAt         DateTime?           @db.Timestamptz(3)
+  createdAt          DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime            @updatedAt @db.Timestamptz(3)
+  branch             Branch?             @relation(fields: [branchId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  warehouse          Warehouse           @relation(fields: [warehouseId, organizationId], references: [id, organizationId])
+  supplier           Supplier            @relation(fields: [supplierId, organizationId], references: [id, organizationId])
+  createdBy          Employee            @relation("PoCreatedBy", fields: [createdById, organizationId], references: [id, organizationId])
+  approvedBy         Employee?           @relation("PoApprovedBy", fields: [approvedById, organizationId], references: [id, organizationId], onDelete: Restrict)
+  purchaseOrderLines PurchaseOrderLine[]
+  supplierInvoices   SupplierInvoice[]
+
+  @@unique([id, organizationId])
+  @@unique([organizationId, number])
+  @@index([organizationId, supplierId, status])
+}
+
+model PurchaseOrderLine {
+  id               String        @id @default(uuid(7)) @db.Uuid
+  organizationId   String        @db.Uuid
+  purchaseOrderId  String        @db.Uuid
+  itemId           String        @db.Uuid
+  quantityOrdered  Decimal       @db.Decimal(14, 4)
+  quantityReceived Decimal       @default(0) @db.Decimal(14, 4)
+  unitCost         Decimal       @db.Decimal(19, 4)
+  taxRatePercent   Decimal       @default(0) @db.Decimal(7, 4)
+  lineTotal        Decimal       @db.Decimal(19, 4)
+  purchaseOrder    PurchaseOrder @relation(fields: [purchaseOrderId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  item             InventoryItem @relation(fields: [itemId, organizationId], references: [id, organizationId])
+
+  @@index([organizationId, purchaseOrderId])
+}
+
+enum SupplierInvoiceStatus {
+  UNPAID
+  PARTIALLY_PAID
+  PAID
+  DISPUTED
+  VOID
+}
+
+model SupplierInvoice {
+  id              String                @id @default(uuid(7)) @db.Uuid
+  organizationId  String                @db.Uuid
+  supplierId      String                @db.Uuid
+  purchaseOrderId String?               @db.Uuid
+  invoiceNumber   String
+  invoiceDate     DateTime              @db.Date
+  dueDate         DateTime              @db.Date
+  amount          Decimal               @db.Decimal(19, 4)
+  taxAmount       Decimal               @default(0) @db.Decimal(19, 4)
+  paidAmount      Decimal               @default(0) @db.Decimal(19, 4)
+  currency        String                @db.Char(3)
+  status          SupplierInvoiceStatus @default(UNPAID)
+  documentUrl     String?
+  createdAt       DateTime              @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime              @updatedAt @db.Timestamptz(3)
+  supplier        Supplier              @relation(fields: [supplierId, organizationId], references: [id, organizationId])
+  purchaseOrder   PurchaseOrder?        @relation(fields: [purchaseOrderId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@unique([organizationId, supplierId, invoiceNumber])
+  @@index([organizationId, status, dueDate])
+}

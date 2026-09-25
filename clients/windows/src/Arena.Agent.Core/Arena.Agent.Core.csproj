@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Platform-neutral agent logic: protocol, verification, identity. Unit-tested. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>Arena.Agent.Core</RootNamespace>
+  </PropertyGroup>
+</Project>

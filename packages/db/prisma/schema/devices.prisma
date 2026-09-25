@@ -1,0 +1,509 @@
+// ── Stations, device agent, telemetry, remote commands, diskless ────────────
+
+enum DeviceKind {
+  GAMING_PC
+  INTERNET_PC
+  CONSOLE
+  VR_HEADSET
+  SIMULATOR
+  KIOSK
+  POS_TERMINAL
+  KDS_SCREEN
+  PRINTER
+  SMART_TV
+}
+
+enum DevicePlatform {
+  WINDOWS
+  PS5
+  PS4
+  XBOX_SERIES
+  XBOX_ONE
+  SWITCH
+  META_QUEST
+  PICO
+  VALVE_INDEX
+  HTC_VIVE
+  RACING_RIG
+  FLIGHT_SIM
+  MOTION_SIM
+  OTHER
+}
+
+/// Live-floor status. Derived & cached; source of truth is sessions/bookings/heartbeats.
+enum DeviceStatus {
+  AVAILABLE
+  OCCUPIED
+  RESERVED
+  MAINTENANCE
+  OFFLINE
+  CLEANING
+  STARTING
+  SESSION_ENDING
+}
+
+enum PostSessionAction {
+  LOCK
+  LOGOUT_WINDOWS
+  RESTART_SHELL
+  RESTART_PC
+  SHUTDOWN_PC
+  RESTORE_REBOOT
+}
+
+/// A station on the floor: PC, console seat, VR headset, sim rig...
+model Device {
+  id                    String                 @id @default(uuid(7)) @db.Uuid
+  organizationId        String                 @db.Uuid
+  branchId              String                 @db.Uuid
+  zoneId                String                 @db.Uuid
+  name                  String // "PC-023", "PS5-04", "VIP-07"
+  kind                  DeviceKind
+  platform              DevicePlatform         @default(WINDOWS)
+  status                DeviceStatus           @default(OFFLINE)
+  isOnline              Boolean                @default(false)
+  isEnabled             Boolean                @default(true)
+  // Floor-map placement (zone-relative grid units)
+  mapX                  Int                    @default(0)
+  mapY                  Int                    @default(0)
+  mapW                  Int                    @default(1)
+  mapH                  Int                    @default(1)
+  mapRotation           Int                    @default(0)
+  // Network identity
+  macAddress            String?
+  ipAddress             String?
+  hostname              String?
+  // Console / VR specifics
+  controllerCount       Int?
+  linkedDisplayId       String?                @db.Uuid // SMART_TV used for console expiry screen
+  // Agent
+  agentVersion          String?
+  shellVersion          String?
+  lastSeenAt            DateTime?              @db.Timestamptz(3)
+  postSessionAction     PostSessionAction      @default(LOCK)
+  cleaningRequired      Boolean                @default(false) // VR headsets: force CLEANING after session
+  notes                 String?
+  metadata              Json                   @default("{}")
+  createdAt             DateTime               @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime               @updatedAt @db.Timestamptz(3)
+  branch                Branch                 @relation(fields: [branchId, organizationId], references: [id, organizationId])
+  zone                  Zone                   @relation(fields: [zoneId, organizationId], references: [id, organizationId])
+  linkedDisplay         Device?                @relation("DeviceDisplay", fields: [linkedDisplayId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  displayFor            Device[]               @relation("DeviceDisplay")
+  deviceAccessories     DeviceAccessory[]
+  deviceCredentials     DeviceCredential[]
+  deviceHardwares       DeviceHardware[]
+  deviceHeartbeats      DeviceHeartbeat[]
+  deviceCommands        DeviceCommand[]
+  maintenanceSessions   MaintenanceSession[]
+  remoteSupportSessions RemoteSupportSession[]
+  deviceBootInfos       DeviceBootInfo[]
+  alerts                Alert[]
+  transfersFrom         SessionTransfer[]      @relation("TransferFrom")
+  transfersTo           SessionTransfer[]      @relation("TransferTo")
+  printJobsSent         PrintJob[]             @relation("PrintSource")
+  printJobsPrinted      PrintJob[]             @relation("PrintTarget")
+  kitchenStations       KitchenStation[]       @relation("KdsDisplay")
+  cashDrawers           CashDrawer[]           @relation("DrawerPos")
+  bookingResources      BookingResource[]
+  customerSessions      CustomerSession[]
+  gameInstallations     GameInstallation[]
+  orders                Order[]
+  gamingSessions        GamingSession[]
+  notifications         Notification[]
+  supportTickets        SupportTicket[]
+
+  @@unique([id, organizationId])
+  @@unique([branchId, name])
+  @@unique([organizationId, macAddress])
+  @@index([organizationId, branchId, status])
+  @@index([organizationId, zoneId])
+}
+
+enum AccessoryType {
+  CONTROLLER
+  HEADSET
+  VR_CONTROLLER
+  STEERING_WHEEL
+  PEDALS
+  SHIFTER
+  JOYSTICK
+  KEYBOARD
+  MOUSE
+  WEBCAM
+  MICROPHONE
+  OTHER
+}
+
+enum AccessoryStatus {
+  OK
+  NEEDS_CHARGE
+  NEEDS_CLEANING
+  FAULTY
+  MISSING
+  RETIRED
+}
+
+model DeviceAccessory {
+  id              String          @id @default(uuid(7)) @db.Uuid
+  organizationId  String          @db.Uuid
+  deviceId        String          @db.Uuid
+  type            AccessoryType
+  label           String?
+  vendor          String?
+  model           String?
+  serialNumber    String?
+  status          AccessoryStatus @default(OK)
+  inventoryItemId String?         @db.Uuid
+  createdAt       DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime        @updatedAt @db.Timestamptz(3)
+  device          Device          @relation(fields: [deviceId, organizationId], references: [id, organizationId], onDelete: Cascade)
+
+  @@index([organizationId, deviceId])
+}
+
+enum SigningKeyStatus {
+  ACTIVE
+  RETIRING // still verifiable by agents during rotation, no longer used to sign
+  REVOKED
+}
+
+/// Per-branch ECDSA P-256 key that signs device commands. Agents pin the
+/// public key at enrolment. The private key is stored sealed (AES-256-GCM
+/// with a key-encryption key; KMS/HSM in production).
+model BranchSigningKey {
+  id               String           @id @default(uuid(7)) @db.Uuid
+  organizationId   String           @db.Uuid
+  branchId         String           @db.Uuid
+  kid              String           @unique
+  algorithm        String           @default("ES256")
+  publicKeyPem     String
+  privateKeySealed String
+  status           SigningKeyStatus @default(ACTIVE)
+  createdAt        DateTime         @default(now()) @db.Timestamptz(3)
+  retiredAt        DateTime?        @db.Timestamptz(3)
+  branch           Branch           @relation(fields: [branchId, organizationId], references: [id, organizationId])
+
+  @@index([organizationId, branchId, status])
+}
+
+/// Enrolment code typed or QR-scanned during agent install. Exchanged for a
+/// device key registration; limited uses, short expiry, revocable.
+model DeviceEnrollmentToken {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @db.Uuid
+  branchId       String    @db.Uuid
+  zoneId         String?   @db.Uuid
+  tokenHash      String    @unique
+  label          String? // e.g. "VIP zone install, 24 Sep"
+  createdById    String    @db.Uuid
+  expiresAt      DateTime  @db.Timestamptz(3)
+  maxUses        Int       @default(1) // one code can enrol a batch of PCs
+  uses           Int       @default(0)
+  revokedAt      DateTime? @db.Timestamptz(3)
+  usedAt         DateTime? @db.Timestamptz(3) // last use
+  usedByDeviceId String?   @db.Uuid // last device
+  createdAt      DateTime  @default(now()) @db.Timestamptz(3)
+  branch         Branch    @relation(fields: [branchId, organizationId], references: [id, organizationId])
+  createdBy      Employee  @relation(fields: [createdById, organizationId], references: [id, organizationId])
+
+  @@index([organizationId])
+}
+
+/// mTLS client certificate issued to a device. Agent holds the private key in
+/// the Windows cert store (TPM-backed where available). No shared secrets.
+model DeviceCredential {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @db.Uuid
+  deviceId       String    @db.Uuid
+  certSerial     String    @unique
+  certThumbprint String    @unique
+  publicKeyPem   String
+  issuedAt       DateTime  @default(now()) @db.Timestamptz(3)
+  expiresAt      DateTime  @db.Timestamptz(3)
+  revokedAt      DateTime? @db.Timestamptz(3)
+  revokeReason   String?
+  device         Device    @relation(fields: [deviceId, organizationId], references: [id, organizationId], onDelete: Cascade)
+
+  @@index([organizationId, deviceId])
+}
+
+/// Hardware inventory snapshot. A new row is written only when the hash
+/// changes → "unexpected hardware change" alert.
+model DeviceHardware {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @db.Uuid
+  deviceId       String   @db.Uuid
+  hardwareHash   String
+  isCurrent      Boolean  @default(true)
+  cpu            String?
+  cpuCores       Int?
+  gpu            String?
+  gpuVramMb      Int?
+  ramMb          Int?
+  motherboard    String?
+  biosVersion    String?
+  osVersion      String?
+  disks          Json     @default("[]") // [{model, serial, sizeGb, smartStatus}]
+  nics           Json     @default("[]") // [{name, mac, speedMbps}]
+  monitors       Json     @default("[]")
+  peripherals    Json     @default("[]")
+  collectedAt    DateTime @default(now()) @db.Timestamptz(3)
+  device         Device   @relation(fields: [deviceId, organizationId], references: [id, organizationId], onDelete: Cascade)
+
+  @@index([organizationId, deviceId, isCurrent])
+}
+
+/// High-volume time series. Partition monthly (pg_partman) or move to
+/// TimescaleDB; retention 30–90 days, rolled up into hourly aggregates.
+model DeviceHeartbeat {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @db.Uuid
+  deviceId       String   @db.Uuid
+  at             DateTime @default(now()) @db.Timestamptz(3)
+  cpuPct         Float?
+  gpuPct         Float?
+  ramPct         Float?
+  diskPct        Float?
+  cpuTempC       Float?
+  gpuTempC       Float?
+  pingMs         Float?
+  packetLossPct  Float?
+  fps            Float?
+  uptimeSec      Int?
+  foregroundApp  String?
+  shellState     String? // LOCKED | IN_SESSION | MAINTENANCE | UPDATING
+  device         Device   @relation(fields: [deviceId, organizationId], references: [id, organizationId], onDelete: Cascade)
+
+  @@index([organizationId, deviceId, at(sort: Desc)])
+}
+
+enum DeviceCommandType {
+  LOCK
+  UNLOCK
+  START_SESSION
+  END_SESSION
+  EXTEND_SESSION
+  MOVE_SESSION
+  RESTART
+  SHUTDOWN
+  WAKE_ON_LAN
+  LOGOUT
+  OPEN_GAME
+  CLOSE_GAME
+  LAUNCH_APP
+  SEND_MESSAGE
+  MAINTENANCE_MODE
+  REFRESH_CONFIG
+  UPDATE_CLIENT
+  RUN_REPAIR
+  SCREENSHOT
+}
+
+enum DeviceCommandStatus {
+  PENDING
+  SENT
+  RECEIVED
+  EXECUTING
+  SUCCEEDED
+  FAILED
+  EXPIRED
+  CANCELLED
+}
+
+/// Every remote action is persisted before dispatch and signed (Ed25519,
+/// branch key). The agent rejects unsigned/expired/replayed commands.
+model DeviceCommand {
+  id             String              @id @default(uuid(7)) @db.Uuid // = commandId in the envelope
+  organizationId String              @db.Uuid
+  branchId       String              @db.Uuid
+  deviceId       String              @db.Uuid
+  type           DeviceCommandType
+  payload        Json                @default("{}")
+  status         DeviceCommandStatus @default(PENDING)
+  requestedById  String?             @db.Uuid // Employee; null = system (e.g. session expiry)
+  batchId        String?             @db.Uuid // mass action (e.g. "Restart Zone")
+  nonce          String              @unique
+  signature      String
+  issuedAt       DateTime            @default(now()) @db.Timestamptz(3)
+  expiresAt      DateTime            @db.Timestamptz(3)
+  sentAt         DateTime?           @db.Timestamptz(3)
+  receivedAt     DateTime?           @db.Timestamptz(3)
+  executingAt    DateTime?           @db.Timestamptz(3)
+  completedAt    DateTime?           @db.Timestamptz(3)
+  attempts       Int                 @default(0)
+  result         Json?
+  errorCode      String?
+  errorMessage   String?
+  device         Device              @relation(fields: [deviceId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  branch         Branch              @relation(fields: [branchId, organizationId], references: [id, organizationId])
+  requestedBy    Employee?           @relation(fields: [requestedById, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@index([organizationId, deviceId, status])
+  @@index([organizationId, batchId])
+}
+
+enum MaintenanceAuthMethod {
+  PIN
+  RFID
+  ADMIN_ACCOUNT
+  REMOTE_GRANT
+}
+
+/// Every entry into shell maintenance mode. Authorized server-side by the
+/// Windows service, never by the hotkey alone.
+model MaintenanceSession {
+  id             String                @id @default(uuid(7)) @db.Uuid
+  organizationId String                @db.Uuid
+  deviceId       String                @db.Uuid
+  employeeId     String                @db.Uuid
+  authMethod     MaintenanceAuthMethod
+  reason         String
+  grantedTools   String[] // e.g. ["explorer","taskmgr","cmd"] — from permissions
+  actions        Json                  @default("[]") // [{at, action, detail}]
+  startedAt      DateTime              @default(now()) @db.Timestamptz(3)
+  endedAt        DateTime?             @db.Timestamptz(3)
+  expiresAt      DateTime              @db.Timestamptz(3)
+  endReason      String?
+  device         Device                @relation(fields: [deviceId, organizationId], references: [id, organizationId])
+  employee       Employee              @relation(fields: [employeeId, organizationId], references: [id, organizationId])
+
+  @@index([organizationId, deviceId, startedAt])
+}
+
+enum RemoteSupportProvider {
+  BUILTIN_VNC
+  RUSTDESK
+  ANYDESK
+  TEAMVIEWER
+  OTHER
+}
+
+model RemoteSupportSession {
+  id                String                @id @default(uuid(7)) @db.Uuid
+  organizationId    String                @db.Uuid
+  deviceId          String                @db.Uuid
+  employeeId        String                @db.Uuid
+  provider          RemoteSupportProvider @default(BUILTIN_VNC)
+  viewOnly          Boolean               @default(true)
+  customerConsented Boolean               @default(false)
+  startedAt         DateTime              @default(now()) @db.Timestamptz(3)
+  endedAt           DateTime?             @db.Timestamptz(3)
+  device            Device                @relation(fields: [deviceId, organizationId], references: [id, organizationId])
+  employee          Employee              @relation(fields: [employeeId, organizationId], references: [id, organizationId])
+
+  @@index([organizationId, deviceId])
+}
+
+enum DisklessProvider {
+  CCBOOT
+  ISCSI_PXE
+  GGROCK
+  NATIVE // future in-house PXE/iSCSI service
+  OTHER
+}
+
+/// Integration adapter config for a branch's diskless system.
+model DisklessIntegration {
+  id              String           @id @default(uuid(7)) @db.Uuid
+  organizationId  String           @db.Uuid
+  branchId        String           @db.Uuid
+  provider        DisklessProvider
+  name            String
+  endpoint        String?
+  credentialsRef  String?
+  config          Json             @default("{}")
+  isActive        Boolean          @default(true)
+  lastSyncAt      DateTime?        @db.Timestamptz(3)
+  createdAt       DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime         @updatedAt @db.Timestamptz(3)
+  branch          Branch           @relation(fields: [branchId, organizationId], references: [id, organizationId])
+  deviceBootInfos DeviceBootInfo[]
+
+  @@unique([id, organizationId])
+  @@index([organizationId, branchId])
+}
+
+enum BootStatus {
+  UNKNOWN
+  PXE
+  BOOTING
+  BOOTED
+  FAILED
+  LOCAL_DISK
+}
+
+model DeviceBootInfo {
+  id              String               @id @default(uuid(7)) @db.Uuid
+  organizationId  String               @db.Uuid
+  deviceId        String               @db.Uuid
+  integrationId   String?              @db.Uuid
+  imageName       String?
+  imageVersion    String?
+  bootServer      String?
+  gameDisk        String?
+  writebackPath   String?
+  writebackUsedMb Int?
+  cacheSizeMb     Int?
+  cacheHitPct     Float?
+  bootStatus      BootStatus           @default(UNKNOWN)
+  lastBootAt      DateTime?            @db.Timestamptz(3)
+  updatedAt       DateTime             @updatedAt @db.Timestamptz(3)
+  device          Device               @relation(fields: [deviceId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  integration     DisklessIntegration? @relation(fields: [integrationId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@unique([deviceId])
+  @@index([organizationId])
+}
+
+enum AlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum AlertStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+}
+
+model Alert {
+  id               String        @id @default(uuid(7)) @db.Uuid
+  organizationId   String        @db.Uuid
+  branchId         String?       @db.Uuid
+  deviceId         String?       @db.Uuid
+  type             String // HIGH_TEMP, DISK_FAILURE, CLIENT_OFFLINE, LOW_STOCK, CASH_VARIANCE...
+  severity         AlertSeverity
+  status           AlertStatus   @default(OPEN)
+  title            String
+  detail           Json          @default("{}")
+  dedupeKey        String // collapse repeated alerts
+  openedAt         DateTime      @default(now()) @db.Timestamptz(3)
+  acknowledgedAt   DateTime?     @db.Timestamptz(3)
+  acknowledgedById String?       @db.Uuid
+  resolvedAt       DateTime?     @db.Timestamptz(3)
+  organization     Organization  @relation(fields: [organizationId], references: [id])
+  branch           Branch?       @relation(fields: [branchId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  device           Device?       @relation(fields: [deviceId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@index([organizationId, status, severity])
+  @@index([organizationId, dedupeKey, status])
+}
+
+/// Customer-safe peripheral presets exposed in the shell Peripheral Center.
+model PeripheralProfile {
+  id             String        @id @default(uuid(7)) @db.Uuid
+  organizationId String        @db.Uuid
+  category       AccessoryType
+  vendor         String? // RAZER, LOGITECH, STEELSERIES, CORSAIR, HYPERX, ASUS, MSI
+  name           String
+  settings       Json // {dpi: 800, sensitivity: 1.0} — validated against a per-category schema
+  vendorUtility  String? // executable launched in a sandboxed window, if allowed
+  isDefault      Boolean       @default(false)
+  createdAt      DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime      @updatedAt @db.Timestamptz(3)
+  organization   Organization  @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, category])
+}

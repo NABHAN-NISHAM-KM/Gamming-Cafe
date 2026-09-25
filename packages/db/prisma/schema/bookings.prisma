@@ -1,0 +1,99 @@
+// ── Bookings ─────────────────────────────────────────────────────────────────
+// Double-booking is prevented at the DB level by a GiST exclusion constraint
+// on BookingResource (resource, tstzrange(startsAt, endsAt)) for "live"
+// statuses — see prisma/sql/030_constraints.sql. App-level checks give nice
+// errors; the constraint guarantees correctness under concurrency.
+
+enum BookingResourceType {
+  PC
+  VIP_PC
+  CONSOLE
+  VR
+  SIMULATOR
+  PRIVATE_ROOM
+  BOOTCAMP
+  RESTAURANT_TABLE
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CHECKED_IN
+  ACTIVE
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum BookingSource {
+  STAFF
+  CUSTOMER_WEB
+  CUSTOMER_APP
+  SHELL
+  PHONE
+  API
+}
+
+model Booking {
+  id               String              @id @default(uuid(7)) @db.Uuid
+  organizationId   String              @db.Uuid
+  branchId         String              @db.Uuid
+  zoneId           String?             @db.Uuid
+  customerId       String?             @db.Uuid
+  reference        String // human code, e.g. "BK-7F3K2"
+  resourceType     BookingResourceType
+  startsAt         DateTime            @db.Timestamptz(3)
+  endsAt           DateTime            @db.Timestamptz(3)
+  players          Int                 @default(1)
+  status           BookingStatus       @default(PENDING)
+  source           BookingSource       @default(STAFF)
+  contactName      String?
+  contactPhone     String?
+  estimatedTotal   Decimal             @default(0) @db.Decimal(19, 4)
+  depositAmount    Decimal             @default(0) @db.Decimal(19, 4)
+  currency         String              @db.Char(3)
+  promoCode        String?
+  notes            String?
+  holdExpiresAt    DateTime?           @db.Timestamptz(3) // PENDING auto-cancels if unpaid
+  checkedInAt      DateTime?           @db.Timestamptz(3)
+  cancelledAt      DateTime?           @db.Timestamptz(3)
+  cancelReason     String?
+  createdById      String?             @db.Uuid
+  idempotencyKey   String?
+  createdAt        DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime            @updatedAt @db.Timestamptz(3)
+  branch           Branch              @relation(fields: [branchId, organizationId], references: [id, organizationId])
+  zone             Zone?               @relation(fields: [zoneId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  customer         Customer?           @relation(fields: [customerId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  bookingResources BookingResource[]
+  payments         Payment[]
+  orderItems       OrderItem[]
+  gamingSessions   GamingSession[]
+
+  @@unique([id, organizationId])
+  @@unique([organizationId, reference])
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId, branchId, startsAt])
+  @@index([organizationId, customerId])
+}
+
+/// One row per booked station/table. `startsAt/endsAt/isLive` are
+/// denormalised from Booking (kept in sync by trigger) so the exclusion
+/// constraint can live on this table.
+model BookingResource {
+  id             String           @id @default(uuid(7)) @db.Uuid
+  organizationId String           @db.Uuid
+  bookingId      String           @db.Uuid
+  deviceId       String?          @db.Uuid
+  tableId        String?          @db.Uuid
+  startsAt       DateTime         @db.Timestamptz(3)
+  endsAt         DateTime         @db.Timestamptz(3)
+  isLive         Boolean          @default(true) // false once CANCELLED/NO_SHOW/COMPLETED
+  booking        Booking          @relation(fields: [bookingId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  device         Device?          @relation(fields: [deviceId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  table          RestaurantTable? @relation(fields: [tableId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@index([organizationId, bookingId])
+  @@index([deviceId, startsAt])
+  @@index([tableId, startsAt])
+}

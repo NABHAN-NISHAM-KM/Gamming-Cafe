@@ -1,0 +1,333 @@
+// ── Payments, refunds, shifts & cash, invoices, accounting ──────────────────
+
+enum PaymentMethod {
+  CASH
+  CARD
+  WALLET
+  ONLINE
+  QR
+  BANK_TRANSFER
+  GIFT_CARD
+  LOYALTY_POINTS
+}
+
+enum PaymentStatus {
+  PENDING
+  REQUIRES_ACTION // 3DS etc.
+  AUTHORIZED
+  CAPTURED
+  FAILED
+  VOIDED
+  PARTIALLY_REFUNDED
+  REFUNDED
+}
+
+/// Mixed payment = several Payment rows on the same Bill. `idempotencyKey`
+/// is unique per org, so a retried request (or offline replay) can never
+/// create a second charge — the original row is returned instead.
+model Payment {
+  id                 String              @id @default(uuid(7)) @db.Uuid
+  organizationId     String              @db.Uuid
+  branchId           String              @db.Uuid
+  billId             String?             @db.Uuid
+  orderId            String?             @db.Uuid
+  bookingId          String?             @db.Uuid
+  customerId         String?             @db.Uuid
+  shiftId            String?             @db.Uuid
+  employeeId         String?             @db.Uuid
+  method             PaymentMethod
+  provider           PaymentProvider?
+  gatewayConfigId    String?             @db.Uuid
+  providerRef        String? // PSP payment-intent / transaction id
+  status             PaymentStatus       @default(PENDING)
+  amount             Decimal             @db.Decimal(19, 4)
+  tipAmount          Decimal             @default(0) @db.Decimal(19, 4)
+  refundedAmount     Decimal             @default(0) @db.Decimal(19, 4)
+  currency           String              @db.Char(3)
+  cashTendered       Decimal?            @db.Decimal(19, 4)
+  changeGiven        Decimal?            @db.Decimal(19, 4)
+  cardLast4          String? // never PAN; PCI scope stays with the PSP
+  cardBrand          String?
+  failureCode        String?
+  failureMessage     String?
+  idempotencyKey     String
+  offlineOrigin      Boolean             @default(false)
+  authorizedAt       DateTime?           @db.Timestamptz(3)
+  capturedAt         DateTime?           @db.Timestamptz(3)
+  createdAt          DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime            @updatedAt @db.Timestamptz(3)
+  branch             Branch              @relation(fields: [branchId, organizationId], references: [id, organizationId])
+  bill               Bill?               @relation(fields: [billId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  order              Order?              @relation(fields: [orderId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  booking            Booking?            @relation(fields: [bookingId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  customer           Customer?           @relation(fields: [customerId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  shift              Shift?              @relation(fields: [shiftId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  employee           Employee?           @relation(fields: [employeeId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  walletTransactions WalletTransaction[]
+  teams              Team[]
+  refunds            Refund[]
+
+  @@unique([id, organizationId])
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId, branchId, createdAt])
+  @@index([provider, providerRef])
+}
+
+enum RefundStatus {
+  REQUESTED
+  APPROVED
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  REJECTED
+}
+
+enum RefundDestination {
+  ORIGINAL_METHOD
+  WALLET
+  CASH
+}
+
+model Refund {
+  id             String            @id @default(uuid(7)) @db.Uuid
+  organizationId String            @db.Uuid
+  paymentId      String            @db.Uuid
+  amount         Decimal           @db.Decimal(19, 4)
+  currency       String            @db.Char(3)
+  destination    RefundDestination @default(ORIGINAL_METHOD)
+  reason         String
+  status         RefundStatus      @default(REQUESTED)
+  providerRef    String?
+  orderItemIds   String[]          @db.Uuid
+  requestedById  String            @db.Uuid
+  approvedById   String?           @db.Uuid
+  shiftId        String?           @db.Uuid
+  idempotencyKey String
+  processedAt    DateTime?         @db.Timestamptz(3)
+  createdAt      DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime          @updatedAt @db.Timestamptz(3)
+  payment        Payment           @relation(fields: [paymentId, organizationId], references: [id, organizationId])
+  requestedBy    Employee          @relation("RefundRequestedBy", fields: [requestedById, organizationId], references: [id, organizationId])
+  approvedBy     Employee?         @relation("RefundApprovedBy", fields: [approvedById, organizationId], references: [id, organizationId], onDelete: Restrict)
+  shift          Shift?            @relation(fields: [shiftId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId, paymentId])
+}
+
+// ── Shifts & cash drawer ──
+
+model CashDrawer {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @db.Uuid
+  branchId       String   @db.Uuid
+  name           String
+  posDeviceId    String?  @db.Uuid
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(3)
+  branch         Branch   @relation(fields: [branchId, organizationId], references: [id, organizationId])
+  posDevice      Device?  @relation("DrawerPos", fields: [posDeviceId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  shifts         Shift[]
+
+  @@unique([id, organizationId])
+}
+
+enum ShiftStatus {
+  OPEN
+  CLOSING
+  CLOSED
+  PENDING_APPROVAL // variance above threshold
+  APPROVED
+}
+
+model Shift {
+  id             String         @id @default(uuid(7)) @db.Uuid
+  organizationId String         @db.Uuid
+  branchId       String         @db.Uuid
+  cashDrawerId   String         @db.Uuid
+  employeeId     String         @db.Uuid
+  status         ShiftStatus    @default(OPEN)
+  currency       String         @db.Char(3)
+  openingCash    Decimal        @db.Decimal(19, 4)
+  expectedCash   Decimal?       @db.Decimal(19, 4) // computed at close from CashMovements
+  countedCash    Decimal?       @db.Decimal(19, 4)
+  variance       Decimal?       @db.Decimal(19, 4)
+  denominations  Json? // counted breakdown
+  totals         Json? // snapshot: sales by method, refunds, discounts, voids
+  openedAt       DateTime       @default(now()) @db.Timestamptz(3)
+  closedAt       DateTime?      @db.Timestamptz(3)
+  approvedById   String?        @db.Uuid
+  approvedAt     DateTime?      @db.Timestamptz(3)
+  notes          String?
+  createdAt      DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime       @updatedAt @db.Timestamptz(3)
+  branch         Branch         @relation(fields: [branchId, organizationId], references: [id, organizationId])
+  cashDrawer     CashDrawer     @relation(fields: [cashDrawerId, organizationId], references: [id, organizationId])
+  employee       Employee       @relation("ShiftEmployee", fields: [employeeId, organizationId], references: [id, organizationId])
+  approvedBy     Employee?      @relation("ShiftApprovedBy", fields: [approvedById, organizationId], references: [id, organizationId], onDelete: Restrict)
+  payments       Payment[]
+  refunds        Refund[]
+  cashMovements  CashMovement[]
+  expenses       Expense[]
+  orders         Order[]
+
+  @@unique([id, organizationId])
+  @@index([organizationId, branchId, status])
+}
+
+enum CashMovementType {
+  OPENING_FLOAT
+  CASH_SALE
+  CASH_REFUND
+  PAY_IN
+  PAY_OUT
+  EXPENSE
+  SAFE_DROP
+  CHANGE_CORRECTION
+}
+
+/// Immutable drawer ledger.
+model CashMovement {
+  id             String           @id @default(uuid(7)) @db.Uuid
+  organizationId String           @db.Uuid
+  shiftId        String           @db.Uuid
+  type           CashMovementType
+  amount         Decimal          @db.Decimal(19, 4) // signed
+  paymentId      String?          @db.Uuid
+  refundId       String?          @db.Uuid
+  expenseId      String?          @db.Uuid
+  employeeId     String           @db.Uuid
+  reason         String?
+  createdAt      DateTime         @default(now()) @db.Timestamptz(3)
+  shift          Shift            @relation(fields: [shiftId, organizationId], references: [id, organizationId])
+  employee       Employee         @relation(fields: [employeeId, organizationId], references: [id, organizationId])
+
+  @@index([organizationId, shiftId])
+}
+
+// ── Fiscal invoices ──
+
+model Invoice {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @db.Uuid
+  branchId       String    @db.Uuid
+  billId         String    @db.Uuid
+  number         String // sequential per branch per fiscal rules
+  customerId     String?   @db.Uuid
+  customerName   String?
+  customerTaxNo  String?
+  issuedAt       DateTime  @default(now()) @db.Timestamptz(3)
+  subtotal       Decimal   @db.Decimal(19, 4)
+  discountTotal  Decimal   @db.Decimal(19, 4)
+  taxTotal       Decimal   @db.Decimal(19, 4)
+  total          Decimal   @db.Decimal(19, 4)
+  currency       String    @db.Char(3)
+  taxBreakdown   Json // [{rateName, ratePercent, taxable, tax}]
+  lines          Json // frozen line snapshot
+  pdfUrl         String?
+  fiscalRef      String? // e-invoicing authority reference where required
+  isCreditNote   Boolean   @default(false)
+  originalId     String?   @db.Uuid
+  branch         Branch    @relation(fields: [branchId, organizationId], references: [id, organizationId])
+  bill           Bill      @relation(fields: [billId, organizationId], references: [id, organizationId])
+  customer       Customer? @relation(fields: [customerId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@unique([organizationId, branchId, number])
+}
+
+// ── Accounting (general ledger) ──
+
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  EXPENSE
+}
+
+model LedgerAccount {
+  id             String          @id @default(uuid(7)) @db.Uuid
+  organizationId String          @db.Uuid
+  code           String // "4100"
+  name           String // "Gaming revenue"
+  type           AccountType
+  parentId       String?         @db.Uuid
+  systemKey      String? // GAMING_REVENUE, FOOD_REVENUE, WALLET_LIABILITY, VAT_PAYABLE...
+  isActive       Boolean         @default(true)
+  createdAt      DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime        @updatedAt @db.Timestamptz(3)
+  organization   Organization    @relation(fields: [organizationId], references: [id])
+  parent         LedgerAccount?  @relation("AccountTree", fields: [parentId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  children       LedgerAccount[] @relation("AccountTree")
+  journalLines   JournalLine[]
+
+  @@unique([id, organizationId])
+  @@unique([organizationId, code])
+  @@unique([organizationId, systemKey])
+}
+
+/// Posted automatically from domain events (sale, top-up, refund, PO receipt).
+/// Wallet top-ups post to a LIABILITY account; revenue is recognised on spend.
+model JournalEntry {
+  id             String        @id @default(uuid(7)) @db.Uuid
+  organizationId String        @db.Uuid
+  branchId       String?       @db.Uuid
+  entryDate      DateTime      @db.Date
+  description    String
+  sourceType     String // PAYMENT, WALLET_TX, REFUND, STOCK_MOVEMENT, MANUAL
+  sourceId       String?       @db.Uuid
+  currency       String        @db.Char(3)
+  postedById     String?       @db.Uuid
+  reversesId     String?       @db.Uuid
+  createdAt      DateTime      @default(now()) @db.Timestamptz(3)
+  branch         Branch?       @relation(fields: [branchId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  journalLines   JournalLine[]
+
+  @@unique([id, organizationId])
+  @@unique([organizationId, sourceType, sourceId]) // exactly-once posting
+  @@index([organizationId, entryDate])
+}
+
+/// Immutable. Σdebit = Σcredit per entry (deferred constraint trigger).
+model JournalLine {
+  id             String        @id @default(uuid(7)) @db.Uuid
+  organizationId String        @db.Uuid
+  entryId        String        @db.Uuid
+  accountId      String        @db.Uuid
+  debit          Decimal       @default(0) @db.Decimal(19, 4)
+  credit         Decimal       @default(0) @db.Decimal(19, 4)
+  memo           String?
+  entry          JournalEntry  @relation(fields: [entryId, organizationId], references: [id, organizationId])
+  account        LedgerAccount @relation(fields: [accountId, organizationId], references: [id, organizationId])
+
+  @@index([organizationId, accountId])
+  @@index([organizationId, entryId])
+}
+
+model Expense {
+  id             String        @id @default(uuid(7)) @db.Uuid
+  organizationId String        @db.Uuid
+  branchId       String        @db.Uuid
+  category       String
+  description    String?
+  amount         Decimal       @db.Decimal(19, 4)
+  taxAmount      Decimal       @default(0) @db.Decimal(19, 4)
+  currency       String        @db.Char(3)
+  paidVia        PaymentMethod
+  shiftId        String?       @db.Uuid // paid from drawer
+  supplierId     String?       @db.Uuid
+  receiptUrl     String?
+  incurredAt     DateTime      @db.Date
+  createdById    String        @db.Uuid
+  approvedById   String?       @db.Uuid
+  createdAt      DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime      @updatedAt @db.Timestamptz(3)
+  branch         Branch        @relation(fields: [branchId, organizationId], references: [id, organizationId])
+  shift          Shift?        @relation(fields: [shiftId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  supplier       Supplier?     @relation(fields: [supplierId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  createdBy      Employee      @relation("ExpenseCreatedBy", fields: [createdById, organizationId], references: [id, organizationId])
+  approvedBy     Employee?     @relation("ExpenseApprovedBy", fields: [approvedById, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@index([organizationId, branchId, incurredAt])
+}

@@ -1,0 +1,25 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// ArenaOS — core schema (multi-file; one file per bounded context)
+//
+// Conventions (see docs/05-multi-tenancy.md):
+//  * Every PK is a UUIDv7 (time-ordered → good index locality).
+//  * Every tenant-owned row carries `organizationId` and is protected by
+//    Postgres Row-Level Security (prisma/sql/010_rls.sql).
+//  * Every tenant table exposes @@unique([id, organizationId]) so children
+//    reference it with a *composite* FK (parentId, organizationId). This makes
+//    it physically impossible for a row in org A to point at a parent in org B,
+//    even though Postgres FK checks bypass RLS.
+//  * Money = Decimal(19,4) + ISO-4217 currency code. Never floats.
+//  * Ledgers (WalletTransaction, LoyaltyTransaction, StockMovement,
+//    CashMovement, JournalLine, AuditLog) are append-only; enforced by
+//    triggers in prisma/sql/020_immutability.sql.
+// ─────────────────────────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client"
+  output   = "../../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}

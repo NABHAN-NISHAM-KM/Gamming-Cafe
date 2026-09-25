@@ -1,0 +1,25 @@
+{
+  "name": "arena-os",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Multi-tenant SaaS for gaming cafés, esports arenas, internet cafés, console/VR centers and gaming restaurants",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "db:validate": "npm run validate -w @arena/db",
+    "db:generate": "npm run generate -w @arena/db"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.0",
+    "vitest": "^5.0.0",
+    "@types/node": "^22.0.0"
+  }
+}

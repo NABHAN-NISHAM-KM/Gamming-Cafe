@@ -1,0 +1,37 @@
+# Local development stack. `docker compose -f infra/docker-compose.yml up -d`
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: arena_owner
+      POSTGRES_PASSWORD: arena_owner_dev
+      POSTGRES_DB: arena
+    ports: ["5432:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Runs once on first boot, BEFORE migrations: creates login roles.
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U arena_owner -d arena"]
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports: ["6379:6379"]
+    volumes: [redisdata:/data]
+
+  # S3-compatible object storage (covers, receipts, client builds).
+  # Optional until later phases: `docker compose --profile storage up -d`
+  s3:
+    image: chrislusf/seaweedfs:latest
+    profiles: ["storage"]
+    command: server -dir=/data -s3 -s3.port=9000
+    ports: ["9000:9000"]
+    volumes: [s3data:/data]
+
+volumes:
+  pgdata:
+  redisdata:
+  s3data:
