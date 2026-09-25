@@ -71,7 +71,8 @@ export class CommandsService {
    */
   async issue(tx: TenantTx, input: IssueInput) {
     const device = await tx.device.findUniqueOrThrow({ where: { id: input.deviceId }, select: { id: true, organizationId: true, branchId: true, isEnabled: true } });
-    if (!device.isEnabled) throw new ConflictException({ error: "device_disabled" });
+    // A disabled/retired PC gets nothing new — except being told to stop a session (so billing and the PC can close out).
+    if (!device.isEnabled && input.type !== "END_SESSION" && input.type !== "LOCK") throw new ConflictException({ error: "device_disabled" });
 
     const issuedAt = new Date();
     const expiresAt = new Date(issuedAt.getTime() + (TTL_SECONDS[input.type] ?? 300) * 1000);

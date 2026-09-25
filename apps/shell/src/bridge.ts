@@ -63,6 +63,21 @@ export interface Peripheral {
 }
 export type RequestResult = { requestId: string; ok: boolean; error?: string; message?: string };
 
+export interface SeatMenu {
+  currency: string;
+  canPayWithWallet: boolean;
+  categories: Array<{
+    id: string;
+    name: string;
+    products: Array<{ id: string; name: string; description: string | null; price: string; available: boolean; modifierGroups: Array<{ id: string; name: string; minSelect: number; maxSelect: number; modifiers: Array<{ id: string; name: string; priceDelta: string }> }> }>;
+  }>;
+}
+export interface OrderLine {
+  productId: string;
+  quantity: number;
+  modifierIds: string[];
+}
+
 export type HostMessage =
   | ({ type: "state" } & ShellState)
   | { type: "login_result"; requestId: string; ok: boolean; error?: string; message?: string }
@@ -72,7 +87,10 @@ export type HostMessage =
   | { type: "playing"; gameId: string | null; title: string | null }
   | { type: "network"; probe: Probe }
   | { type: "peripherals"; items: Peripheral[] }
-  | { type: "pointer"; mouseSpeed: number; enhancePointerPrecision: boolean };
+  | { type: "pointer"; mouseSpeed: number; enhancePointerPrecision: boolean }
+  | { type: "menu"; requestId: string; menu: SeatMenu | null; error?: string }
+  | { type: "order_result"; requestId: string; ok: boolean; orderId?: string; number?: string; total?: string; currency?: string; error?: string; message?: string }
+  | { type: "order_status"; orderId: string; number: string; status: "PREPARING" | "READY" | "SERVED"; message: string };
 
 export type HelpTopic = "general" | "game" | "peripheral" | "network" | "payment";
 export type SelfRepair = "FLUSH_DNS" | "RESTART_AUDIO" | "RESTART_SHELL";
@@ -86,7 +104,9 @@ export type ShellMessage =
   | { type: "help"; requestId: string; topic: HelpTopic; note?: string }
   | { type: "repair"; requestId: string; action: SelfRepair }
   | { type: "pointer_get" }
-  | { type: "pointer_apply"; mouseSpeed?: number; enhancePointerPrecision?: boolean };
+  | { type: "pointer_apply"; mouseSpeed?: number; enhancePointerPrecision?: boolean }
+  | { type: "menu_request"; requestId: string }
+  | { type: "place_order"; requestId: string; lines: OrderLine[]; notes?: string; payWith: "BILL" | "WALLET" };
 
 type Listener = (m: HostMessage) => void;
 
@@ -172,6 +192,20 @@ const MOCK_PERIPHERALS: Peripheral[] = [
   { type: "HEADSET", name: "HyperX Cloud II", vendor: "HyperX" },
   { type: "CONTROLLER", name: "Xbox Wireless Controller", vendor: "Microsoft" },
 ];
+const mg = (id: string, name: string, minSelect: number, maxSelect: number, mods: Array<[string, string, string]>) => ({ id, name, minSelect, maxSelect, modifiers: mods.map(([mid, n, d]) => ({ id: mid, name: n, priceDelta: d })) });
+const EXTRAS = mg("g-extras", "Extras", 0, 3, [["m-cheese", "Cheese", "3.00"], ["m-bacon", "Bacon", "5.00"], ["m-jal", "Jalapeños", "2.00"]]);
+const SIZE = mg("g-size", "Size", 1, 1, [["m-reg", "Regular", "0.00"], ["m-lg", "Large", "5.00"]]);
+const pr = (id: string, name: string, price: string, groups: SeatMenu["categories"][number]["products"][number]["modifierGroups"] = [], description: string | null = null) => ({ id, name, price, description, available: true, modifierGroups: groups });
+const MOCK_MENU: SeatMenu = {
+  currency: "AED",
+  canPayWithWallet: true,
+  categories: [
+    { id: "c1", name: "Burgers", products: [pr("p1", "Classic smash burger", "32.00", [EXTRAS], "Double smashed patty, cheddar, pickles"), pr("p2", "Crispy chicken burger", "29.00", [EXTRAS]), pr("p3", "Halloumi burger", "27.00", [EXTRAS])] },
+    { id: "c2", name: "Snacks", products: [pr("p4", "Fries", "12.00", [SIZE]), pr("p5", "Chicken wings (8)", "26.00"), pr("p6", "Loaded nachos", "24.00")] },
+    { id: "c3", name: "Drinks", products: [pr("p7", "Cola (can)", "8.00"), pr("p8", "Energy drink", "14.00"), pr("p9", "Oreo milkshake", "22.00", [SIZE])] },
+  ],
+};
+
 function mockProbe(): Probe {
   const j = (base: number) => Math.round((base + Math.random() * base * 0.3) * 10) / 10;
   return {
@@ -275,6 +309,22 @@ function mockBridge(): Bridge {
         case "pointer_get":
           emit({ type: "pointer", ...pointer });
           break;
+        case "menu_request":
+          setTimeout(() => emit({ type: "menu", requestId: m.requestId, menu: MOCK_MENU }), 300);
+          break;
+        case "place_order": {
+          const total = m.lines.reduce((a, l) => {
+            const p = MOCK_MENU.categories.flatMap((c) => c.products).find((x) => x.id === l.productId)!;
+            const mods = p.modifierGroups.flatMap((g) => g.modifiers).filter((x) => l.modifierIds.includes(x.id)).reduce((s, x) => s + Number(x.priceDelta), 0);
+            return a + (Number(p.price) + mods) * l.quantity;
+          }, 0);
+          const number = `S${String(Math.floor(Math.random() * 900) + 100)}`;
+          const orderId = crypto.randomUUID();
+          setTimeout(() => emit({ type: "order_result", requestId: m.requestId, ok: true, orderId, number, total: total.toFixed(2), currency: "AED" }), 500);
+          setTimeout(() => emit({ type: "order_status", orderId, number, status: "PREPARING", message: "Your order is being prepared" }), 4000);
+          setTimeout(() => emit({ type: "order_status", orderId, number, status: "READY", message: "Your order is ready — it's on its way to you" }), 9000);
+          break;
+        }
         case "pointer_apply":
           pointer = { mouseSpeed: m.mouseSpeed ?? pointer.mouseSpeed, enhancePointerPrecision: m.enhancePointerPrecision ?? pointer.enhancePointerPrecision };
           emit({ type: "pointer", ...pointer });
@@ -291,7 +341,7 @@ function mockBridge(): Bridge {
 export const bridge: Bridge = window.chrome?.webview ? webviewBridge() : mockBridge();
 
 /** Sends a request and resolves with the matching *_result (or a timeout failure). */
-export function request(m: Extract<ShellMessage, { requestId: string }>, resultType: "launch_result" | "help_result" | "repair_result" | "login_result", timeoutMs = 15_000): Promise<RequestResult> {
+export function request(m: Extract<ShellMessage, { requestId: string }>, resultType: "launch_result" | "help_result" | "repair_result" | "login_result" | "order_result", timeoutMs = 15_000): Promise<RequestResult & Record<string, any>> {
   return new Promise((resolve) => {
     const t = setTimeout(() => {
       off();

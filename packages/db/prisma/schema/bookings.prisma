@@ -75,6 +75,7 @@ model Booking {
   @@unique([organizationId, idempotencyKey])
   @@index([organizationId, branchId, startsAt])
   @@index([organizationId, customerId])
+  @@index([status, startsAt])
 }
 
 /// One row per booked station/table. `startsAt/endsAt/isLive` are

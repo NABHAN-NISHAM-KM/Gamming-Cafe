@@ -109,6 +109,64 @@ Device WebSocket additions: `shell_login` / `shell_logout` → `shell_result`; `
 
 **Demo customers** (seeded into Demo Arena): `ahmed` / `ahmed123` (PIN `1234`, 120 min prepaid) and `sara` / `sara1234`.
 
+## Wallet, memberships & bookings (Phase 6)
+
+See [11-customers-wallet-bookings](11-customers-wallet-bookings.md). Money payments accept `WALLET` wherever `CASH`/`CARD` are accepted.
+
+| Method | Path | Permission |
+|---|---|---|
+| GET | /customers/:id/wallet | wallet.view_ledger |
+| POST | /customers/:id/wallet/topup | wallet.topup (+ customer.adjust_wallet and a reason for a bonus) |
+| POST | /customers/:id/wallet/adjust | customer.adjust_wallet + reason |
+| POST | /customers/:id/wallet/freeze | customer.restrict + reason |
+| GET · POST | /customers/:id/memberships | customer.view · membership.sell |
+| POST | /customers/:id/memberships/:membershipId/cancel | membership.sell |
+| GET · POST · PATCH | /membership-tiers · /membership-tiers/:tierId | membership.view · membership.manage |
+| GET | /branches/:id/availability?zoneId&startsAt&minutes | booking.view |
+| GET · POST | /branches/:id/bookings?date=YYYY-MM-DD\|upcoming=1 | booking.view · booking.create |
+| GET | /bookings/:id | booking.view |
+| POST | /bookings/:id/cancel · /no-show | booking.cancel |
+| POST | /bookings/:id/check-in | booking.create + station.start_session |
+
+**Customer app** (`/v1/app`, customer token):
+- **Public:** `GET /:slug/venue`, `POST /:slug/register`, `POST /:slug/login`.
+- **Signed in:** `/me`, `/logout`, `/wallet`, `/visits`, `/availability`, `/bookings` (list, create, `:id/cancel`), `/shop`, `/time`, `/memberships`.
+
+## POS, restaurant, kitchen & shifts (Phase 7)
+
+See [12-pos-restaurant-kitchen](12-pos-restaurant-kitchen.md). Orders and payments carry an `idempotencyKey`.
+
+| Method | Path | Permission |
+|---|---|---|
+| GET | /branches/:id/menu | pos.sell |
+| GET | /menu/manage | restaurant.menu_manage |
+| POST · PATCH | /product-categories · /product-categories/:id | restaurant.menu_manage |
+| POST · PATCH | /products · /products/:id | restaurant.menu_manage |
+| PUT | /products/:id/branches/:branchId | restaurant.menu_manage (sold-out only: kds.bump) |
+| POST | /modifier-groups | restaurant.menu_manage |
+| POST | /branches/:id/kitchen-stations | restaurant.menu_manage |
+| POST | /branches/:id/orders | pos.sell (+ restaurant.order for DINE_IN, pos.discount for a discount) |
+| GET | /branches/:id/orders?open=1 · /orders/:id | pos.sell |
+| POST | /orders/:id/cancel | restaurant.cancel_order + reason |
+| POST | /order-items/:id/void | pos.void_item (+ restaurant.cancel_order + reason once cooked) |
+| GET | /branches/:id/bills?open=1 · /bills/:id | pos.sell |
+| POST | /bills/:id/pay | pos.sell (cash needs an open shift) |
+| POST | /payments/:id/refund | pos.refund + reason |
+| GET | /branches/:id/kitchen?stationId | kds.view |
+| GET (SSE) | /branches/:id/kitchen/events | kds.view |
+| POST | /kitchen-tickets/:id/bump | kds.bump |
+| GET · POST | /branches/:id/tables | restaurant.order · restaurant.tables_manage |
+| POST | /tables/:id/status | restaurant.order (OUT_OF_SERVICE: restaurant.tables_manage) |
+| GET · POST | /branches/:id/cash-drawers | shift.open · settings.manage |
+| GET | /branches/:id/shifts/me | shift.open |
+| POST | /branches/:id/shifts | shift.open |
+| GET | /branches/:id/shifts · /shifts/:id | shift.view_all (own shift: shift.open) |
+| POST | /shifts/:id/movements | shift.cash_movement |
+| POST | /shifts/:id/close | shift.open (someone else's: shift.approve) |
+| POST | /shifts/:id/approve | shift.approve (not your own) |
+
+**Device socket:** `menu_request` → `menu`; `place_order` → `order_result`; server push `order_status`.
+
 ## Games & station tools (Phase 5)
 
 See [10-games-and-station-tools](10-games-and-station-tools.md).

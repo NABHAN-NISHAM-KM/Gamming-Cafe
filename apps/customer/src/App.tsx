@@ -1,0 +1,443 @@
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { CalendarClock, Check, ChevronRight, Clock, Crown, Gamepad2, Home, Loader2, LogOut, ShoppingBag, Sparkles, User, Users, Wallet, X } from "lucide-react";
+import { api, ApiError, key, setToken, signedIn, venueSlug, whenSignedOut, type Booking, type LedgerRow, type Me, type Venue } from "./api";
+import { BookScreen } from "./book";
+
+const cx = (...c: Array<string | false | null | undefined>) => c.filter(Boolean).join(" ");
+const hours = (min: number) => (min >= 60 ? `${Math.floor(min / 60)} h${min % 60 ? ` ${min % 60} min` : ""}` : `${min} min`);
+const when = (iso: string) => new Date(iso).toLocaleString([], { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+const time = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+function useLoad<T>(fn: () => Promise<T>, deps: unknown[] = []) {
+  const [data, setData] = useState<T>();
+  const [error, setError] = useState<string | null>(null);
+  const reload = useCallback(() => {
+    fn().then(setData, (e) => setError(e instanceof Error ? e.message : String(e)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+  useEffect(reload, [reload]);
+  return { data, error, reload };
+}
+
+function Screen({ title, children, action }: { title: string; children: ReactNode; action?: ReactNode }) {
+  return (
+    <section className="mx-auto w-full max-w-lg px-4 pb-28 pt-6">
+      <div className="mb-5 flex items-center justify-between">
+        <h1 className="font-display text-2xl font-semibold">{title}</h1>
+        {action}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function Toast({ text, tone, onDone }: { text: string; tone: "good" | "bad"; onDone: () => void }) {
+  useEffect(() => {
+    const t = setTimeout(onDone, 3500);
+    return () => clearTimeout(t);
+  }, [text, onDone]);
+  return (
+    <div role="status" className={cx("fixed inset-x-4 top-4 z-50 mx-auto max-w-lg rounded-2xl border px-4 py-3 text-sm shadow-2xl", tone === "good" ? "border-good/40 bg-deck text-good" : "border-alarm/50 bg-deck text-alarm")}>
+      {text}
+    </div>
+  );
+}
+
+// ── sign in / sign up ───────────────────────────────────────────────────────
+
+function Auth({ venue, onIn }: { venue: Venue | undefined; onIn: () => void }) {
+  const [mode, setMode] = useState<"in" | "up">("in");
+  const [f, setF] = useState({ username: "", password: "", displayName: "", phone: "", dateOfBirth: "", marketingConsent: false });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF((x) => ({ ...x, [k]: e.target.value }));
+  const slug = venueSlug();
+
+  const submit = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const r =
+        mode === "in"
+          ? await api<{ accessToken: string }>(`/${slug}/login`, { method: "POST", auth: false, body: { username: f.username, password: f.password } })
+          : await api<{ accessToken: string }>(`/${slug}/register`, {
+              method: "POST",
+              auth: false,
+              body: { username: f.username, password: f.password, displayName: f.displayName || f.username, phone: f.phone || null, dateOfBirth: f.dateOfBirth || null, marketingConsent: f.marketingConsent },
+            });
+      setToken(r.accessToken);
+      onIn();
+    } catch (e) {
+      setError(e instanceof ApiError && e.status === 400 ? "Please check the details (password: at least 8 characters)." : e instanceof Error ? e.message : "Couldn't sign in.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <main className="relative mx-auto flex min-h-dvh max-w-lg flex-col justify-center px-6 py-10">
+      <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
+        <div className="absolute -left-1/3 -top-1/4 h-[60vh] w-[90vw] rounded-full opacity-30 blur-[100px]" style={{ background: "radial-gradient(circle, var(--color-glow-2), transparent 60%)" }} />
+        <div className="absolute -bottom-1/4 -right-1/3 h-[50vh] w-[80vw] rounded-full opacity-20 blur-[100px]" style={{ background: "radial-gradient(circle, var(--color-glow), transparent 60%)" }} />
+      </div>
+      <div className="mb-10 flex items-center gap-3">
+        <div className="grid size-12 place-items-center rounded-2xl bg-gradient-to-br from-glow to-glow-2 font-display text-xl font-bold text-void">{(venue?.name ?? "A").slice(0, 1)}</div>
+        <div>
+          <p className="font-display text-2xl font-semibold">{venue?.name ?? "…"}</p>
+          <p className="text-sm text-dim">{venue?.branches.map((b) => b.name).join(" · ")}</p>
+        </div>
+      </div>
+      <h1 className="font-display text-4xl font-semibold leading-tight">{mode === "in" ? "Welcome back." : "Join in 30 seconds."}</h1>
+      <p className="mt-2 text-dim">{mode === "in" ? "Book a station, check your time and top up your game." : "Same login works on every PC at the venue."}</p>
+      <form className="mt-8 grid gap-4" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
+        {mode === "up" && <input className="field" placeholder="Your name" value={f.displayName} onChange={set("displayName")} autoComplete="name" />}
+        <input className="field" placeholder={mode === "in" ? "Username, email or phone" : "Username"} value={f.username} onChange={set("username")} autoComplete="username" autoCapitalize="none" required />
+        <input className="field" type="password" placeholder="Password" value={f.password} onChange={set("password")} autoComplete={mode === "in" ? "current-password" : "new-password"} required minLength={mode === "up" ? 8 : 1} />
+        {mode === "up" && (
+          <>
+            <input className="field" type="tel" placeholder="Phone (optional)" value={f.phone} onChange={set("phone")} autoComplete="tel" />
+            <label className="grid gap-1.5 text-sm text-dim">
+              Date of birth (optional — for age-rated games)
+              <input className="field" type="date" value={f.dateOfBirth} onChange={set("dateOfBirth")} max={new Date().toISOString().slice(0, 10)} />
+            </label>
+            <label className="flex items-center gap-3 text-sm text-dim">
+              <input type="checkbox" checked={f.marketingConsent} onChange={(e) => setF((x) => ({ ...x, marketingConsent: e.target.checked }))} className="size-5 accent-[var(--color-glow)]" />
+              Tell me about tournaments and offers
+            </label>
+          </>
+        )}
+        {error && <p role="alert" className="rounded-xl border border-alarm/40 bg-alarm/10 px-4 py-3 text-sm text-alarm">{error}</p>}
+        <button className="btn btn-primary mt-2 py-4 text-lg" disabled={busy}>
+          {busy && <Loader2 className="size-5 animate-spin" />} {mode === "in" ? "Sign in" : "Create account"}
+        </button>
+      </form>
+      <button onClick={() => { setMode(mode === "in" ? "up" : "in"); setError(null); }} className="mt-6 text-center text-sm text-dim">
+        {mode === "in" ? <>New here? <span className="text-glow">Create an account</span></> : <>Have an account? <span className="text-glow">Sign in</span></>}
+      </button>
+    </main>
+  );
+}
+
+// ── home ────────────────────────────────────────────────────────────────────
+
+function HomeScreen({ me, bookings, go }: { me: Me; bookings: Booking[]; go: (t: Tab) => void }) {
+  const next = bookings.filter((b) => ["CONFIRMED", "CHECKED_IN"].includes(b.status) && new Date(b.endsAt) > new Date()).sort((a, b) => a.startsAt.localeCompare(b.startsAt))[0];
+  const tier = me.membershipTier;
+  return (
+    <Screen title={`Hi, ${me.displayName.split(" ")[0]}`}>
+      <div className="relative overflow-hidden rounded-3xl border border-rim p-6" style={{ background: "linear-gradient(135deg, color-mix(in oklab, var(--color-glow-2) 35%, var(--color-deck)), var(--color-deck) 70%)" }}>
+        <p className="text-sm text-dim">Wallet</p>
+        <p className="tabular mt-1 font-display text-4xl font-semibold">{me.wallet.currency} {me.wallet.total}</p>
+        {Number(me.wallet.bonus) > 0 && <p className="mt-1 text-sm text-glow">incl. {me.wallet.bonus} bonus</p>}
+        <div className="mt-5 flex items-center gap-2 text-sm">
+          <Clock className="size-4 text-glow" /> <span className="tabular">{hours(me.wallet.timeMinutes)}</span> <span className="text-dim">of prepaid play time</span>
+        </div>
+        {me.wallet.frozen && <p className="mt-3 rounded-xl bg-alarm/15 px-3 py-2 text-sm text-alarm">Your wallet is on hold — please talk to the staff.</p>}
+        {tier && (
+          <span className="absolute right-5 top-5 flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold text-void" style={{ background: tier.color ?? "var(--color-glow)" }}>
+            <Crown className="size-3.5" /> {tier.name}
+          </span>
+        )}
+      </div>
+
+      {me.playingNow && (
+        <div className="card mt-4 flex items-center gap-4 border-good/40 p-5">
+          <span className="size-2.5 animate-pulse rounded-full bg-good" />
+          <div className="flex-1">
+            <p className="font-semibold">Playing on {me.playingNow.station}</p>
+            <p className="text-sm text-dim">{me.playingNow.expiresAt ? `Until ${time(me.playingNow.expiresAt)}` : "Open session — pay at the end"}</p>
+          </div>
+          <Gamepad2 className="size-6 text-good" />
+        </div>
+      )}
+
+      <button onClick={() => go("bookings")} className="card mt-4 flex w-full items-center gap-4 p-5 text-left">
+        <CalendarClock className="size-7 text-glow" />
+        <div className="flex-1">
+          {next ? (
+            <>
+              <p className="font-semibold">{when(next.startsAt)}</p>
+              <p className="text-sm text-dim">{next.zone?.name} · {hours(next.minutes)} · {next.players} {next.players === 1 ? "station" : "stations"} · {next.reference}</p>
+            </>
+          ) : (
+            <>
+              <p className="font-semibold">No upcoming booking</p>
+              <p className="text-sm text-dim">Reserve your station before you come.</p>
+            </>
+          )}
+        </div>
+        <ChevronRight className="size-5 text-mute" />
+      </button>
+
+      <div className="mt-6 grid grid-cols-2 gap-3">
+        <button onClick={() => go("book")} className="btn btn-primary py-5"><CalendarClock className="size-5" /> Book</button>
+        <button onClick={() => go("shop")} className="btn btn-ghost py-5"><ShoppingBag className="size-5" /> Buy time</button>
+      </div>
+      {!tier && (
+        <button onClick={() => go("shop")} className="card mt-4 flex w-full items-center gap-4 p-5 text-left">
+          <Sparkles className="size-6 text-glow-2" />
+          <div className="flex-1">
+            <p className="font-semibold">Become a member</p>
+            <p className="text-sm text-dim">Cheaper hours, bonus time, book further ahead.</p>
+          </div>
+          <ChevronRight className="size-5 text-mute" />
+        </button>
+      )}
+    </Screen>
+  );
+}
+
+// ── book ────────────────────────────────────────────────────────────────────
+
+function BookingsScreen({ bookings, reload, toast }: { bookings: Booking[]; reload: () => void; toast: (t: string, ok?: boolean) => void }) {
+  const upcoming = bookings.filter((b) => ["CONFIRMED", "PENDING", "CHECKED_IN"].includes(b.status) && new Date(b.endsAt) > new Date());
+  const past = bookings.filter((b) => !upcoming.includes(b));
+  const cancel = async (b: Booking) => {
+    if (!confirm(`Cancel ${b.reference}?`)) return;
+    try {
+      await api(`/bookings/${b.id}/cancel`, { method: "POST" });
+      toast("Booking cancelled.");
+      reload();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Couldn't cancel.", false);
+    }
+  };
+  const Row = ({ b }: { b: Booking }) => (
+    <div className="card p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="font-semibold">{when(b.startsAt)}</p>
+          <p className="text-sm text-dim">{b.zone?.name} · {hours(b.minutes)} · {b.players} {b.players === 1 ? "station" : "stations"}</p>
+          <p className="mt-1 font-mono text-xs text-mute">{b.reference}{b.devices.length ? ` · ${b.devices.map((d) => d.name).join(", ")}` : ""}</p>
+          {Number(b.depositAmount) > 0 && <p className="mt-1 text-xs text-good">Paid {b.currency} {b.depositAmount}</p>}
+        </div>
+        <span className={cx("rounded-full px-2.5 py-1 text-xs", b.status === "CONFIRMED" ? "bg-glow/15 text-glow" : b.status === "CHECKED_IN" ? "bg-good/15 text-good" : "bg-deck-2 text-dim")}>{b.status.replace("_", " ").toLowerCase()}</span>
+      </div>
+      {b.status === "CONFIRMED" && <button onClick={() => void cancel(b)} className="mt-4 flex items-center gap-1.5 text-sm text-alarm"><X className="size-4" /> Cancel</button>}
+    </div>
+  );
+  return (
+    <Screen title="My bookings">
+      <div className="grid gap-3">
+        {upcoming.map((b) => <Row key={b.id} b={b} />)}
+        {upcoming.length === 0 && <p className="card p-6 text-center text-dim">Nothing booked yet.</p>}
+      </div>
+      {past.length > 0 && (
+        <>
+          <p className="mb-3 mt-8 text-sm uppercase tracking-widest text-mute">Earlier</p>
+          <div className="grid gap-3 opacity-70">{past.slice(0, 10).map((b) => <Row key={b.id} b={b} />)}</div>
+        </>
+      )}
+    </Screen>
+  );
+}
+
+// ── shop ────────────────────────────────────────────────────────────────────
+
+interface Shop {
+  plans: Array<{ id: string; name: string; currency: string; zone: { name: string } | null; pricingPackages: Array<{ id: string; name: string; durationMinutes: number; bonusMinutes: number; price: string }> }>;
+  tiers: Array<{ id: string; name: string; code: string; color: string | null; price: string; durationDays: number; gamingDiscountPct: string; bonusMinutesMonthly: number; bookingWindowDays: number; priorityBooking: boolean }>;
+}
+
+function ShopScreen({ venue, me, onBought, toast }: { venue: Venue; me: Me; onBought: () => void; toast: (t: string, ok?: boolean) => void }) {
+  const branchId = venue.branches[0]?.id ?? "";
+  const shop = useLoad(() => api<Shop>(`/shop?branchId=${branchId}`), [branchId]);
+  const [busy, setBusy] = useState<string | null>(null);
+  const buy = async (id: string, path: string, body: Record<string, unknown>, what: string) => {
+    if (!confirm(`Pay for ${what} from your wallet?`)) return;
+    setBusy(id);
+    try {
+      await api(path, { method: "POST", body: { branchId, ...body, idempotencyKey: key() } });
+      toast(`${what} — done!`);
+      onBought();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Couldn't buy.", false);
+    } finally {
+      setBusy(null);
+    }
+  };
+  const cur = me.wallet.currency;
+  return (
+    <Screen title="Shop" action={<span className="tabular rounded-full bg-deck-2 px-3 py-1.5 text-sm">{cur} {me.wallet.total}</span>}>
+      <p className="mb-3 text-sm uppercase tracking-widest text-mute">Play time</p>
+      {!shop.data ? <p className="text-dim">Loading…</p> : (
+        <div className="grid gap-3">
+          {shop.data.plans.flatMap((p) =>
+            p.pricingPackages.map((k) => (
+              <div key={k.id} className="card flex items-center gap-4 p-5">
+                <Clock className="size-7 text-glow" />
+                <div className="flex-1">
+                  <p className="font-semibold">{k.name} · {p.name}</p>
+                  <p className="text-sm text-dim">{hours(k.durationMinutes + k.bonusMinutes)}{k.bonusMinutes ? ` (incl. ${k.bonusMinutes} min bonus)` : ""}{p.zone ? ` · ${p.zone.name} only` : ""}</p>
+                </div>
+                <button className="btn btn-primary px-4 py-2.5" disabled={busy === k.id || me.wallet.frozen} onClick={() => void buy(k.id, "/time", { planId: p.id, packageId: k.id }, `${k.name} of play time`)}>
+                  {busy === k.id ? <Loader2 className="size-4 animate-spin" /> : `${cur} ${Number(k.price).toFixed(0)}`}
+                </button>
+              </div>
+            )),
+          )}
+        </div>
+      )}
+      <p className="mb-3 mt-8 text-sm uppercase tracking-widest text-mute">Membership</p>
+      <div className="grid gap-3">
+        {shop.data?.tiers.map((t) => {
+          const mine = me.membershipTier?.id === t.id;
+          return (
+            <div key={t.id} className="card overflow-hidden">
+              <div className="h-1.5" style={{ background: t.color ?? "var(--color-glow)" }} />
+              <div className="p-5">
+                <div className="flex items-center justify-between">
+                  <p className="flex items-center gap-2 font-display text-xl font-semibold"><Crown className="size-5" style={{ color: t.color ?? undefined }} /> {t.name}</p>
+                  <p className="tabular font-display text-lg">{cur} {Number(t.price).toFixed(0)}<span className="text-sm text-dim"> / {t.durationDays} days</span></p>
+                </div>
+                <ul className="mt-3 grid gap-1.5 text-sm text-dim">
+                  <li className="flex gap-2"><Check className="size-4 text-good" /> {Number(t.gamingDiscountPct)}% off gaming time</li>
+                  {t.bonusMinutesMonthly > 0 && <li className="flex gap-2"><Check className="size-4 text-good" /> {hours(t.bonusMinutesMonthly)} free play time</li>}
+                  <li className="flex gap-2"><Check className="size-4 text-good" /> Book up to {t.bookingWindowDays} days ahead</li>
+                  {t.priorityBooking && <li className="flex gap-2"><Check className="size-4 text-good" /> Priority booking</li>}
+                </ul>
+                <button className={cx("btn mt-4 w-full", mine ? "btn-ghost" : "btn-primary")} disabled={busy === t.id || me.wallet.frozen} onClick={() => void buy(t.id, "/memberships", { tierId: t.id }, `${t.name} membership`)}>
+                  {busy === t.id && <Loader2 className="size-4 animate-spin" />} {mine ? "Renew" : "Join"}
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <p className="mt-6 text-center text-xs text-mute">Top up your wallet at the counter — card and cash.</p>
+    </Screen>
+  );
+}
+
+// ── wallet & me ─────────────────────────────────────────────────────────────
+
+const TX_LABEL: Record<string, string> = { TOPUP: "Top-up", SPEND: "Payment", REFUND: "Refund", ADJUSTMENT: "Adjustment", BONUS_GRANT: "Bonus", BONUS_EXPIRE: "Bonus expired" };
+
+function WalletScreen({ me }: { me: Me }) {
+  const w = useLoad(() => api<{ ledger: LedgerRow[] }>("/wallet"));
+  return (
+    <Screen title="Wallet">
+      <div className="grid grid-cols-3 gap-3">
+        {[["Cash", me.wallet.cash], ["Bonus", me.wallet.bonus], ["Play time", hours(me.wallet.timeMinutes)]].map(([k, v]) => (
+          <div key={k} className="card p-4"><p className="text-xs text-dim">{k}</p><p className="tabular mt-1 font-display text-lg font-semibold">{v}</p></div>
+        ))}
+      </div>
+      <p className="mb-3 mt-8 text-sm uppercase tracking-widest text-mute">History</p>
+      <div className="card divide-y divide-rim">
+        {w.data?.ledger.map((l) => {
+          const n = Number(l.amount);
+          return (
+            <div key={l.id} className="flex items-center justify-between px-5 py-4">
+              <div>
+                <p className="font-medium">{TX_LABEL[l.type] ?? l.type}{l.bucket === "TIME" ? " · time" : l.bucket === "BONUS" ? " · bonus" : ""}</p>
+                <p className="text-xs text-mute">{new Date(l.at).toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}{l.reason ? ` · ${l.reason}` : ""}</p>
+              </div>
+              <p className={cx("tabular font-mono", n > 0 ? "text-good" : "text-text")}>{n > 0 ? "+" : ""}{l.bucket === "TIME" ? hours(Math.abs(n)).replace(/^/, n < 0 ? "−" : "") : l.amount}</p>
+            </div>
+          );
+        })}
+        {w.data?.ledger.length === 0 && <p className="p-6 text-center text-dim">No transactions yet.</p>}
+        {!w.data && <p className="p-6 text-center text-dim">Loading…</p>}
+      </div>
+    </Screen>
+  );
+}
+
+function MeScreen({ me, venue, onOut }: { me: Me; venue: Venue; onOut: () => void }) {
+  return (
+    <Screen title="Me">
+      <div className="card flex items-center gap-4 p-5">
+        <div className="grid size-14 place-items-center rounded-full bg-gradient-to-br from-glow-2 to-glow font-display text-2xl font-bold text-void">{me.displayName.slice(0, 1)}</div>
+        <div>
+          <p className="font-display text-xl font-semibold">{me.displayName}</p>
+          <p className="text-sm text-dim">@{me.username}</p>
+        </div>
+      </div>
+      <div className="card mt-4 divide-y divide-rim text-sm">
+        <div className="flex justify-between px-5 py-4"><span className="text-dim">Venue</span><span>{venue.name}</span></div>
+        <div className="flex justify-between px-5 py-4"><span className="text-dim">Membership</span><span>{me.membershipTier ? `${me.membershipTier.name}${me.membership?.expiresAt ? ` · until ${new Date(me.membership.expiresAt).toLocaleDateString()}` : ""}` : "—"}</span></div>
+        {me.phone && <div className="flex justify-between px-5 py-4"><span className="text-dim">Phone</span><span>{me.phone}</span></div>}
+        {me.referralCode && <div className="flex justify-between px-5 py-4"><span className="text-dim">Invite code</span><span className="font-mono">{me.referralCode}</span></div>}
+      </div>
+      <p className="mt-4 text-sm text-dim">Use the same username and password at any PC in the venue.</p>
+      <button onClick={onOut} className="btn btn-ghost mt-6 w-full text-alarm"><LogOut className="size-5" /> Sign out</button>
+    </Screen>
+  );
+}
+
+// ── root ────────────────────────────────────────────────────────────────────
+
+type Tab = "home" | "book" | "bookings" | "shop" | "wallet" | "me";
+const NAV: Array<{ id: Tab; label: string; icon: typeof Home }> = [
+  { id: "home", label: "Home", icon: Home },
+  { id: "book", label: "Book", icon: CalendarClock },
+  { id: "shop", label: "Shop", icon: ShoppingBag },
+  { id: "wallet", label: "Wallet", icon: Wallet },
+  { id: "me", label: "Me", icon: User },
+];
+
+export function App() {
+  const [authed, setAuthed] = useState(signedIn());
+  const [tab, setTab] = useState<Tab>("home");
+  const [toast, setToastState] = useState<{ text: string; tone: "good" | "bad" } | null>(null);
+  const showToast = useCallback((text: string, ok = true) => setToastState({ text, tone: ok ? "good" : "bad" }), []);
+  const venue = useLoad(() => api<Venue>(`/${venueSlug()}/venue`, { auth: false }));
+  const [me, setMe] = useState<Me | null>(null);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+
+  useEffect(() => whenSignedOut(() => { setAuthed(false); setMe(null); }), []);
+  const refresh = useCallback(async () => {
+    if (!signedIn()) return;
+    try {
+      const [m, b] = await Promise.all([api<Me>("/me"), api<Booking[]>("/bookings")]);
+      setMe(m);
+      setBookings(b);
+    } catch {
+      /* 401 handled by whenSignedOut */
+    }
+  }, []);
+  useEffect(() => {
+    if (authed) void refresh();
+  }, [authed, refresh]);
+  useEffect(() => {
+    const onFocus = () => void refresh();
+    addEventListener("focus", onFocus);
+    return () => removeEventListener("focus", onFocus);
+  }, [refresh]);
+
+  if (venue.error) return <main className="grid min-h-dvh place-items-center p-8 text-center text-dim">{venue.error}</main>;
+  if (!authed) return <Auth venue={venue.data} onIn={() => setAuthed(true)} />;
+  if (!me || !venue.data) return <main className="grid min-h-dvh place-items-center"><Loader2 className="size-8 animate-spin text-glow" /></main>;
+
+  const signOut = async () => {
+    await api("/logout", { method: "POST" }).catch(() => undefined);
+    setToken(null);
+    setAuthed(false);
+    setMe(null);
+  };
+
+  return (
+    <div className="min-h-dvh">
+      {toast && <Toast text={toast.text} tone={toast.tone} onDone={() => setToastState(null)} />}
+      {tab === "home" && <HomeScreen me={me} bookings={bookings} go={setTab} />}
+      {tab === "book" && <BookScreen venue={venue.data} me={me} toast={showToast} onBooked={() => { void refresh(); setTab("bookings"); }} />}
+      {tab === "bookings" && <BookingsScreen bookings={bookings} reload={() => void refresh()} toast={showToast} />}
+      {tab === "shop" && <ShopScreen venue={venue.data} me={me} toast={showToast} onBought={() => void refresh()} />}
+      {tab === "wallet" && <WalletScreen me={me} />}
+      {tab === "me" && <MeScreen me={me} venue={venue.data} onOut={() => void signOut()} />}
+      <nav className="safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-rim bg-deck/95 backdrop-blur" aria-label="Main">
+        <div className="mx-auto flex max-w-lg justify-around pt-2">
+          {NAV.map((n) => {
+            const active = tab === n.id || (n.id === "book" && tab === "bookings");
+            return (
+              <button key={n.id} onClick={() => setTab(n.id)} className={cx("flex w-16 flex-col items-center gap-1 py-1 text-[11px]", active ? "text-glow" : "text-mute")} aria-current={active ? "page" : undefined}>
+                <n.icon className="size-6" />
+                {n.label}
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+    </div>
+  );
+}

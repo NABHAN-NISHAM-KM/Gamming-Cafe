@@ -165,6 +165,7 @@ public sealed class AgentWorker(
         if (type == "error") { log.LogWarning("Server says: {Error}", doc.RootElement.GetProperty("error").GetString()); return; }
         if (type == "shell_result") { OnShellResult(doc.RootElement); return; }
         if (type == "help_result") { station.OnHelpResult(doc.RootElement); return; }
+        if (type is "menu" or "order_result" or "order_status") { station.ForwardToShell(doc.RootElement); return; }
         if (type == "config") { ApplyConfig(doc.RootElement, verifier, replay); return; }
         if (type != "command") return;
 

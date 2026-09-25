@@ -44,6 +44,11 @@ function Tile({ d, selected, editing, help, onPointerDown, onClick }: { d: Floor
       {hot && <AlertTriangle className="absolute -right-1.5 -top-1.5 size-4 rounded-full bg-bg text-danger" />}
       {help && <BellRing className="absolute -left-1.5 -top-1.5 size-5 animate-bounce rounded-full bg-reserved p-0.5 text-bg" />}
       {d.currentGame && <Gamepad2 className="absolute -bottom-1.5 -right-1.5 size-4 rounded-full bg-bg p-0.5 text-ok" />}
+      {!d.session && d.nextBooking && (
+        <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-accent/50 bg-bg px-1.5 text-[9px] text-accent" title={`Booked by ${d.nextBooking.name ?? "a customer"} (${d.nextBooking.reference})`}>
+          {new Date(d.nextBooking.startsAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+        </span>
+      )}
     </button>
   );
 }

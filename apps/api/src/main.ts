@@ -8,7 +8,7 @@ import { loadConfig, type AppConfig } from "./config.js";
 
 export async function createApp(config: AppConfig = loadConfig()) {
   const app = await NestFactory.create<NestExpressApplication>(AppModule.forRoot(config), {
-    logger: config.NODE_ENV === "test" ? false : undefined,
+    logger: config.NODE_ENV === "test" ? (process.env["TEST_LOGS"] ? ["error"] : false) : undefined,
   });
   app.set("trust proxy", 1); // behind Nginx: req.ip = client address
   app.disable("x-powered-by");

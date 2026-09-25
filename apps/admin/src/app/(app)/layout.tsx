@@ -24,7 +24,7 @@ const NAV: Array<{ group: string; items: NavItem[] }> = [
     { href: "/", label: "Dashboard", icon: Gauge },
     { href: "/floor", label: "Live Floor", icon: LayoutGrid },
     { href: "/sessions", label: "Sessions", icon: Timer },
-    { href: "/bookings", label: "Bookings", icon: CalendarClock, phase: 6 },
+    { href: "/bookings", label: "Bookings", icon: CalendarClock },
     { href: "/customers", label: "Customers", icon: UserRound },
   ] },
   { group: "Gaming", items: [
@@ -34,9 +34,9 @@ const NAV: Array<{ group: string; items: NavItem[] }> = [
     { href: "/tournaments", label: "Tournaments", icon: Trophy, phase: 10 },
   ] },
   { group: "Food & sales", items: [
-    { href: "/restaurant", label: "Restaurant", icon: UtensilsCrossed, phase: 7 },
-    { href: "/pos", label: "POS", icon: ShoppingCart, phase: 7 },
-    { href: "/kitchen", label: "Kitchen", icon: ChefHat, phase: 7 },
+    { href: "/restaurant", label: "Restaurant", icon: UtensilsCrossed },
+    { href: "/pos", label: "POS", icon: ShoppingCart },
+    { href: "/kitchen", label: "Kitchen", icon: ChefHat },
     { href: "/inventory", label: "Inventory", icon: Boxes, phase: 8 },
   ] },
   { group: "Business", items: [

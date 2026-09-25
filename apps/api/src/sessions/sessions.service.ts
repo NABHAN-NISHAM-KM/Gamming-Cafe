@@ -6,9 +6,10 @@ import { CommandsService } from "../devices/commands.service.js";
 import { DEVICE_FIELDS, DeviceRuntimeService } from "../devices/device-runtime.service.js";
 import { DeviceHub, LiveBus } from "../devices/live.js";
 import { PricingError, postpaidCharge, quote, selectPlans, type Discount, type PlanDef, type Quote, type QuoteRequest, type StationClass } from "./pricing.js";
+import { recomputeBill, recordPayment } from "../pos/bills.js";
 import { adjustTime, timeBalance } from "./time-balance.js";
 
-export type PaymentMethodInput = "CASH" | "CARD" | "TIME_BALANCE" | "PAY_LATER";
+export type PaymentMethodInput = "CASH" | "CARD" | "WALLET" | "TIME_BALANCE" | "PAY_LATER";
 export const LIVE_STATUSES = ["PENDING", "ACTIVE", "PAUSED", "ENDING"] as const;
 const WARNING_MINUTES = [30, 15, 10, 5, 1];
 const ENDING_SOON_MINUTES = 5;
@@ -27,6 +28,8 @@ export interface StartInput {
   discount?: Discount | null;
   payment: { method: PaymentMethodInput; reference?: string | null };
   idempotencyKey: string;
+  /** Set when a booking is checked in: that booking's own reservation doesn't block the session. */
+  bookingId?: string | null;
 }
 
 // ── helpers ─────────────────────────────────────────────────────────────────
@@ -162,6 +165,7 @@ export class SessionsService {
     if (!this.hub.isOnline(device.id)) throw new ConflictException({ error: "device_offline", hint: "The station must be switched on and connected" });
     if (!["AVAILABLE", "RESERVED"].includes(device.status)) throw new ConflictException({ error: "device_not_available", status: device.status });
     if (input.payment.method === "TIME_BALANCE" && !customer) throw new ConflictException({ error: "time_balance_needs_customer" });
+    if (input.payment.method === "WALLET" && !customer) throw new ConflictException({ error: "wallet_needs_customer" });
 
     // ── price ──
     let q: Quote;
@@ -187,6 +191,18 @@ export class SessionsService {
         throw e;
       }
       if (q.paymentTiming === "POSTPAID" && input.payment.method !== "PAY_LATER") throw new ConflictException({ error: "open_session_is_pay_later" });
+    }
+
+    // ── someone else's booking on this PC? Don't sell time that runs into it ──
+    const until = q.expiresAt ?? new Date(ctx.now.getTime() + 60 * 60_000); // open sessions: keep the next hour clear
+    const clash = await t.bookingResource.findFirst({
+      where: { deviceId: device.id, isLive: true, startsAt: { lt: until }, endsAt: { gt: ctx.now }, booking: { status: { in: ["PENDING", "CONFIRMED"] }, ...(input.bookingId ? { id: { not: input.bookingId } } : {}) } },
+      include: { booking: { select: { reference: true, startsAt: true } } },
+      orderBy: { startsAt: "asc" },
+    });
+    if (clash) {
+      const freeMinutes = Math.max(0, Math.floor((clash.startsAt.getTime() - ctx.now.getTime()) / 60_000));
+      throw new ConflictException({ error: "device_booked", bookingReference: clash.booking.reference, bookingStartsAt: clash.startsAt.toISOString(), freeMinutes, hint: freeMinutes > 0 ? `Booked from ${clash.startsAt.toISOString()} — sell at most ${freeMinutes} min or use another PC` : "This PC is booked now" });
     }
 
     // ── bill + order line (the visit's single bill; food joins it in phase 7) ──
@@ -220,6 +236,7 @@ export class SessionsService {
           currency: q.currency,
           postSessionAction: device.postSessionAction,
           startedById: actor.type === "EMPLOYEE" ? actor.id : null,
+          bookingId: input.bookingId ?? null,
           idempotencyKey: input.idempotencyKey,
         },
       });
@@ -235,7 +252,7 @@ export class SessionsService {
     });
 
     // ── payment ──
-    if (input.payment.method === "CASH" || input.payment.method === "CARD") {
+    if (input.payment.method === "CASH" || input.payment.method === "CARD" || input.payment.method === "WALLET") {
       if (q.totalMinor > 0) await this.pay(t, { bill, method: input.payment.method, amountMinor: q.totalMinor, unit, key: `${input.idempotencyKey}:pay`, customerId: customer?.id ?? null, employeeId: actor.type === "EMPLOYEE" ? actor.id : null, reference: input.payment.reference });
     } else if (input.payment.method === "TIME_BALANCE") {
       const org = await t.organization.findFirstOrThrow({ select: { defaultCurrency: true } });
@@ -267,6 +284,7 @@ export class SessionsService {
     if (!["ACTIVE", "ENDING"].includes(s.status) || !s.expiresAt) throw new ConflictException({ error: "session_not_extendable", status: s.status });
     const snap = s.rateSnapshot as { plan: PlanDef | null; minorUnit: number };
     const unit = snap.minorUnit ?? 2;
+    if (input.payment.method === "WALLET" && !s.customerId) throw new ConflictException({ error: "wallet_needs_customer" });
 
     let minutes: number;
     let amountMinor = 0;
@@ -306,7 +324,7 @@ export class SessionsService {
     });
     if (s.bill) {
       await this.addCharge(t, { session: s, bill: s.bill, unit, deviceName: s.device.name, amountMinor, discountMinor: 0, description: `Extra time — ${minutes} min · ${s.device.name}`, minutes, paymentState: input.payment.method === "PAY_LATER" ? "ON_BILL" : "PAID", employeeId: actor.type === "EMPLOYEE" ? actor.id : null });
-      if ((input.payment.method === "CASH" || input.payment.method === "CARD") && amountMinor > 0) {
+      if ((input.payment.method === "CASH" || input.payment.method === "CARD" || input.payment.method === "WALLET") && amountMinor > 0) {
         await this.pay(t, { bill: s.bill, method: input.payment.method, amountMinor, unit, key: `${input.idempotencyKey}:pay`, customerId: s.customerId, employeeId: actor.type === "EMPLOYEE" ? actor.id : null, reference: input.payment.reference });
       }
       await this.recomputeBill(t, s.bill.id);
@@ -502,33 +520,15 @@ export class SessionsService {
     });
   }
 
-  private async pay(t: TenantTx, p: { bill: { id: string; branchId: string; currency: string }; method: "CASH" | "CARD"; amountMinor: number; unit: number; key: string; customerId: string | null; employeeId: string | null; reference?: string | null }) {
-    const existing = await t.payment.findFirst({ where: { idempotencyKey: p.key }, select: { id: true } });
-    if (existing) return existing.id;
-    const pay = await t.payment.create({
-      data: {
-        organizationId: (await t.bill.findUniqueOrThrow({ where: { id: p.bill.id }, select: { organizationId: true } })).organizationId,
-        branchId: p.bill.branchId, billId: p.bill.id, customerId: p.customerId, employeeId: p.employeeId, method: p.method, provider: "MANUAL",
-        providerRef: p.reference ?? null, status: "CAPTURED", amount: fromMinor(p.amountMinor, p.unit), currency: p.bill.currency, idempotencyKey: p.key, capturedAt: new Date(),
-      },
-    });
-    return pay.id;
+  private async pay(t: TenantTx, p: { bill: { id: string; branchId: string; currency: string }; method: "CASH" | "CARD" | "WALLET"; amountMinor: number; unit: number; key: string; customerId: string | null; employeeId: string | null; reference?: string | null }) {
+    // Shared with the POS: cash lands in the cashier's open shift (if any), wallet debits the customer.
+    return recordPayment(t, p);
   }
 
-  private async recomputeBill(t: TenantTx, billId: string) {
-    const orders = await t.order.findMany({ where: { billId, status: { not: "CANCELLED" } }, select: { subtotal: true, discountTotal: true, taxTotal: true, total: true } });
-    const pays = await t.payment.findMany({ where: { billId, status: "CAPTURED" }, select: { amount: true, refundedAmount: true } });
-    const sum = (xs: Array<Prisma.Decimal>) => xs.reduce((a, b) => a.add(b), new Prisma.Decimal(0));
-    const total = sum(orders.map((o) => o.total));
-    const paid = sum(pays.map((p) => p.amount.sub(p.refundedAmount)));
-    // A bill with a live session stays open: more time or food may still be added.
-    const live = await t.gamingSession.count({ where: { billId, status: { in: [...LIVE_STATUSES] } } });
-    const status = live > 0 ? "OPEN" : paid.gte(total) ? "SETTLED" : paid.gt(0) ? "PARTIALLY_PAID" : "OPEN";
-    await t.bill.update({
-      where: { id: billId },
-      data: { subtotal: sum(orders.map((o) => o.subtotal)), discountTotal: sum(orders.map((o) => o.discountTotal)), taxTotal: sum(orders.map((o) => o.taxTotal)), total, paidTotal: paid, status, closedAt: status === "SETTLED" ? new Date() : null },
-    });
+  private recomputeBill(t: TenantTx, billId: string) {
+    return recomputeBill(t, billId);
   }
+
 }
 
 export function serializeQuote(q: Quote) {

@@ -147,7 +147,7 @@ public sealed class ShellHub(SessionManager sessions, ILogger<ShellHub> log) : B
                 case ShellRequest.Logout:
                     if (LogoutRequested is { } onLogout) await onLogout();
                     break;
-                case ShellRequest.Launch or ShellRequest.LaunchApp or ShellRequest.Help or ShellRequest.Repair:
+                case ShellRequest.Launch or ShellRequest.LaunchApp or ShellRequest.Help or ShellRequest.Repair or ShellRequest.MenuRequest or ShellRequest.PlaceOrder:
                     if (RequestReceived is { } onRequest) await onRequest(request!);
                     break;
                 default:

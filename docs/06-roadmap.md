@@ -7,9 +7,9 @@
 | 3 | Windows Agent (.NET 8 service), device enrollment, heartbeats, Live Floor, remote commands | ✅ **Done** |
 | 4 | Gaming sessions, pricing engine, customer login, Shell UI, automatic expiry | ✅ **Done** |
 | 5 | Games, launchers, update orchestration, peripheral center, connectivity, repair tools, diskless adapters | ✅ **Done** |
-| 6 | Customers, wallet, membership, bookings, customer PWA (first cut) | Next |
-| 7 | POS, restaurant, KDS, tables, in-seat ordering, payments, shifts | |
-| 8 | Inventory, purchasing, suppliers | |
+| 6 | Customers, wallet, membership, bookings, customer PWA (first cut) | ✅ **Done** |
+| 7 | POS, restaurant, KDS, tables, in-seat ordering, payments, shifts | ✅ **Done** |
+| 8 | Inventory, purchasing, suppliers | Next |
 | 9 | Console / VR / simulator management, internet-café printing | |
 | 10 | Tournaments, loyalty, promotions engine, CRM | |
 | 11 | Reports, accounting, analytics | |
@@ -97,6 +97,50 @@ Details are in [09-sessions-and-shell](09-sessions-and-shell.md).
 - **Admin:** Start/extend/move/end on the Live Floor with live quotes and countdowns; Sessions, Customers and Rates pages.
 - **Migration:** `0009_session_timers`.
 - **Tests:** JavaScript suites all pass (including 19 session e2e + 17 pricing), and 34 .NET tests.
+
+## Phase 7 summary
+
+Details are in [12-pos-restaurant-kitchen](12-pos-restaurant-kitchen.md).
+
+- **Orders:**
+  - Counter, takeaway, to a PC (on the live session's bill) and dine-in (on the table's bill).
+  - Server-side pricing with options, branch prices, discounts and per-line VAT.
+  - Sold-out (86) items are refused.
+- **Payments:**
+  - Split tenders (cash / card / wallet) with change; idempotent per tender.
+  - Voids (a sensitive override once cooked) and refunds (original method, cash or wallet).
+- **Kitchen display:**
+  - One ticket per station; start → ready → served.
+  - Live over SSE; timers and late alerts.
+  - The customer's PC is told when food is on its way.
+- **In-seat ordering:**
+  - The Gaming Shell Food screen: menu, options, cart, add to bill or pay from wallet, order tracker.
+  - It sends ids and counts only; the server prices everything.
+- **Shifts:** open with a float, pay-in/out and safe drops, X/Z reports, close with a count, and manager approval above the variance limit.
+- **Admin:** POS, Kitchen and Restaurant pages (tables and menu management).
+- **Migration:** none (Phase 1 schema).
+- **Tests:** 318 JavaScript (10 POS e2e + 8 pricing unit) and 51 .NET.
+
+## Phase 6 summary
+
+Details are in [11-customers-wallet-bookings](11-customers-wallet-bookings.md).
+
+- **Wallet:**
+  - Cash, bonus and prepaid-minutes buckets on one append-only ledger. Overdrafts are impossible (a database check), retries are safe (idempotency keys), and bonus credit is spent first.
+  - WALLET is a payment method everywhere: sessions, extensions, check-in, time packages, memberships.
+- **Memberships:**
+  - Tiers with discounts, bonus minutes and a booking window.
+  - Sold at the counter or in the app. A renewal adds a period; expiry drops the tier automatically.
+- **Bookings:**
+  - Availability by zone and station. No double booking, enforced by the database even under a race.
+  - Walk-in sessions can't overlap a booking.
+  - Check-in starts the sessions; no-shows are released automatically.
+  - Admin day timeline; upcoming bookings shown on floor tiles.
+- **Customer app** (`apps/customer`, PWA):
+  - Sign up and sign in, wallet, time, membership, book and cancel, buy with the wallet.
+  - Separate customer tokens, per-customer isolation, throttled login.
+- **Migration:** `0011_customers_bookings`.
+- **Tests:** 299 JavaScript (17 new e2e) and 50 .NET.
 
 ## Phase 5 summary
 

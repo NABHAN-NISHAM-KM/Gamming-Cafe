@@ -150,6 +150,77 @@ async function seedCatalog(db: PlatformClient) {
   }
 }
 
+/** Demo menu, kitchen stations, tables and a cash drawer per branch. Idempotent. */
+async function seedRestaurant(db: PlatformClient, organizationId: string, branchIds: Record<string, string>) {
+  const stations: Record<string, Record<string, string>> = {};
+  for (const [code, branchId] of Object.entries(branchIds)) {
+    stations[code] = {};
+    for (const name of ["Kitchen", "Bar"]) {
+      const s = (await db.kitchenStation.findFirst({ where: { branchId, name } })) ?? (await db.kitchenStation.create({ data: { organizationId, branchId, name } }));
+      stations[code]![name] = s.id;
+    }
+    if (!(await db.cashDrawer.findFirst({ where: { branchId } }))) await db.cashDrawer.create({ data: { organizationId, branchId, name: "Front desk" } });
+  }
+  const dxb = branchIds["DXB1"];
+  if (dxb) {
+    const zone = await db.zone.findFirst({ where: { branchId: dxb, type: "RESTAURANT" }, select: { id: true } });
+    for (const [i, [name, seats]] of ([["T1", 2], ["T2", 2], ["T3", 4], ["T4", 4], ["T5", 6], ["T6", 8]] as const).entries()) {
+      if (await db.restaurantTable.findFirst({ where: { branchId: dxb, name } })) continue;
+      await db.restaurantTable.create({ data: { organizationId, branchId: dxb, zoneId: zone?.id ?? null, name, seats, mapX: (i % 3) * 2, mapY: Math.floor(i / 3) * 2, qrToken: `${organizationId.slice(0, 8)}-${name}-${Math.random().toString(36).slice(2, 10)}` } });
+    }
+  }
+  if (await db.product.findFirst({ where: { organizationId, sku: "BRG-CLASSIC" } })) return;
+
+  const group = async (name: string, minSelect: number, maxSelect: number, mods: Array<[string, number]>) =>
+    db.modifierGroup.create({ data: { organizationId, name, minSelect, maxSelect, modifiers: { create: mods.map(([n, p], i) => ({ name: n, priceDelta: p, sortOrder: i })) } } });
+  const extras = await group("Extras", 0, 3, [["Cheese", 3], ["Bacon", 5], ["Jalapeños", 2], ["Extra patty", 9]]);
+  const size = await group("Size", 1, 1, [["Regular", 0], ["Large", 5]]);
+  const milk = await group("Milk", 1, 1, [["Regular milk", 0], ["Oat milk", 3], ["No milk", 0]]);
+  const sauce = await group("Dip", 0, 2, [["Ketchup", 0], ["Garlic mayo", 2], ["BBQ", 2]]);
+
+  const kitchen = stations["DXB1"]?.["Kitchen"] ?? null;
+  const bar = stations["DXB1"]?.["Bar"] ?? null;
+  const menu: Array<{ cat: string; items: Array<[string, string, number, "RECIPE_ITEM" | "STOCK_ITEM", "FOOD" | "BEVERAGE", string | null, string[]]> }> = [
+    { cat: "Burgers", items: [["BRG-CLASSIC", "Classic smash burger", 32, "RECIPE_ITEM", "FOOD", kitchen, [extras.id]], ["BRG-CHICKEN", "Crispy chicken burger", 29, "RECIPE_ITEM", "FOOD", kitchen, [extras.id]], ["BRG-VEG", "Halloumi burger", 27, "RECIPE_ITEM", "FOOD", kitchen, [extras.id]]] },
+    { cat: "Snacks", items: [["SNK-FRIES", "Fries", 12, "RECIPE_ITEM", "FOOD", kitchen, [size.id, sauce.id]], ["SNK-WINGS", "Chicken wings (8)", 26, "RECIPE_ITEM", "FOOD", kitchen, [sauce.id]], ["SNK-NACHOS", "Loaded nachos", 24, "RECIPE_ITEM", "FOOD", kitchen, []]] },
+    { cat: "Pizza", items: [["PZA-MARG", "Margherita", 35, "RECIPE_ITEM", "FOOD", kitchen, [size.id]], ["PZA-PEPP", "Pepperoni", 42, "RECIPE_ITEM", "FOOD", kitchen, [size.id]]] },
+    { cat: "Drinks", items: [["DRK-COLA", "Cola (can)", 8, "STOCK_ITEM", "BEVERAGE", bar, []], ["DRK-ENERGY", "Energy drink", 14, "STOCK_ITEM", "BEVERAGE", bar, []], ["DRK-WATER", "Water", 5, "STOCK_ITEM", "BEVERAGE", bar, []], ["DRK-MILKSHAKE", "Oreo milkshake", 22, "RECIPE_ITEM", "BEVERAGE", bar, [size.id]]] },
+    { cat: "Coffee", items: [["COF-LATTE", "Iced latte", 19, "RECIPE_ITEM", "BEVERAGE", bar, [milk.id, size.id]], ["COF-AMER", "Americano", 14, "RECIPE_ITEM", "BEVERAGE", bar, [size.id]]] },
+  ];
+  for (const [ci, c] of menu.entries()) {
+    const cat = (await db.productCategory.findFirst({ where: { organizationId, name: c.cat } })) ?? (await db.productCategory.create({ data: { organizationId, name: c.cat, sortOrder: ci, showInShell: true } }));
+    for (const [pi, [sku, name, price, type, tax, station, groups]] of c.items.entries()) {
+      const p = await db.product.create({ data: { organizationId, categoryId: cat.id, sku, name, type, price, currency: "AED", taxAppliesTo: tax, kitchenStationId: station, prepTimeMinutes: type === "RECIPE_ITEM" ? 10 : null, sortOrder: pi } });
+      for (const [gi, g] of groups.entries()) await db.productModifierGroup.create({ data: { organizationId, productId: p.id, modifierGroupId: g, sortOrder: gi } });
+    }
+  }
+}
+
+/** Demo tiers (two sold, one earned) and some wallet credit for Ahmed. Idempotent. */
+async function seedMembershipAndWallet(db: PlatformClient, organizationId: string) {
+  const tiers: Array<Record<string, unknown> & { code: string }> = [
+    { code: "SILVER", name: "Silver", rank: 10, color: "#9CA3AF", price: 99, durationDays: 30, gamingDiscountPct: 10, restaurantDiscountPct: 5, bonusMinutesMonthly: 60, bookingWindowDays: 10 },
+    { code: "GOLD", name: "Gold", rank: 20, color: "#F5B301", price: 199, durationDays: 30, gamingDiscountPct: 20, restaurantDiscountPct: 10, bonusMinutesMonthly: 180, bookingWindowDays: 14, priorityBooking: true },
+    { code: "LEGEND", name: "Legend", rank: 30, color: "#A78BFA", price: null, durationDays: null, gamingDiscountPct: 25, restaurantDiscountPct: 15, bookingWindowDays: 30, priorityBooking: true, autoQualifyRules: { minHours90d: 100 } },
+  ];
+  for (const t of tiers) {
+    if (await db.membershipTier.findFirst({ where: { organizationId, code: t.code } })) continue;
+    await db.membershipTier.create({ data: { organizationId, ...(t as any) } });
+  }
+  const ahmed = await db.customer.findFirst({ where: { organizationId, username: "ahmed" } });
+  if (!ahmed) return;
+  const wallet = (await db.wallet.findFirst({ where: { customerId: ahmed.id, currency: "AED" } })) ?? (await db.wallet.create({ data: { organizationId, customerId: ahmed.id, currency: "AED" } }));
+  const credits: Array<[string, "CASH" | "BONUS", "TOPUP" | "BONUS_GRANT", number]> = [["seed:ahmed:cash", "CASH", "TOPUP", 150], ["seed:ahmed:bonus", "BONUS", "BONUS_GRANT", 20]];
+  for (const [key, bucket, type, amount] of credits) {
+    if (await db.walletTransaction.findFirst({ where: { organizationId, idempotencyKey: key } })) continue;
+    const w = await db.wallet.findUniqueOrThrow({ where: { id: wallet.id } });
+    const col = bucket === "CASH" ? "cashBalance" : "bonusBalance";
+    const after = Number(w[col]) + amount;
+    await db.wallet.update({ where: { id: w.id }, data: { [col]: after, version: { increment: 1 } } });
+    await db.walletTransaction.create({ data: { organizationId, walletId: w.id, type, bucket, amount, balanceAfter: after, currency: "AED", reason: "Demo credit", idempotencyKey: key, ...(bucket === "BONUS" ? { expiresAt: new Date(Date.now() + 90 * 86_400_000) } : {}) } });
+  }
+}
+
 /** Demo tenant: enable most of the catalog, feature a few, and add pointer presets. */
 async function seedGamesForOrg(db: PlatformClient, organizationId: string) {
   const featured = new Set(["counter-strike-2", "valorant", "fortnite", "ea-sports-fc-25"]);
@@ -229,6 +300,8 @@ async function seedOrg(db: PlatformClient, spec: DemoOrg) {
   }
   await seedPricingAndCustomers(db, organizationId, branchIds);
   await seedGamesForOrg(db, organizationId);
+  await seedMembershipAndWallet(db, organizationId);
+  await seedRestaurant(db, organizationId, branchIds);
   console.log(`org ${spec.slug}: ${spec.branches.length} branches, ${spec.staff.length} staff`);
 }
 
@@ -292,6 +365,8 @@ export async function seed(url = process.env["DATABASE_URL"]) {
         { email: "manager@demo.test", name: "Mo Manager", code: "E002", role: "branch_manager", branch: "DXB1" },
         { email: "cashier@demo.test", name: "Cara Cashier", code: "E003", role: "cashier", branch: "DXB1" },
         { email: "tech@demo.test", name: "Tariq Tech", code: "E004", role: "technician", branch: "DXB1" },
+        { email: "waiter@demo.test", name: "Wafa Waiter", code: "E005", role: "waiter", branch: "DXB1" },
+        { email: "kitchen@demo.test", name: "Karim Kitchen", code: "E006", role: "kitchen_staff", branch: "DXB1" },
       ],
     });
     await seedOrg(db, {
@@ -308,6 +383,6 @@ export async function seed(url = process.env["DATABASE_URL"]) {
 
 if (process.argv[1]?.replace(/\\/g, "/").endsWith("scripts/seed.ts")) {
   await seed();
-  console.log(`\nDemo logins (password: ${DEMO_PASSWORD}): owner@demo.test · manager@demo.test · cashier@demo.test · tech@demo.test · owner@rival.test`);
-  console.log("Demo customers (Gaming Shell): ahmed / ahmed123 (PIN 1234, 2h prepaid) · sara / sara1234 (no time, age 13)");
+  console.log(`\nDemo logins (password: ${DEMO_PASSWORD}): owner@demo.test · manager@demo.test · cashier@demo.test · tech@demo.test · waiter@demo.test · kitchen@demo.test · owner@rival.test`);
+  console.log("Demo customers (Gaming Shell & app): ahmed / ahmed123 (PIN 1234, 2h prepaid, AED 150 + 20 bonus in wallet) · sara / sara1234 (no time, age 13)");
 }

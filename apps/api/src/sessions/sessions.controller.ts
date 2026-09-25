@@ -15,7 +15,7 @@ const Request = z.discriminatedUnion("kind", [
 const Discount = z
   .object({ percent: z.number().min(0).max(100).optional(), amountMinor: z.number().int().min(0).optional(), reason: z.string().min(3).max(200) })
   .refine((d) => d.percent || d.amountMinor, "percent or amountMinor required");
-const Payment = z.object({ method: z.enum(["CASH", "CARD", "TIME_BALANCE", "PAY_LATER"]), reference: z.string().max(100).nullish() });
+const Payment = z.object({ method: z.enum(["CASH", "CARD", "WALLET", "TIME_BALANCE", "PAY_LATER"]), reference: z.string().max(100).nullish() });
 
 const Quote = z.object({ customerId: z.uuid().nullish(), planId: z.uuid().nullish(), request: Request.optional(), discount: Discount.nullish() }).strict();
 const Start = z

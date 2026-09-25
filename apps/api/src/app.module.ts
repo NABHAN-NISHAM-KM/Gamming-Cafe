@@ -37,6 +37,17 @@ import { GamesController } from "./games/games.controller.js";
 import { InventoryService } from "./games/inventory.service.js";
 import { StationConfigService } from "./games/station-config.service.js";
 import { StationReportsService } from "./stations/station-reports.service.js";
+import { BookingsController } from "./bookings/bookings.controller.js";
+import { BookingsService } from "./bookings/bookings.service.js";
+import { CommerceService } from "./customers/commerce.service.js";
+import { MembershipExpiryService } from "./customers/membership-expiry.service.js";
+import { TiersController } from "./customers/tiers.controller.js";
+import { CustomerAppController } from "./customer-app/customer-app.controller.js";
+import { KitchenService } from "./pos/kitchen.service.js";
+import { OrdersService } from "./pos/orders.service.js";
+import { PosController } from "./pos/pos.controller.js";
+import { SeatOrderingService } from "./pos/seat-ordering.service.js";
+import { ShiftsService } from "./pos/shifts.service.js";
 
 @Controller()
 class HealthController {
@@ -85,6 +96,10 @@ export class AppModule {
         PricingController,
         CustomersController,
         GamesController,
+        TiersController,
+        BookingsController,
+        CustomerAppController,
+        PosController,
       ],
       providers: [
         TokensService,
@@ -107,6 +122,13 @@ export class AppModule {
         InventoryService,
         GameUpdatesService,
         StationReportsService,
+        CommerceService,
+        MembershipExpiryService,
+        BookingsService,
+        OrdersService,
+        KitchenService,
+        ShiftsService,
+        SeatOrderingService,
         { provide: APP_GUARD, useClass: AuthGuard },
         { provide: APP_INTERCEPTOR, useClass: TenantInterceptor },
         { provide: APP_FILTER, useClass: ErrorsFilter },

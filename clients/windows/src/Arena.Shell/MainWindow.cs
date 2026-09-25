@@ -19,7 +19,7 @@ public sealed class MainWindow : Window
 {
     private const string Origin = "https://shell.arena/";
     /// <summary>Forwarded to the agent (which validates again).</summary>
-    private static readonly HashSet<string> AllowedFromPage = ["ready", "login", "logout", "launch", "launch_app", "help", "repair"];
+    private static readonly HashSet<string> AllowedFromPage = ["ready", "login", "logout", "launch", "launch_app", "help", "repair", "menu_request", "place_order"];
     /// <summary>Handled here, in the customer's desktop session.</summary>
     private static readonly HashSet<string> HandledByHost = ["pointer_get", "pointer_apply"];
     /// <summary>The venue's pointer settings, restored when a session ends or the Shell closes.</summary>

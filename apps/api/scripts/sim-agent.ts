@@ -42,6 +42,9 @@ export class SimAgent {
   private closing = false;
   private readonly pendingShell = new Map<string, (r: any) => void>();
   private readonly pendingHelp = new Map<string, (r: any) => void>();
+  private readonly pendingSeat = new Map<string, (r: any) => void>();
+  /** In-seat order updates pushed by the server (what the Shell would show). */
+  readonly orderUpdates: Array<{ orderId: string; number: string; status: string; message: string }> = [];
   /** Last verified station config (game library etc.). */
   config: StationConfig | null = null;
   /** Installed games as this PC sees them; UPDATE_GAME flips updateRequired off after a short delay. */
@@ -152,6 +155,27 @@ export class SimAgent {
     this.send({ type: "inventory", games: this.games });
   }
 
+  private seat(msg: Record<string, unknown>): Promise<any> {
+    const requestId = randomUUID();
+    return new Promise((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error("seat request timed out")), 10_000);
+      this.pendingSeat.set(requestId, (r) => {
+        clearTimeout(t);
+        resolve(r);
+      });
+      this.send({ ...msg, requestId });
+    });
+  }
+
+  /** The Shell's Food tab: menu, then an order to this seat. */
+  menu(): Promise<any> {
+    return this.seat({ type: "menu_request" });
+  }
+
+  order(lines: Array<{ productId: string; quantity: number; modifierIds?: string[] }>, payWith: "BILL" | "WALLET" = "BILL", notes?: string): Promise<any> {
+    return this.seat({ type: "place_order", lines, payWith, notes });
+  }
+
   /** Customer presses "Call staff" on the Shell. */
   help(topic: "general" | "game" | "peripheral" | "network" | "payment" = "general", note?: string): Promise<any> {
     const requestId = randomUUID();
@@ -181,6 +205,15 @@ export class SimAgent {
     if (msg.type === "shell_result") {
       this.pendingShell.get(msg.requestId)?.(msg);
       this.pendingShell.delete(msg.requestId);
+      return;
+    }
+    if (msg.type === "menu" || msg.type === "order_result") {
+      this.pendingSeat.get(msg.requestId)?.(msg);
+      this.pendingSeat.delete(msg.requestId);
+      return;
+    }
+    if (msg.type === "order_status") {
+      this.orderUpdates.push({ orderId: msg.orderId, number: msg.number, status: msg.status, message: msg.message });
       return;
     }
     if (msg.type === "help_result") {

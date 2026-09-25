@@ -211,6 +211,31 @@ export interface BootReport {
   imageName?: string | null;
 }
 
+export interface SeatOrderLine {
+  productId: string;
+  quantity: number;
+  modifierIds?: string[];
+  notes?: string | null;
+}
+
+/** The in-seat menu: what this PC's customer can order right now (display data — the server re-prices every order). */
+export interface SeatMenu {
+  currency: string;
+  canPayWithWallet: boolean;
+  categories: Array<{
+    id: string;
+    name: string;
+    products: Array<{
+      id: string;
+      name: string;
+      description: string | null;
+      price: string;
+      available: boolean;
+      modifierGroups: Array<{ id: string; name: string; minSelect: number; maxSelect: number; modifiers: Array<{ id: string; name: string; priceDelta: string }> }>;
+    }>;
+  }>;
+}
+
 // ── WebSocket messages ──────────────────────────────────────────────────────
 
 export interface DeviceMetrics {
@@ -256,7 +281,10 @@ export type DeviceToServer =
   | { type: "boot"; report: BootReport }
   | { type: "game_event"; event: "started" | "exited"; gameId: string; sessionId?: string | null }
   | { type: "help_request"; requestId: string; topic: "general" | "game" | "peripheral" | "network" | "payment"; note?: string | null }
-  | { type: "self_repair"; action: RepairAction; ok: boolean; detail?: string | null };
+  | { type: "self_repair"; action: RepairAction; ok: boolean; detail?: string | null }
+  // Phase 7 — in-seat food & drink ordering from the Shell
+  | { type: "menu_request"; requestId: string }
+  | { type: "place_order"; requestId: string; lines: SeatOrderLine[]; notes?: string | null; payWith: "BILL" | "WALLET" };
 
 export type ServerToDevice =
   | { type: "welcome"; serverTime: string; heartbeatSeconds: number; deviceName: string; venue?: { name: string; branchName: string; logoUrl: string | null } }
@@ -264,6 +292,9 @@ export type ServerToDevice =
   | { type: "config"; command: SignedCommand } // envelope.type = REFRESH_CONFIG, payload = StationConfig
   | { type: "shell_result"; requestId: string; ok: boolean; error?: string; message?: string; displayName?: string; timeBalanceMinutes?: number }
   | { type: "help_result"; requestId: string; ok: boolean; error?: string }
+  | { type: "menu"; requestId: string; menu: SeatMenu | null; error?: string }
+  | { type: "order_result"; requestId: string; ok: boolean; orderId?: string; number?: string; total?: string; currency?: string; error?: string; message?: string }
+  | { type: "order_status"; orderId: string; number: string; status: "PREPARING" | "READY" | "SERVED"; message: string }
   | { type: "error"; error: string };
 
 /**

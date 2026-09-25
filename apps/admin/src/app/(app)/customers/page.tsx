@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Clock, KeyRound, Plus, UserPlus, Users } from "lucide-react";
+import { Clock, Crown, KeyRound, Plus, UserPlus, Users } from "lucide-react";
+import { MembershipPanel, TiersModal, WalletPanel } from "./account-panels";
 import { api } from "@/lib/client/api";
 import { useAction, useApi } from "@/lib/client/hooks";
 import { useCan } from "@/lib/client/me";
@@ -17,8 +18,9 @@ interface Customer {
   email: string | null;
   status: string;
   timeBalanceMinutes: number;
+  walletBalance: string;
   lastVisitAt: string | null;
-  membershipTier: { name: string } | null;
+  membershipTier: { name: string; color: string | null } | null;
 }
 interface Detail extends Customer {
   sessions: Array<{ id: string; status: string; startedAt: string | null; endedAt: string | null; amountDue: string; currency: string; device: { name: string }; endReason: string | null }>;
@@ -89,7 +91,7 @@ function SellTime({ customer, onDone }: { customer: Customer; onDone: () => void
   const plans = useApi<Plan[]>("/pricing-plans");
   const [branchId, setBranchId] = useState("");
   const [choice, setChoice] = useState(""); // planId:packageId
-  const [method, setMethod] = useState<"CASH" | "CARD">("CASH");
+  const [method, setMethod] = useState<"CASH" | "CARD" | "WALLET">("CASH");
   const [key] = useState(idem);
   useEffect(() => {
     if (!branchId && branches.data?.[0]) setBranchId(branches.data.find((b) => b.code === "DXB1")?.id ?? branches.data[0].id);
@@ -131,9 +133,10 @@ function SellTime({ customer, onDone }: { customer: Customer; onDone: () => void
         </Select>
       </Field>
       <Field label="Payment">
-        <Select value={method} onChange={(e) => setMethod(e.target.value as "CASH" | "CARD")}>
+        <Select value={method} onChange={(e) => setMethod(e.target.value as "CASH" | "CARD" | "WALLET")}>
           <option value="CASH">Cash</option>
           <option value="CARD">Card</option>
+          <option value="WALLET">Customer wallet</option>
         </Select>
       </Field>
       <ErrorNote>{sell.error}</ErrorNote>
@@ -199,24 +202,9 @@ function CustomerDetail({ id, onChanged }: { id: string; onChanged: () => void }
           </Button>
         )}
       </div>
-      <div>
-        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-3">Time history</h3>
-        {d.timeLedger.length === 0 ? (
-          <p className="text-sm text-ink-3">No prepaid time yet.</p>
-        ) : (
-          <ul className="grid gap-1 text-sm">
-            {d.timeLedger.map((l) => (
-              <li key={l.id} className="flex gap-3">
-                <span className={l.amount > 0 ? "tabular w-16 text-ok" : "tabular w-16 text-ink-2"}>
-                  {l.amount > 0 ? "+" : ""}
-                  {l.amount} min
-                </span>
-                <span className="text-ink-2">{l.reason}</span>
-                <span className="ml-auto text-xs text-ink-3">{new Date(l.createdAt).toLocaleString()}</span>
-              </li>
-            ))}
-          </ul>
-        )}
+      <div className="grid gap-5 border-t border-line pt-5">
+        <MembershipPanel customerId={d.id} onChanged={() => { void c.reload(); onChanged(); }} />
+        <WalletPanel key={d.timeBalanceMinutes} customerId={d.id} onChanged={() => { void c.reload(); onChanged(); }} />
       </div>
       <div>
         <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-3">Recent sessions</h3>
@@ -258,18 +246,26 @@ export default function CustomersPage() {
   const list = useApi<Customer[]>(`/customers${debounced ? `?q=${encodeURIComponent(debounced)}` : ""}`);
   const [creating, setCreating] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
+  const [tiers, setTiers] = useState(false);
 
   return (
     <>
       <PageHeader
         title="Customers"
-        subtitle="Accounts for logging in at the PCs, with prepaid gaming time."
+        subtitle="Accounts for the PCs and the customer app: wallet, prepaid time and membership."
         actions={
-          can("customer.create") && (
-            <Button variant="primary" onClick={() => setCreating(true)}>
-              <UserPlus className="size-4" /> New customer
-            </Button>
-          )
+          <div className="flex gap-2">
+            {can("membership.view") && (
+              <Button onClick={() => setTiers(true)}>
+                <Crown className="size-4" /> Membership tiers
+              </Button>
+            )}
+            {can("customer.create") && (
+              <Button variant="primary" onClick={() => setCreating(true)}>
+                <UserPlus className="size-4" /> New customer
+              </Button>
+            )}
+          </div>
         }
       />
       <Card>
@@ -281,14 +277,15 @@ export default function CustomersPage() {
         ) : !list.data?.length ? (
           <Empty icon={<Users className="size-8" />} title={debounced ? "No matches" : "No customers yet"} />
         ) : (
-          <Table head={["Customer", "Phone", "Prepaid time", "Last visit", ""]}>
+          <Table head={["Customer", "Phone", "Wallet", "Prepaid time", "Last visit", ""]}>
             {list.data.map((c) => (
               <tr key={c.id} className="cursor-pointer hover:bg-panel-2" onClick={() => setOpen(c.id)}>
                 <td className="px-4 py-3">
-                  <p className="font-medium">{c.displayName}</p>
+                  <p className="flex items-center gap-1.5 font-medium">{c.displayName}{c.membershipTier && <Crown className="size-3.5" style={{ color: c.membershipTier.color ?? undefined }} aria-label={c.membershipTier.name} />}</p>
                   <p className="text-xs text-ink-3">@{c.username}</p>
                 </td>
                 <td className="px-4 py-3 font-mono text-xs text-ink-2">{c.phone ?? "—"}</td>
+                <td className="tabular px-4 py-3">{Number(c.walletBalance) > 0 ? c.walletBalance : <span className="text-ink-3">—</span>}</td>
                 <td className="tabular px-4 py-3">{c.timeBalanceMinutes > 0 ? <span className="text-ok">{hours(c.timeBalanceMinutes)}</span> : <span className="text-ink-3">—</span>}</td>
                 <td className="px-4 py-3 text-xs text-ink-3">{c.lastVisitAt ? new Date(c.lastVisitAt).toLocaleDateString() : "never"}</td>
                 <td className="px-4 py-3 text-right">{c.status !== "ACTIVE" && <Badge tone="danger">{c.status.toLowerCase()}</Badge>}</td>
@@ -298,6 +295,7 @@ export default function CustomersPage() {
         )}
       </Card>
       <NewCustomer open={creating} onClose={() => setCreating(false)} onDone={(c) => { setCreating(false); void list.reload(); setOpen(c.id); }} />
+      <TiersModal open={tiers} onClose={() => setTiers(false)} />
       <Modal open={!!open} onClose={() => setOpen(null)} title="Customer" wide>
         {open && <CustomerDetail id={open} onChanged={() => void list.reload()} />}
       </Modal>

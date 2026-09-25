@@ -47,6 +47,8 @@ jobs:
         run: npm run build -w @arena/admin
       - name: Build Gaming Shell UI
         run: npm run build -w @arena/shell
+      - name: Build customer app (PWA)
+        run: npm run build -w @arena/customer
       - run: npm run typecheck
       - run: npm test
 

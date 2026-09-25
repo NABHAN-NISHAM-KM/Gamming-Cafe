@@ -1,0 +1,112 @@
+@import "tailwindcss";
+
+/* Same world as the Gaming Shell: near-black violet, one neon accent. Built
+   for a phone in one hand at the counter or on the sofa. */
+@theme static {
+  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-display: "Bahnschrift", "Segoe UI Variable Display", "SF Pro Display", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Mono", ui-monospace, monospace;
+
+  --color-void: #07060d;
+  --color-deck: #100e1b;
+  --color-deck-2: #181527;
+  --color-rim: #2a2540;
+  --color-glow: #7cf6ff;
+  --color-glow-2: #a78bfa;
+  --color-text: #ecebf7;
+  --color-dim: #9b97b8;
+  --color-mute: #625e80;
+  --color-warn: #ffb547;
+  --color-alarm: #ff4d6d;
+  --color-good: #46e3a1;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+  body {
+    margin: 0;
+    background: var(--color-void);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-glow);
+    outline-offset: 2px;
+  }
+  input,
+  select,
+  button {
+    font: inherit;
+  }
+}
+
+@layer components {
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  .card {
+    background: var(--color-deck);
+    border: 1px solid var(--color-rim);
+    border-radius: 1.25rem;
+  }
+  .field {
+    width: 100%;
+    border-radius: 0.875rem;
+    border: 1px solid var(--color-rim);
+    background: color-mix(in oklab, var(--color-void) 70%, transparent);
+    padding: 0.85rem 1rem;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .field:focus {
+    border-color: var(--color-glow);
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 0.875rem;
+    padding: 0.85rem 1.25rem;
+    font-family: var(--font-display);
+    font-weight: 600;
+    transition: filter 0.15s, opacity 0.15s;
+  }
+  .btn-primary {
+    background: linear-gradient(90deg, var(--color-glow), var(--color-glow-2));
+    color: var(--color-void);
+  }
+  .btn-primary:hover {
+    filter: brightness(1.08);
+  }
+  .btn-ghost {
+    border: 1px solid var(--color-rim);
+    color: var(--color-text);
+  }
+  .btn:disabled {
+    opacity: 0.5;
+  }
+  .chip {
+    border-radius: 999px;
+    border: 1px solid var(--color-rim);
+    padding: 0.45rem 0.95rem;
+    font-size: 0.875rem;
+    color: var(--color-dim);
+    white-space: nowrap;
+  }
+  .chip[aria-pressed="true"] {
+    border-color: var(--color-glow);
+    background: var(--color-glow);
+    color: var(--color-void);
+  }
+}
+
+.safe-bottom {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}

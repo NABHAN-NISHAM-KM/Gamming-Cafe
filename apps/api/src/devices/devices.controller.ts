@@ -255,7 +255,15 @@ export class DevicesController {
     const devices = await tx().device.findMany({ where: { branchId, isEnabled: true }, select: DEVICE_FIELDS });
     const alerts = await tx().alert.findMany({ where: { branchId, status: { in: ["OPEN", "ACKNOWLEDGED"] } }, orderBy: { openedAt: "desc" }, take: 100 });
     const sessions = await liveSessionSummaries(branchId);
-    return { zones, devices: devices.map((d) => ({ ...this.runtime.view(d), session: sessions.get(d.id) ?? null })), alerts, serverTime: new Date().toISOString() };
+    // Next booking per station in the coming 2 hours (the tile shows "booked 18:00").
+    const soon = await tx().bookingResource.findMany({
+      where: { isLive: true, device: { branchId }, startsAt: { lt: new Date(Date.now() + 2 * 3_600_000) }, endsAt: { gt: new Date() }, booking: { status: "CONFIRMED" } },
+      select: { deviceId: true, startsAt: true, booking: { select: { id: true, reference: true, contactName: true, customer: { select: { displayName: true } } } } },
+      orderBy: { startsAt: "asc" },
+    });
+    const nextBooking = new Map<string, { id: string; reference: string; startsAt: Date; name: string | null }>();
+    for (const r of soon) if (r.deviceId && !nextBooking.has(r.deviceId)) nextBooking.set(r.deviceId, { id: r.booking.id, reference: r.booking.reference, startsAt: r.startsAt, name: r.booking.customer?.displayName ?? r.booking.contactName });
+    return { zones, devices: devices.map((d) => ({ ...this.runtime.view(d), session: sessions.get(d.id) ?? null, nextBooking: nextBooking.get(d.id) ?? null })), alerts, serverTime: new Date().toISOString() };
   }
 
   /** Server-Sent Events: device status, live metrics, command acks, alerts. */

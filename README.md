@@ -10,7 +10,7 @@ Multi-tenant SaaS for **gaming cafés, esports arenas, internet cafés, console 
 
 Everything syncs in real time and keeps working at the branch when the internet is down.
 
-> **Status:** Phases 1–3 are complete: database, security and tenancy; API and admin; **Windows station agent + Live Floor** (verified on real hardware). Phase 4 (sessions, pricing, Gaming Shell) is next. See [docs/06-roadmap.md](docs/06-roadmap.md).
+> **Status:** Phases 1–7 are complete: database, security and tenancy; API and admin; Windows station agent and Live Floor (verified on real hardware); sessions, pricing and the Gaming Shell; games and station tools; customers, wallet, bookings and the customer app; **POS, restaurant, kitchen display, in-seat ordering and cash shifts**. Phase 8 (inventory and purchasing) is next. See [docs/06-roadmap.md](docs/06-roadmap.md).
 
 ## Documentation
 
@@ -26,12 +26,15 @@ Everything syncs in real time and keeps working at the branch when the internet 
 | [08 · Stations & Live Floor](docs/08-stations-and-live-floor.md) | Windows agent, enrolment, command security, monitoring, Live Floor |
 | [09 · Sessions & Shell](docs/09-sessions-and-shell.md) | Pricing engine, server-authoritative sessions and expiry, customer login, Gaming Shell |
 | [10 · Games & station tools](docs/10-games-and-station-tools.md) | Signed game library, detection, updates, peripherals, connectivity, repairs, diskless |
+| [11 · Customers, wallet & bookings](docs/11-customers-wallet-bookings.md) | Wallet ledger, memberships, bookings, customer app (PWA) |
+| [12 · POS, restaurant & kitchen](docs/12-pos-restaurant-kitchen.md) | Orders, bills, split payment, refunds, KDS, tables, in-seat ordering, shifts |
 
 ## Repository
 
 ```
 apps/admin          Next.js admin console (http://localhost:3000)
 apps/api            NestJS API (auth, tenancy, stations, sessions, pricing, customers)
+apps/customer       Customer app (PWA: wallet, bookings, shop — http://localhost:5175/demo)
 apps/shell          Gaming Shell UI (React; runs inside ArenaShell.exe, preview on http://localhost:5174)
 clients/windows     .NET 8 station agent (service), Shell host (WPF + WebView2), tests
 packages/db         Prisma schema (per bounded context), migrations, RLS generator, tenant-scoped client

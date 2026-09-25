@@ -13,7 +13,51 @@ export class ApiError extends Error {
 /** Human wording for the API's machine-readable errors. */
 export function describeError(status: number, body: any): string {
   const code: string | undefined = body?.error;
+  if (code === "device_booked") return body?.freeMinutes > 0 ? `This PC is booked soon (${body.bookingReference}) — sell at most ${body.freeMinutes} min or use another PC.` : `This PC is booked right now (${body?.bookingReference}).`;
+  if (code === "insufficient_funds") return `Not enough in the wallet${body?.balance ? ` (balance ${body.balance}${body.needed ? `, needs ${body.needed}` : ""})` : ""}.`;
+  if (code === "not_enough_free") return `Only ${body?.free ?? 0} station(s) free at that time.`;
+  if (code === "too_far_ahead") return `Bookings can be made up to ${body?.maxDays} days ahead.`;
+  if (code === "sold_out") return `${body?.product ?? "An item"} is sold out.`;
+  if (["modifier_required", "too_many_modifiers", "bad_modifier"].includes(code ?? "")) return body?.message ?? "Check the item options.";
+  if (code === "insufficient_cash" || code === "not_enough_cash") return "The cash tendered doesn't cover the amount.";
+  if (code === "drawer_in_use") return `That drawer is already open${body?.by ? ` by ${body.by}` : ""}.`;
+  if (code === "bad_transition") return `That ticket is already ${String(body?.from ?? "").toLowerCase()}.`;
   const map: Record<string, string> = {
+    no_open_shift: "Open a cash shift first (POS → My shift) to take cash.",
+    shift_already_open: "You already have a shift open at this branch.",
+    shift_not_open: "That shift is already closed.",
+    not_your_shift: "Only the cashier who opened this shift (or a manager) can close it.",
+    cannot_approve_own_shift: "Another manager has to approve your own shift.",
+    nothing_to_approve: "This shift doesn't need approval.",
+    bill_settled: "That bill is already paid.",
+    bill_void: "That bill was voided.",
+    order_paid: "That order is already paid — refund it instead.",
+    already_paid: "That's already paid.",
+    already_voided: "That item was already voided.",
+    already_prepared: "The kitchen has already made this — a manager must void it.",
+    not_cancellable: "This can't be cancelled any more.",
+    no_session: "No one is playing on that PC right now.",
+    device_required: "Pick the PC to deliver to.",
+    table_required: "Pick a table.",
+    table_out_of_service: "That table is out of service.",
+    table_has_open_bill: "Settle the table's bill first.",
+    table_name_taken: "A table with that name already exists.",
+    not_orderable_here: "That item can't be ordered here.",
+    product_not_found: "That item is no longer on the menu.",
+    sku_taken: "That SKU is already used.",
+    bad_amount: "That amount isn't valid.",
+    bad_discount: "That discount isn't valid.",
+    empty_order: "Add something to the order first.",
+    wallet_frozen: "This customer's wallet is frozen.",
+    wallet_needs_customer: "Pick a customer to pay from their wallet.",
+    slot_taken: "That station is already booked for that time.",
+    starts_in_past: "That time has already passed.",
+    too_early: "Too early to check in — check-in opens 15 minutes before the booking.",
+    booking_over: "This booking has already ended.",
+    not_confirmed: "Only a confirmed booking can do that.",
+    tier_not_for_sale: "This tier is earned, not sold.",
+    sold_tier_needs_duration: "A tier with a price needs a duration in days.",
+    code_taken: "That code is already used.",
     invalid_credentials: "Email or password is incorrect.",
     account_locked: "Too many failed attempts. The account is temporarily locked.",
     invalid_mfa_code: "That code is not valid. Wait for the next code and try again.",

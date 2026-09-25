@@ -208,6 +208,15 @@ public sealed class StationService(
                     shell.Broadcast(ShellProtocol.Result("help_result", h.RequestId, false, "offline", "The venue is offline. Please wave to a member of staff."));
                 }
                 return;
+            case ShellRequest.MenuRequest m:
+                if (!await server.TrySendAsync(Outgoing.MenuRequest(m.RequestId)))
+                    shell.Broadcast(JsonSerializer.Serialize(new { type = "menu", requestId = m.RequestId, menu = (object?)null, error = "offline" }, Json.Options));
+                return;
+            case ShellRequest.PlaceOrder o:
+                if (sessions.Current is null) { shell.Broadcast(ShellProtocol.Result("order_result", o.RequestId, false, "no_session", "Sign in to order.")); return; }
+                if (!await server.TrySendAsync(Outgoing.PlaceOrder(o.RequestId, o.Lines, o.Notes, o.PayWith)))
+                    shell.Broadcast(ShellProtocol.Result("order_result", o.RequestId, false, "offline", "The venue is offline — please order at the counter."));
+                return;
             case ShellRequest.Repair r:
             {
                 var result = await repairs.RunAsync(r.Action, _safeMode, CloseGames, ReloadShell, CancellationToken.None);
@@ -217,6 +226,9 @@ public sealed class StationService(
             }
         }
     }
+
+    /// <summary>Menu, order results and order progress from the server go straight to the Shell (display data only).</summary>
+    public void ForwardToShell(JsonElement message) => shell.Broadcast(message.GetRawText().ReplaceLineEndings(""));
 
     /// <summary>Server answered a help request.</summary>
     public void OnHelpResult(JsonElement r)

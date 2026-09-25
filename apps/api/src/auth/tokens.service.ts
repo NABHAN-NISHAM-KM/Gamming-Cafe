@@ -50,6 +50,33 @@ export class TokensService {
     }
   }
 
+  /**
+   * Customer-app token. A different audience from staff tokens, so neither can
+   * be used as the other. `sid` is the CustomerSession row: logging out (or a
+   * staff ban) ends it and the token stops working immediately.
+   */
+  async signCustomer(c: { customerId: string; org: string; sid: string }, ttlSec = 12 * 3600): Promise<string> {
+    return new SignJWT({ org: c.org, sid: c.sid })
+      .setProtectedHeader({ alg: ALG, typ: "ct+jwt" })
+      .setSubject(c.customerId)
+      .setIssuer(this.cfg.JWT_ISSUER)
+      .setAudience("arena:customer")
+      .setIssuedAt()
+      .setExpirationTime(`${ttlSec}s`)
+      .sign(await this.privateKey);
+  }
+
+  async verifyCustomer(token: string): Promise<{ customerId: string; org: string; sid: string }> {
+    try {
+      const { payload } = await jwtVerify(token, await this.publicKey, { issuer: this.cfg.JWT_ISSUER, audience: "arena:customer", algorithms: [ALG], typ: "ct+jwt" });
+      const { sub, org, sid } = payload as Record<string, unknown>;
+      if (typeof sub !== "string" || typeof org !== "string" || typeof sid !== "string") throw new Error("claims");
+      return { customerId: sub, org, sid };
+    } catch {
+      throw new UnauthorizedException({ error: "invalid_token" });
+    }
+  }
+
   /** Short-lived proof that the password step passed; exchanged for tokens after TOTP. */
   async signMfaChallenge(userId: string, organizationId: string): Promise<string> {
     return new SignJWT({ org: organizationId })

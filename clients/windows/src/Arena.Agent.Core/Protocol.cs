@@ -101,6 +101,11 @@ public static class Outgoing
     public static string HelpRequest(string requestId, string topic, string? note) =>
         JsonSerializer.Serialize(new { type = "help_request", requestId, topic, note }, Json.Options);
 
+    public static string MenuRequest(string requestId) => JsonSerializer.Serialize(new { type = "menu_request", requestId }, Json.Options);
+
+    public static string PlaceOrder(string requestId, IEnumerable<OrderLine> lines, string? notes, string payWith) =>
+        JsonSerializer.Serialize(new { type = "place_order", requestId, lines = lines.Select(l => new { productId = l.ProductId, quantity = l.Quantity, modifierIds = l.ModifierIds }), notes, payWith }, Json.Options);
+
     public static string SelfRepair(string action, bool ok, string? detail) =>
         JsonSerializer.Serialize(new { type = "self_repair", action, ok, detail }, Json.Options);
 

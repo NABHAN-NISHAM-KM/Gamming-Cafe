@@ -202,6 +202,21 @@ public class StationProtocolTests
     }
 
     [Fact]
+    public void Seat_orders_carry_only_ids_and_counts()
+    {
+        const string rid = "2b1f0a4e-9c1d-4f5e-8a7b-1234567890ab";
+        const string pid = "01a0d9d3-df92-7347-a7b7-8cd940baf971";
+        var ok = Assert.IsType<ShellRequest.PlaceOrder>(ShellProtocol.Parse($$"""{"type":"place_order","requestId":"{{rid}}","payWith":"BILL","notes":" no ice ","lines":[{"productId":"{{pid}}","quantity":2,"modifierIds":["{{pid}}"],"price":"0.01"}]}"""));
+        Assert.Equal((2, "no ice"), (ok.Lines[0].Quantity, ok.Notes));
+        Assert.Contains(pid, Outgoing.PlaceOrder(ok.RequestId, ok.Lines, ok.Notes, ok.PayWith));
+        Assert.DoesNotContain("price", Outgoing.PlaceOrder(ok.RequestId, ok.Lines, ok.Notes, ok.PayWith)); // whatever the page sent, only ids travel on
+        Assert.Null(ShellProtocol.Parse($$"""{"type":"place_order","requestId":"{{rid}}","payWith":"FREE","lines":[{"productId":"{{pid}}","quantity":1}]}"""));
+        Assert.Null(ShellProtocol.Parse($$"""{"type":"place_order","requestId":"{{rid}}","payWith":"BILL","lines":[{"productId":"{{pid}}","quantity":99}]}"""));
+        Assert.Null(ShellProtocol.Parse($$"""{"type":"place_order","requestId":"{{rid}}","payWith":"BILL","lines":[]}"""));
+        Assert.IsType<ShellRequest.MenuRequest>(ShellProtocol.Parse($$"""{"type":"menu_request","requestId":"{{rid}}"}"""));
+    }
+
+    [Fact]
     public void Library_for_the_shell_hides_paths_and_locks_by_age()
     {
         var cfg = new StationConfig("r", [new LibraryGame("g1", "CS2", ["FPS"], null, 18, true, 0, "STEAM", new LaunchSpec("PATH", @"C:\Games\cs2.exe", "-secret", null, null, null), ["cs2.exe"], true, false)], [], [], []);

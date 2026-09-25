@@ -73,7 +73,7 @@ describe.skipIf(!HAS_DB)("Devices, commands & Live Floor (e2e)", () => {
       const code = await newCode(2);
       const a = await sim().enroll(code);
       const b = await sim().enroll(code);
-      expect(a.name).toMatch(/^VIP-\d{2}$/);
+      expect(a.name).toMatch(/^VIP-\d{2,}$/); // zero-padded to 2 digits; grows past 99
       expect(b.name).not.toBe(a.name);
       expect(Object.keys(a.signingKeys)).toHaveLength(1);
       await expect(sim().enroll(code)).rejects.toMatchObject({ status: 401 });

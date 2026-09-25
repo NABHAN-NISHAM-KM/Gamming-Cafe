@@ -40,6 +40,8 @@ export interface FloorDevice {
   session?: SessionSummary | null;
   /** What the customer is playing right now (from the agent). */
   currentGame?: { id: string; title: string; startedAt: string } | null;
+  /** Confirmed booking starting within the next 2 hours. */
+  nextBooking?: { id: string; reference: string; startsAt: string; name: string | null } | null;
 }
 
 export interface FloorZone {
@@ -144,6 +146,7 @@ export function useLiveFloor(branchId: string | null) {
         const m = JSON.parse((ev as MessageEvent).data) as { deviceId: string; metrics: Metrics; at: string };
         setDevices((all) => (all[m.deviceId] ? { ...all, [m.deviceId]: { ...all[m.deviceId]!, metrics: m.metrics, metricsAt: m.at, isOnline: true } } : all));
       });
+      es.addEventListener("booking", () => void load()); // a booking changed: refetch (rare, cheap)
       es.addEventListener("activity", (ev) => {
         const a = JSON.parse((ev as MessageEvent).data) as { deviceId: string; game: FloorDevice["currentGame"] };
         setDevices((all) => (all[a.deviceId] ? { ...all, [a.deviceId]: { ...all[a.deviceId]!, currentGame: a.game } } : all));

@@ -22,7 +22,11 @@ public abstract record ShellRequest
     public sealed record LaunchApp(string RequestId, string AppId) : ShellRequest;
     public sealed record Help(string RequestId, string Topic, string? Note) : ShellRequest;
     public sealed record Repair(string RequestId, string Action) : ShellRequest;
+    public sealed record MenuRequest(string RequestId) : ShellRequest;
+    public sealed record PlaceOrder(string RequestId, OrderLine[] Lines, string? Notes, string PayWith) : ShellRequest;
 }
+
+public sealed record OrderLine(string ProductId, int Quantity, string[] ModifierIds);
 
 public static partial class ShellProtocol
 {
@@ -74,6 +78,38 @@ public static partial class ShellProtocol
                     var action = Str(root, "action");
                     if (rid is null || !RequestIdPattern().IsMatch(rid) || action is null || !Stations.RepairActions.SelfService.Contains(action)) return null;
                     return new ShellRequest.Repair(rid, action);
+                }
+                case "menu_request":
+                {
+                    var rid = Str(root, "requestId");
+                    return rid is not null && RequestIdPattern().IsMatch(rid) ? new ShellRequest.MenuRequest(rid) : null;
+                }
+                case "place_order":
+                {
+                    // Only ids and counts leave the Shell; the server prices everything.
+                    var rid = Str(root, "requestId");
+                    var payWith = Str(root, "payWith");
+                    var notes = Str(root, "notes");
+                    if (rid is null || !RequestIdPattern().IsMatch(rid) || payWith is not ("BILL" or "WALLET") || notes is { Length: > 300 }) return null;
+                    if (!root.TryGetProperty("lines", out var ls) || ls.ValueKind != JsonValueKind.Array || ls.GetArrayLength() is < 1 or > 30) return null;
+                    var lines = new List<OrderLine>();
+                    foreach (var l in ls.EnumerateArray())
+                    {
+                        var pid = l.ValueKind == JsonValueKind.Object ? Str(l, "productId") : null;
+                        if (pid is null || !UuidPattern().IsMatch(pid) || !l.TryGetProperty("quantity", out var q) || !q.TryGetInt32(out var qty) || qty is < 1 or > 20) return null;
+                        var mods = new List<string>();
+                        if (l.TryGetProperty("modifierIds", out var ms))
+                        {
+                            if (ms.ValueKind != JsonValueKind.Array || ms.GetArrayLength() > 20) return null;
+                            foreach (var m in ms.EnumerateArray())
+                            {
+                                if (m.ValueKind != JsonValueKind.String || !UuidPattern().IsMatch(m.GetString()!)) return null;
+                                mods.Add(m.GetString()!);
+                            }
+                        }
+                        lines.Add(new OrderLine(pid, qty, mods.ToArray()));
+                    }
+                    return new ShellRequest.PlaceOrder(rid, lines.ToArray(), string.IsNullOrWhiteSpace(notes) ? null : notes.Trim(), payWith);
                 }
                 case "login":
                     var requestId = Str(root, "requestId");

@@ -71,10 +71,19 @@ const Incoming = z.discriminatedUnion("type", [
   z.object({ type: z.literal("game_event"), event: z.enum(["started", "exited"]), gameId: z.uuid(), sessionId: z.uuid().nullish() }),
   z.object({ type: z.literal("help_request"), requestId: z.string().min(8).max(64), topic: z.enum(["general", "game", "peripheral", "network", "payment"]), note: z.string().max(300).nullish() }),
   z.object({ type: z.literal("self_repair"), action: z.enum(REPAIR_ACTIONS), ok: z.boolean(), detail: z.string().max(300).nullish() }),
+  // Phase 7 — in-seat ordering (the device is the one on the socket; the session is looked up server-side)
+  z.object({ type: z.literal("menu_request"), requestId: z.string().min(8).max(64) }),
+  z.object({
+    type: z.literal("place_order"),
+    requestId: z.string().min(8).max(64),
+    lines: z.array(z.object({ productId: z.uuid(), quantity: z.number().int().min(1).max(20), modifierIds: z.array(z.uuid()).max(20).optional(), notes: z.string().max(200).nullish() })).min(1).max(30),
+    notes: z.string().max(300).nullish(),
+    payWith: z.enum(["BILL", "WALLET"]),
+  }),
 ]);
 
 type Incoming = z.infer<typeof Incoming>;
-export type StationMessage = Extract<Incoming, { type: "inventory" | "peripherals" | "network" | "boot" | "game_event" | "help_request" | "self_repair" }>;
+export type StationMessage = Extract<Incoming, { type: "inventory" | "peripherals" | "network" | "boot" | "game_event" | "help_request" | "self_repair" | "menu_request" | "place_order" }>;
 
 /**
  * WebSocket endpoint for Windows agents. Each connection authenticates with a
@@ -216,6 +225,17 @@ export class DeviceGateway implements OnModuleDestroy {
               return this.runtime.onHardware(conn, msg.snapshot as any);
             case "ack":
               return this.commands.ack(conn.organizationId, conn.deviceId, msg);
+            case "menu_request":
+            case "place_order": {
+              const handler = this.stationHandlers.get(msg.type);
+              const replyType = msg.type === "menu_request" ? "menu" : "order_result";
+              const reply = (r: Record<string, unknown>) => ws.send(JSON.stringify({ type: replyType, requestId: msg.requestId, ...r }));
+              if (!handler) return reply({ ok: false, error: "unavailable" });
+              return handler(conn, msg).then(
+                (r) => reply(r as Record<string, unknown>),
+                (e) => reply({ ok: false, error: e?.response?.error ?? "failed", message: e?.response?.message ?? e?.response?.hint }),
+              );
+            }
             case "help_request": {
               const handler = this.stationHandlers.get("help_request");
               const reply = (r: Record<string, unknown>) => ws.send(JSON.stringify({ type: "help_result", requestId: msg.requestId, ...r }));

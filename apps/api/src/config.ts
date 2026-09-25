@@ -30,7 +30,9 @@ const Env = z.object({
   CORS_ORIGINS: z.string().default("http://localhost:3000"),
   LOGIN_MAX_FAILURES: z.coerce.number().int().default(5),
   LOGIN_LOCK_MINUTES: z.coerce.number().int().default(15),
-});
+  /** Simulated card payments in the customer app ("Pay now" with no real card). Never on in production. */
+  DEMO_PAYMENTS: z.enum(["on", "off"]).optional(),
+}).transform((c) => ({ ...c, demoPayments: c.NODE_ENV !== "production" && c.DEMO_PAYMENTS !== "off" }));
 
 export type AppConfig = z.infer<typeof Env>;
 

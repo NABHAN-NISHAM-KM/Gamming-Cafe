@@ -22,3 +22,4 @@ clients/windows/src/Arena.Shell/wwwroot/
 
 # TypeScript incremental build caches
 *.tsbuildinfo
+apps/customer/dist/

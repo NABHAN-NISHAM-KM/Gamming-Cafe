@@ -4,6 +4,7 @@ import { bridge, type HostMessage, type ShellState } from "./bridge";
 import { strings, type Lang, type Strings } from "./i18n";
 import { AppsScreen, ConnectivityScreen, FeaturedRow, GamesScreen, PeripheralsScreen, SupportScreen, type Notify } from "./screens";
 import { useStation } from "./station";
+import { FoodScreen } from "./food";
 
 const cx = (...c: Array<string | false | null | undefined>) => c.filter(Boolean).join(" ");
 
@@ -243,6 +244,10 @@ function SessionScreen({ state, t }: { state: ShellState; t: Strings }) {
     noteTimer.current = setTimeout(() => setNote(null), 5000);
   };
   const { playing } = useStation();
+  // Kitchen progress on food orders shows up wherever the customer is.
+  useEffect(() => bridge.subscribe((m) => {
+    if (m.type === "order_status") notify(`Order ${m.number}: ${m.message}`, "good");
+  }), []); // eslint-disable-line react-hooks/exhaustive-deps
   const shown = useRef(new Set<number>());
 
   // Warnings at the configured thresholds (30/15/10/5/1 min). The server's clock decides.
@@ -334,7 +339,7 @@ function SessionScreen({ state, t }: { state: ShellState; t: Strings }) {
         {tab === "internet" && <AppsScreen kinds={["BROWSER"]} title="Internet" hint="Private browsing: nothing is kept after you log out." notify={notify} />}
         {tab === "connectivity" && <ConnectivityScreen notify={notify} />}
         {tab === "peripherals" && <PeripheralsScreen notify={notify} />}
-        {tab === "food" && <Placeholder icon={UtensilsCrossed} title="Food & drinks" text="Order to your seat without leaving the game — it's added to your bill. (Arriving with the restaurant module.)" />}
+        {tab === "food" && <FoodScreen notify={notify} station={state.station.name} />}
         {tab === "support" && <SupportScreen station={state.station.name} notify={notify} />}
       </section>
       </div>
