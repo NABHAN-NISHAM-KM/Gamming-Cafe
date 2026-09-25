@@ -19,3 +19,6 @@ clients/windows/**/obj/
 
 # Gaming Shell UI build output (npm run build -w @arena/shell)
 clients/windows/src/Arena.Shell/wwwroot/
+
+# TypeScript incremental build caches
+*.tsbuildinfo

@@ -4,7 +4,7 @@
 import { generateKeyPairSync, randomBytes, randomUUID, createPrivateKey, type KeyObject } from "node:crypto";
 import { SignJWT } from "jose";
 import WebSocket from "ws";
-import { DEVICE_ASSERTION_AUDIENCE, verifyCommand, type CommandAck, type DeviceMetrics, type HardwareSnapshot, type ServerToDevice } from "@arena/contracts";
+import { DEVICE_ASSERTION_AUDIENCE, verifyCommand, type CommandAck, type DetectedGame, type DeviceMetrics, type HardwareSnapshot, type ServerToDevice, type StationConfig, type UpdateGamePayload } from "@arena/contracts";
 
 export interface Identity {
   deviceId: string;
@@ -26,6 +26,8 @@ export interface SimOptions {
   execute?: (type: string, payload: any) => Promise<CommandAck["result"] | { fail: string }> | CommandAck["result"] | { fail: string };
   heartbeatSeconds?: number;
   log?: (msg: string) => void;
+  /** What this PC "has installed" (Steam/Epic manifests); reported on connect and on SCAN_GAMES. */
+  games?: DetectedGame[];
 }
 
 export class SimAgent {
@@ -39,13 +41,20 @@ export class SimAgent {
   onClosed?: () => void;
   private closing = false;
   private readonly pendingShell = new Map<string, (r: any) => void>();
+  private readonly pendingHelp = new Map<string, (r: any) => void>();
+  /** Last verified station config (game library etc.). */
+  config: StationConfig | null = null;
+  /** Installed games as this PC sees them; UPDATE_GAME flips updateRequired off after a short delay. */
+  games: DetectedGame[];
   private beat?: NodeJS.Timeout;
   private key?: KeyObject;
 
   constructor(
     private readonly apiUrl: string,
     private readonly opts: SimOptions = {},
-  ) {}
+  ) {
+    this.games = opts.games ? opts.games.map((g) => ({ ...g })) : [];
+  }
 
   static generateKey() {
     return generateKeyPairSync("ec", { namedCurve: "P-256", privateKeyEncoding: { type: "pkcs8", format: "pem" }, publicKeyEncoding: { type: "spki", format: "pem" } });
@@ -112,6 +121,7 @@ export class SimAgent {
       activeSessionId: opts.reportSession === false ? null : (this.activeSession?.id ?? null),
     });
     this.send({ type: "hardware", snapshot: this.opts.hardware ?? DEFAULT_HARDWARE });
+    if (this.opts.games) this.reportInventory();
     const every = (this.opts.heartbeatSeconds ?? id.heartbeatSeconds) * 1000;
     this.heartbeat();
     this.beat = setInterval(() => this.heartbeat(), every);
@@ -138,6 +148,23 @@ export class SimAgent {
     });
   }
 
+  reportInventory() {
+    this.send({ type: "inventory", games: this.games });
+  }
+
+  /** Customer presses "Call staff" on the Shell. */
+  help(topic: "general" | "game" | "peripheral" | "network" | "payment" = "general", note?: string): Promise<any> {
+    const requestId = randomUUID();
+    return new Promise((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error("help request timed out")), 10_000);
+      this.pendingHelp.set(requestId, (r) => {
+        clearTimeout(t);
+        resolve(r);
+      });
+      this.send({ type: "help_request", requestId, topic, note });
+    });
+  }
+
   /** Customer login/logout from the (simulated) Gaming Shell. */
   shell(msg: { type: "shell_login"; username: string; secret: string } | { type: "shell_logout"; sessionId: string }, requestId: string = randomUUID()): Promise<any> {
     return new Promise((resolve, reject) => {
@@ -156,7 +183,12 @@ export class SimAgent {
       this.pendingShell.delete(msg.requestId);
       return;
     }
-    if (msg.type !== "command") return;
+    if (msg.type === "help_result") {
+      this.pendingHelp.get(msg.requestId)?.(msg);
+      this.pendingHelp.delete(msg.requestId);
+      return;
+    }
+    if (msg.type !== "command" && msg.type !== "config") return;
     const id = this.identity!;
     const check = verifyCommand(msg.command, {
       self: { organizationId: id.organizationId, branchId: id.branchId, deviceId: id.deviceId },
@@ -170,6 +202,11 @@ export class SimAgent {
     }
     const e = check.envelope;
     this.seen.add(e.commandId);
+    if (msg.type === "config") {
+      // Station config is only accepted as a verified REFRESH_CONFIG envelope; never acknowledged.
+      if (e.type === "REFRESH_CONFIG") this.config = e.payload as unknown as StationConfig;
+      return;
+    }
     this.received.push({ type: e.type, payload: e.payload, verified: true });
     const p = e.payload as { sessionId?: string; expiresAt?: string | null };
     if (e.type === "START_SESSION" && p.sessionId) this.activeSession = { id: p.sessionId, expiresAt: p.expiresAt ?? null };
@@ -177,6 +214,16 @@ export class SimAgent {
     if (e.type === "END_SESSION" && (!p.sessionId || this.activeSession?.id === p.sessionId)) this.activeSession = null;
     this.send({ type: "ack", commandId: e.commandId, status: "RECEIVED" });
     this.send({ type: "ack", commandId: e.commandId, status: "EXECUTING" });
+    if (e.type === "SCAN_GAMES") setTimeout(() => this.reportInventory(), 50);
+    if (e.type === "UPDATE_GAME") {
+      // The launcher "downloads" for a moment, then the next scan shows the game up to date.
+      const u = e.payload as unknown as UpdateGamePayload;
+      const key = u.launch.kind === "STEAM" ? u.launch.appId : u.launch.kind === "EPIC" ? u.launch.appName : u.gameId;
+      setTimeout(() => {
+        this.games = this.games.map((g) => (g.key === key ? { ...g, updateRequired: false, buildId: String(Number(g.buildId ?? 0) + 1) } : g));
+        this.reportInventory();
+      }, 300);
+    }
     const outcome = (await this.opts.execute?.(e.type, e.payload)) ?? { simulated: true };
     if (outcome && "fail" in outcome) this.send({ type: "ack", commandId: e.commandId, status: "FAILED", errorCode: "SIM_FAILURE", errorMessage: String(outcome.fail) });
     else this.send({ type: "ack", commandId: e.commandId, status: "SUCCESS", result: outcome ?? {} });

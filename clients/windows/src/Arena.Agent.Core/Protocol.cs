@@ -78,6 +78,32 @@ public static class Outgoing
     public static string ShellLogout(string requestId, string sessionId) =>
         JsonSerializer.Serialize(new { type = "shell_logout", requestId, sessionId }, Json.Options);
 
+    // ── Phase 5: station reports ────────────────────────────────────────────
+
+    public static string Inventory(IEnumerable<Games.DetectedGame> games) =>
+        JsonSerializer.Serialize(new
+        {
+            type = "inventory",
+            games = games.Select(g => new { source = g.Source, key = g.Key, name = g.Name, installPath = g.InstallPath, buildId = g.BuildId, sizeBytes = g.SizeBytes, updateRequired = g.UpdateRequired }),
+        }, Json.Options);
+
+    public static string Peripherals(IEnumerable<Stations.DetectedPeripheral> items) =>
+        JsonSerializer.Serialize(new { type = "peripherals", items = items.Select(p => new { hardwareId = p.HardwareId, type = p.Type, name = p.Name, vendor = p.Vendor }) }, Json.Options);
+
+    public static string Network(Stations.NetworkProbe probe) => JsonSerializer.Serialize(new { type = "network", probe }, Json.Options);
+
+    public static string Boot(string mode, string? provider, string? bootServer) =>
+        JsonSerializer.Serialize(new { type = "boot", report = new { mode, provider, bootServer } }, Json.Options);
+
+    public static string GameEvent(string evt, string gameId, string? sessionId) =>
+        JsonSerializer.Serialize(new { type = "game_event", @event = evt, gameId, sessionId }, Json.Options);
+
+    public static string HelpRequest(string requestId, string topic, string? note) =>
+        JsonSerializer.Serialize(new { type = "help_request", requestId, topic, note }, Json.Options);
+
+    public static string SelfRepair(string action, bool ok, string? detail) =>
+        JsonSerializer.Serialize(new { type = "self_repair", action, ok, detail }, Json.Options);
+
     public static string Heartbeat(DeviceMetrics metrics) =>
         JsonSerializer.Serialize(new { type = "heartbeat", metrics }, Json.Options);
 

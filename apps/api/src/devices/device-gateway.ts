@@ -5,7 +5,7 @@ import { decodeJwt, importSPKI, jwtVerify } from "jose";
 import { WebSocketServer, type WebSocket } from "ws";
 import { z } from "zod";
 import type { Db } from "@arena/db";
-import { DEVICE_ASSERTION_AUDIENCE } from "@arena/contracts";
+import { DEVICE_ASSERTION_AUDIENCE, REPAIR_ACTIONS } from "@arena/contracts";
 import { CONFIG, type AppConfig } from "../config.js";
 import { DB } from "../common/db.module.js";
 import { CommandsService } from "./commands.service.js";
@@ -42,7 +42,39 @@ const Incoming = z.discriminatedUnion("type", [
     errorMessage: z.string().max(500).optional(),
     result: z.record(z.string(), z.unknown()).optional(),
   }),
+  // Phase 5 — station reports
+  z.object({
+    type: z.literal("inventory"),
+    games: z.array(z.object({
+      source: z.enum(["STEAM", "EPIC", "PATH"]), key: z.string().min(1).max(128), name: z.string().max(200),
+      installPath: z.string().max(400).nullish(), buildId: z.string().max(64).nullish(), sizeBytes: z.number().int().min(0).max(2 ** 50).nullish(), updateRequired: z.boolean().optional(),
+    })).max(1000),
+  }),
+  z.object({
+    type: z.literal("peripherals"),
+    items: z.array(z.object({
+      hardwareId: z.string().min(1).max(300), name: z.string().max(200), vendor: z.string().max(60).nullish(),
+      type: z.enum(["CONTROLLER", "HEADSET", "STEERING_WHEEL", "JOYSTICK", "KEYBOARD", "MOUSE", "WEBCAM", "MICROPHONE", "OTHER"]),
+    })).max(64),
+  }),
+  z.object({
+    type: z.literal("network"),
+    probe: z.object({
+      targets: z.array(z.object({ name: z.string().max(60), host: z.string().max(255), pingMs: z.number().min(0).max(60_000).nullable(), lossPct: z.number().min(0).max(100) })).max(16),
+      linkType: z.enum(["ETHERNET", "WIFI", "OTHER"]).nullish(), linkSpeedMbps: z.number().min(0).max(1_000_000).nullish(), dnsMs: z.number().min(0).max(60_000).nullish(),
+    }),
+  }),
+  z.object({
+    type: z.literal("boot"),
+    report: z.object({ mode: z.enum(["LOCAL_DISK", "ISCSI", "UNKNOWN"]), provider: z.string().max(60).nullish(), bootServer: z.string().max(255).nullish(), imageName: z.string().max(200).nullish() }),
+  }),
+  z.object({ type: z.literal("game_event"), event: z.enum(["started", "exited"]), gameId: z.uuid(), sessionId: z.uuid().nullish() }),
+  z.object({ type: z.literal("help_request"), requestId: z.string().min(8).max(64), topic: z.enum(["general", "game", "peripheral", "network", "payment"]), note: z.string().max(300).nullish() }),
+  z.object({ type: z.literal("self_repair"), action: z.enum(REPAIR_ACTIONS), ok: z.boolean(), detail: z.string().max(300).nullish() }),
 ]);
+
+type Incoming = z.infer<typeof Incoming>;
+export type StationMessage = Extract<Incoming, { type: "inventory" | "peripherals" | "network" | "boot" | "game_event" | "help_request" | "self_repair" }>;
 
 /**
  * WebSocket endpoint for Windows agents. Each connection authenticates with a
@@ -60,6 +92,13 @@ export class DeviceGateway implements OnModuleDestroy {
 
   handleShell(fn: NonNullable<DeviceGateway["shellHandler"]>) {
     this.shellHandler = fn;
+  }
+
+  /** Phase 5 station reports (inventory, peripherals, network, help…), handled by their modules. */
+  private readonly stationHandlers = new Map<StationMessage["type"], (conn: Connection, msg: any) => Promise<unknown>>();
+
+  handleStation<T extends StationMessage["type"]>(type: T, fn: (conn: Connection, msg: Extract<StationMessage, { type: T }>) => Promise<unknown>) {
+    this.stationHandlers.set(type, fn);
   }
 
   constructor(
@@ -160,7 +199,7 @@ export class DeviceGateway implements OnModuleDestroy {
       }
       if (++count > 30) return ws.close(1008, "rate limit");
 
-      let msg: z.infer<typeof Incoming>;
+      let msg: Incoming;
       try {
         msg = Incoming.parse(JSON.parse(data.toString()));
       } catch {
@@ -177,6 +216,19 @@ export class DeviceGateway implements OnModuleDestroy {
               return this.runtime.onHardware(conn, msg.snapshot as any);
             case "ack":
               return this.commands.ack(conn.organizationId, conn.deviceId, msg);
+            case "help_request": {
+              const handler = this.stationHandlers.get("help_request");
+              const reply = (r: Record<string, unknown>) => ws.send(JSON.stringify({ type: "help_result", requestId: msg.requestId, ...r }));
+              if (!handler) return reply({ ok: false, error: "unavailable" });
+              return handler(conn, msg).then((r) => reply((r as Record<string, unknown>) ?? { ok: true }), () => reply({ ok: false, error: "failed" }));
+            }
+            case "inventory":
+            case "peripherals":
+            case "network":
+            case "boot":
+            case "game_event":
+            case "self_repair":
+              return this.stationHandlers.get(msg.type)?.(conn, msg);
             case "shell_login":
             case "shell_logout": {
               const handler = this.shellHandler;

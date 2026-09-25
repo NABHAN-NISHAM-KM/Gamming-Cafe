@@ -2,7 +2,7 @@ import { Body, ConflictException, Controller, Delete, Get, HttpCode, Inject, Not
 import { randomUUID } from "node:crypto";
 import { Observable } from "rxjs";
 import { z } from "zod";
-import { DEVICE_COMMANDS, type DeviceCommandType } from "@arena/contracts";
+import { DEVICE_COMMANDS, REPAIR_ACTIONS, type DeviceCommandType } from "@arena/contracts";
 import { AuditService } from "../common/audit.service.js";
 import { authorizeFor } from "../common/authz.js";
 import { AnyStaff, LongLived, RequirePermission } from "../common/decorators.js";
@@ -50,6 +50,7 @@ const payloadSchemas: Partial<Record<DeviceCommandType, z.ZodType>> = {
   SEND_MESSAGE: z.object({ title: z.string().max(80).default("Message from staff"), message: z.string().min(1).max(500), timeoutSeconds: z.number().int().min(5).max(600).default(30) }).strict(),
   LAUNCH_APP: z.object({ executablePath: z.string().min(3).max(260), arguments: z.string().max(500).optional(), workingDirectory: z.string().max(260).optional() }).strict(),
   CLOSE_GAME: z.object({ processNames: z.array(z.string().regex(/^[\w .-]{1,64}$/)).min(1).max(20) }).strict(),
+  RUN_REPAIR: z.object({ action: z.enum(REPAIR_ACTIONS) }).strict(),
 };
 
 /** Minimal live-session info shown on floor tiles (who, until when, how paid). */

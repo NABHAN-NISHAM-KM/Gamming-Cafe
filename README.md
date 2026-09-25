@@ -25,6 +25,7 @@ Everything syncs in real time and keeps working at the branch when the internet 
 | [07 · API](docs/07-api.md) | Running the API, request pipeline, endpoints, demo logins |
 | [08 · Stations & Live Floor](docs/08-stations-and-live-floor.md) | Windows agent, enrolment, command security, monitoring, Live Floor |
 | [09 · Sessions & Shell](docs/09-sessions-and-shell.md) | Pricing engine, server-authoritative sessions and expiry, customer login, Gaming Shell |
+| [10 · Games & station tools](docs/10-games-and-station-tools.md) | Signed game library, detection, updates, peripherals, connectivity, repairs, diskless |
 
 ## Repository
 

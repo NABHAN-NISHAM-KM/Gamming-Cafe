@@ -8,6 +8,7 @@ import { useCan } from "@/lib/client/me";
 import { CMD_TONE, STATUS, ago, fmtPct, fmtTemp, type Alert, type CommandRow, type FloorDevice } from "@/lib/client/floor";
 import { Badge, Button, ErrorNote, Field, Input, cx } from "@/components/ui";
 import { SessionPanel } from "./session-panel";
+import { ToolsPanel } from "./tools-panel";
 
 interface Detail extends FloorDevice {
   zone: { name: string };
@@ -44,6 +45,11 @@ export function StationDrawer({ device, allDevices, liveCommands, alerts, onClos
     const r = await api<{ status: string; online: boolean }>(`/devices/${device.id}/commands`, { method: "POST", body: { type, payload }, action: label });
     setNotice(r.online === false && type !== "WAKE_ON_LAN" ? `${label} queued — the PC is offline and will receive it when it reconnects.` : `${label} sent.`);
     void detail.reload();
+  });
+
+  const ack = useAction(async (alertId: string) => {
+    await api(`/alerts/${alertId}/ack`, { method: "POST", action: "Acknowledge" });
+    onChange();
   });
 
   const m = device.metrics;
@@ -136,12 +142,17 @@ export function StationDrawer({ device, allDevices, liveCommands, alerts, onClos
               {alerts.map((a) => (
                 <li key={a.id} className="flex items-center gap-2 text-sm">
                   <Badge tone={a.severity === "CRITICAL" ? "danger" : "warn"}>{a.severity.toLowerCase()}</Badge>
-                  {a.title}
+                  <span className="flex-1">{a.title}</span>
+                  {a.status === "OPEN" && (
+                    <button onClick={() => void ack.run(a.id)} className="text-xs text-ink-3 hover:text-accent">{a.type === "HELP_REQUESTED" ? "On my way" : "Acknowledge"}</button>
+                  )}
                 </li>
               ))}
             </ul>
           </section>
         )}
+
+        <ToolsPanel key={device.id} deviceId={device.id} branchId={b} online={device.isOnline} />
 
         <section>
           <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-3">Live</h3>

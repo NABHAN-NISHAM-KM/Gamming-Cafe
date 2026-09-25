@@ -38,6 +38,8 @@ export interface FloorDevice {
   metricsAt: string | null;
   removed?: boolean;
   session?: SessionSummary | null;
+  /** What the customer is playing right now (from the agent). */
+  currentGame?: { id: string; title: string; startedAt: string } | null;
 }
 
 export interface FloorZone {
@@ -141,6 +143,10 @@ export function useLiveFloor(branchId: string | null) {
       es.addEventListener("metrics", (ev) => {
         const m = JSON.parse((ev as MessageEvent).data) as { deviceId: string; metrics: Metrics; at: string };
         setDevices((all) => (all[m.deviceId] ? { ...all, [m.deviceId]: { ...all[m.deviceId]!, metrics: m.metrics, metricsAt: m.at, isOnline: true } } : all));
+      });
+      es.addEventListener("activity", (ev) => {
+        const a = JSON.parse((ev as MessageEvent).data) as { deviceId: string; game: FloorDevice["currentGame"] };
+        setDevices((all) => (all[a.deviceId] ? { ...all, [a.deviceId]: { ...all[a.deviceId]!, currentGame: a.game } } : all));
       });
       es.addEventListener("alert", (ev) => {
         const { alert } = JSON.parse((ev as MessageEvent).data) as { alert: Alert };

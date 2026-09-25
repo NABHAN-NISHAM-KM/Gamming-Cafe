@@ -23,8 +23,10 @@ export const COMMAND_PERMISSION: Partial<Record<DeviceCommandType, PermissionKey
   REFRESH_CONFIG: "station.manage",
   UPDATE_CLIENT: "station.update_client",
   MAINTENANCE_MODE: "station.maintenance",
-  RUN_REPAIR: "station.maintenance",
+  RUN_REPAIR: "station.restart", // fixed, allow-listed fixes (flush DNS, restart audio…) — routine, like a restart
   SCREENSHOT: "station.remote_control",
+  SCAN_GAMES: "game.update",
+  // UPDATE_GAME is issued only by the update orchestrator (a scheduled job needs game.update).
   // START/END/EXTEND/MOVE_SESSION are issued only by the sessions module (phase 4).
 };
 
@@ -39,6 +41,9 @@ const TTL_SECONDS: Partial<Record<DeviceCommandType, number>> = {
   START_SESSION: 600,
   EXTEND_SESSION: 600,
   END_SESSION: 600,
+  SCAN_GAMES: 120,
+  RUN_REPAIR: 120,
+  UPDATE_GAME: 900, // an offline PC's update expires and is re-issued by the job when it's back
 };
 
 export interface IssueInput {

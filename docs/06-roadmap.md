@@ -6,8 +6,8 @@
 | 2 | Auth (JWT, refresh rotation, MFA), organizations, branches, zones, employees · NestJS API · Admin app | ✅ **Done** |
 | 3 | Windows Agent (.NET 8 service), device enrollment, heartbeats, Live Floor, remote commands | ✅ **Done** |
 | 4 | Gaming sessions, pricing engine, customer login, Shell UI, automatic expiry | ✅ **Done** |
-| 5 | Games, launchers, update orchestration, peripheral center, connectivity, repair tools, diskless adapters | Next |
-| 6 | Customers, wallet, membership, bookings, customer PWA (first cut) | |
+| 5 | Games, launchers, update orchestration, peripheral center, connectivity, repair tools, diskless adapters | ✅ **Done** |
+| 6 | Customers, wallet, membership, bookings, customer PWA (first cut) | Next |
 | 7 | POS, restaurant, KDS, tables, in-seat ordering, payments, shifts | |
 | 8 | Inventory, purchasing, suppliers | |
 | 9 | Console / VR / simulator management, internet-café printing | |
@@ -97,6 +97,26 @@ Details are in [09-sessions-and-shell](09-sessions-and-shell.md).
 - **Admin:** Start/extend/move/end on the Live Floor with live quotes and countdowns; Sessions, Customers and Rates pages.
 - **Migration:** `0009_session_timers`.
 - **Tests:** JavaScript suites all pass (including 19 session e2e + 17 pricing), and 34 .NET tests.
+
+## Phase 5 summary
+
+Details are in [10-games-and-station-tools](10-games-and-station-tools.md).
+
+- **Game catalog:**
+  - A platform catalog (18 popular titles, 6 launchers, browsers and tools), plus custom games per organization.
+  - Games can be enabled, featured, limited to zones and age-rated.
+- **Signed station config:** the list of what a PC may launch is signed with the branch key, cached for offline use, and re-checked locally (session, age, installed; interpreters never run).
+- **Detection:** games from Steam and Epic manifests and catalog executables; peripherals via Plug and Play, with the vendor named; boot mode (local disk or iSCSI/diskless).
+- **Updates:** branch-wide, launcher-driven, a few PCs at a time, idle PCs only, resumed when offline PCs return.
+- **Gaming Shell:**
+  - Library with search and categories, one-tap play, age locks, "now playing".
+  - Platforms, Apps and Internet; Connection (live ping); Peripherals (mouse speed, presets, reset per customer); Support (call staff, 3 self-fixes).
+- **Live Floor:**
+  - Playing and help badges on tiles.
+  - Drawer: repairs, connection, peripherals, installed games, boot.
+  - Alerts: peripheral missing, network degraded, help requested.
+- **Migration:** `0010_games_and_station_tools`.
+- **Tests:** 282 JavaScript (13 games e2e + 5 unit) and 50 .NET.
 
 ## Decisions to confirm with the product owner
 

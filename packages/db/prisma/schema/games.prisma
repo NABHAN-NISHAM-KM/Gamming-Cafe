@@ -121,6 +121,8 @@ model GameInstallation {
   installPath    String?
   sizeBytes      BigInt?
   status         InstallStatus @default(NOT_INSTALLED)
+  /// How the agent found it: STEAM | EPIC | PATH
+  detectedBy     String?
   progressPct    Float?
   lastCheckedAt  DateTime?     @db.Timestamptz(3)
   lastPlayedAt   DateTime?     @db.Timestamptz(3)
@@ -151,6 +153,8 @@ model GameUpdateJob {
   status             UpdateJobStatus @default(SCHEDULED)
   scheduledFor       DateTime        @db.Timestamptz(3)
   bandwidthLimitKbps Int?
+  /// Stations updated at the same time (spreads LAN/internet load).
+  maxConcurrent      Int             @default(4)
   progressPct        Float           @default(0)
   devicesTotal       Int             @default(0)
   devicesDone        Int             @default(0)

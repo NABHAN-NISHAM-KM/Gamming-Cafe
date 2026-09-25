@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { EventEmitter } from "node:events";
 import type { WebSocket } from "ws";
-import type { DeviceMetrics, ServerToDevice } from "@arena/contracts";
+import type { DeviceMetrics, NetworkProbe, ServerToDevice } from "@arena/contracts";
 
 // ── Live Floor events ───────────────────────────────────────────────────────
 // In-process pub/sub keyed by org+branch. Single API instance for now; with
@@ -12,7 +12,10 @@ export type FloorEvent =
   | { type: "device"; device: Record<string, unknown> }
   | { type: "metrics"; deviceId: string; metrics: DeviceMetrics; at: string }
   | { type: "command"; command: { id: string; deviceId: string; type: string; status: string; errorMessage?: string | null; completedAt?: string | null } }
-  | { type: "alert"; alert: Record<string, unknown> };
+  | { type: "alert"; alert: Record<string, unknown> }
+  | { type: "activity"; deviceId: string; game: { id: string; title: string; startedAt: string } | null }
+  | { type: "network"; deviceId: string; network: NetworkProbe & { at: string } }
+  | { type: "game_update"; job: Record<string, unknown> };
 
 @Injectable()
 export class LiveBus {
@@ -44,6 +47,14 @@ export interface Connection {
   metricsAt: number | null;
   /** Alert types currently raised for this connection (null = not yet synced with the DB). */
   alerts: Map<string, "WARNING" | "CRITICAL"> | null;
+  /** Phase 5 — last pushed station-config revision, what is being played, last network probe. */
+  configRevision?: string;
+  currentGame?: { id: string; title: string; startedAt: string } | null;
+  network?: (NetworkProbe & { at: string }) | null;
+  networkPersistAt?: number;
+  /** Kept apart from `alerts` (which the heartbeat evaluator owns). undefined = not raised on this connection. */
+  networkAlert?: "WARNING" | "CRITICAL";
+  lastHelpAt?: number;
 }
 
 @Injectable()
@@ -90,6 +101,6 @@ export class DeviceHub {
   /** Live metrics for a device, if connected and fresh. */
   live(deviceId: string) {
     const c = this.conns.get(deviceId);
-    return c ? { metrics: c.metrics, metricsAt: c.metricsAt ? new Date(c.metricsAt).toISOString() : null } : null;
+    return c ? { metrics: c.metrics, metricsAt: c.metricsAt ? new Date(c.metricsAt).toISOString() : null, currentGame: c.currentGame ?? null, network: c.network ?? null } : null;
   }
 }

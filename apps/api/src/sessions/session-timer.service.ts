@@ -5,7 +5,7 @@ import { CommandsService } from "../devices/commands.service.js";
 import { DeviceRuntimeService } from "../devices/device-runtime.service.js";
 import type { Connection } from "../devices/live.js";
 import { LiveBus } from "../devices/live.js";
-import { ENDING_SOON_MINUTES, LIVE_STATUSES, SessionsService, WARNING_MINUTES } from "./sessions.service.js";
+import { ageOn, ENDING_SOON_MINUTES, LIVE_STATUSES, SessionsService, WARNING_MINUTES } from "./sessions.service.js";
 
 const SYSTEM = { type: "SYSTEM" as const, id: null };
 
@@ -93,13 +93,13 @@ export class SessionTimerService implements OnModuleInit, OnModuleDestroy {
     await this.db.withTenant({ organizationId: c.organizationId, actorType: "SYSTEM", actorId: null }, async (t) => {
       const live = await t.gamingSession.findFirst({
         where: { deviceId: c.deviceId, status: { in: [...LIVE_STATUSES] } },
-        include: { customer: { select: { displayName: true, membershipTier: { select: { name: true } } } } },
+        include: { customer: { select: { displayName: true, dateOfBirth: true, membershipTier: { select: { name: true } } } } },
       });
       if (live && live.id !== agentSessionId) {
         await this.commands.issue(t, {
           deviceId: c.deviceId,
           type: "START_SESSION",
-          payload: this.sessions.startPayload(live, live.customer?.displayName ?? live.guestLabel ?? "Guest", live.customer?.membershipTier?.name ?? null),
+          payload: this.sessions.startPayload(live, live.customer?.displayName ?? live.guestLabel ?? "Guest", live.customer?.membershipTier?.name ?? null, ageOn(live.customer?.dateOfBirth)),
           requestedBy: { type: "SYSTEM", id: null },
         });
       } else if (!live && agentSessionId) {

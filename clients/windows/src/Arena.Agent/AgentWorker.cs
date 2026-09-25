@@ -23,6 +23,8 @@ public sealed class AgentWorker(
     CommandExecutor executor,
     SessionManager sessions,
     ShellHub shell,
+    ServerLink link,
+    StationService station,
     ILogger<AgentWorker> log) : BackgroundService
 {
     public static readonly string Version = typeof(AgentWorker).Assembly.GetName().Version?.ToString(3) ?? "0.1.0";
@@ -46,6 +48,7 @@ public sealed class AgentWorker(
         log.LogInformation("ArenaOS agent {Version} for {Name} ({DeviceId}) → {Api}{Safe}", Version, identity.Name, identity.DeviceId, identity.ApiUrl,
             identity.SafeMode ? " [SAFE MODE: disruptive commands are simulated]" : "");
         _safeMode = identity.SafeMode;
+        station.Configure(identity.SafeMode);
         shell.Configure(identity.Name, identity.SafeMode, LoadVenue());
         shell.LoginRequested += OnShellLogin;
         shell.LogoutRequested += OnShellLogout;
@@ -118,7 +121,9 @@ public sealed class AgentWorker(
             await Send(Outgoing.Hello(Version, nic?.Ipv4, Environment.MachineName, nic?.Mac, sessions.Current?.SessionId));
             await Send(Outgoing.Hardware(HardwareCollector.Collect(nic)));
             _send = Send;
+            link.Send = Send;
             shell.SetConnected(true);
+            _ = Task.Run(() => station.OnServerConnectedAsync(stop).ContinueWith(t => { if (t.Exception is { } ex) log.LogWarning("Station sync: {Message}", ex.GetBaseException().Message); }));
 
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(stop);
             var beats = Task.Run(async () =>
@@ -144,6 +149,7 @@ public sealed class AgentWorker(
             finally
             {
                 _send = null;
+                link.Send = null;
                 shell.SetConnected(false);
                 FailPendingLogins();
                 linked.Cancel();
@@ -158,6 +164,8 @@ public sealed class AgentWorker(
         var type = doc.RootElement.GetProperty("type").GetString();
         if (type == "error") { log.LogWarning("Server says: {Error}", doc.RootElement.GetProperty("error").GetString()); return; }
         if (type == "shell_result") { OnShellResult(doc.RootElement); return; }
+        if (type == "help_result") { station.OnHelpResult(doc.RootElement); return; }
+        if (type == "config") { ApplyConfig(doc.RootElement, verifier, replay); return; }
         if (type != "command") return;
 
         var cmd = doc.RootElement.GetProperty("command").Deserialize<SignedCommand>(Json.Options)!;
@@ -188,12 +196,43 @@ public sealed class AgentWorker(
                 var s = sessions.Current;
                 return ExecResult.Success(new { sessionId = s?.SessionId, expiresAt = s?.ExpiresAt, shell = shell.ClientCount > 0 });
 
+            case "SCAN_GAMES":
+                return ExecResult.Success(new { games = await station.ScanGamesAsync(ct) });
+
+            case "UPDATE_GAME":
+                return station.UpdateGame(e.Payload, ct);
+
+            case "RUN_REPAIR":
+                var repair = PayloadString(e.Payload, "action");
+                return repair is null ? ExecResult.Fail("BAD_PAYLOAD", "action missing") : await station.RepairAsync(repair, ct);
+
             case "SEND_MESSAGE" when shell.ClientCount > 0:
                 shell.SendMessage(PayloadString(e.Payload, "title") ?? "Message from staff", PayloadString(e.Payload, "message") ?? "");
                 return ExecResult.Success(new { shown = true, via = "shell" });
 
             default:
                 return await executor.ExecuteAsync(e, safeMode, ct);
+        }
+    }
+
+    /// <summary>
+    /// Station config arrives as a signed REFRESH_CONFIG envelope: verified with
+    /// the pinned branch key exactly like a command, then applied (never acked).
+    /// </summary>
+    private void ApplyConfig(JsonElement root, CommandVerifier verifier, ReplayStore replay)
+    {
+        var cmd = root.GetProperty("command").Deserialize<SignedCommand>(Json.Options)!;
+        var (result, e) = verifier.Verify(cmd, DateTimeOffset.UtcNow, replay.Seen);
+        if (result != VerifyResult.Ok || e is null || e.Type != "REFRESH_CONFIG")
+        {
+            log.LogWarning("REJECTED station config ({Result})", result);
+            return;
+        }
+        replay.Add(e.CommandId, DateTimeOffset.UtcNow);
+        if (Core.Games.StationConfig.FromPayload(e.Payload) is { } config)
+        {
+            station.ApplyConfig(config);
+            log.LogInformation("Station config {Revision}: {Games} games, {Apps} apps", config.Revision, config.Games.Length, config.Apps.Length);
         }
     }
 

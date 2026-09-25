@@ -5,7 +5,7 @@ using System.Net.Sockets;
 namespace Arena.Agent.Windows;
 
 /// <summary>The PC's primary LAN adapter (the one with a default gateway).</summary>
-public sealed record PrimaryNic(string Name, string? Ipv4, string? Mac, string? Gateway, long SpeedMbps, IPAddress? Broadcast)
+public sealed record PrimaryNic(string Name, string? Ipv4, string? Mac, string? Gateway, long SpeedMbps, IPAddress? Broadcast, bool Wireless = false)
 {
     public static PrimaryNic? Detect()
     {
@@ -24,7 +24,7 @@ public sealed record PrimaryNic(string Name, string? Ipv4, string? Mac, string? 
                 var m = mask.GetAddressBytes();
                 bcast = new IPAddress(ip.Select((b, i) => (byte)(b | ~m[i])).ToArray());
             }
-            return new PrimaryNic(nic.Name, uni?.Address.ToString(), mac.Length == 17 ? mac : null, gw.ToString(), nic.Speed / 1_000_000, bcast);
+            return new PrimaryNic(nic.Name, uni?.Address.ToString(), mac.Length == 17 ? mac : null, gw.ToString(), nic.Speed / 1_000_000, bcast, nic.NetworkInterfaceType == NetworkInterfaceType.Wireless80211);
         }
         return null;
     }

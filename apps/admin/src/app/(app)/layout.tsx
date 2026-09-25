@@ -28,7 +28,7 @@ const NAV: Array<{ group: string; items: NavItem[] }> = [
     { href: "/customers", label: "Customers", icon: UserRound },
   ] },
   { group: "Gaming", items: [
-    { href: "/games", label: "Games", icon: Gamepad2, phase: 5 },
+    { href: "/games", label: "Games", icon: Gamepad2 },
     { href: "/computers", label: "Computers", icon: Cpu },
     { href: "/consoles", label: "Consoles & VR", icon: Joystick, phase: 9 },
     { href: "/tournaments", label: "Tournaments", icon: Trophy, phase: 10 },

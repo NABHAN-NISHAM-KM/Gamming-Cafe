@@ -32,6 +32,8 @@ export const DEVICE_COMMANDS = [
   "UPDATE_CLIENT",
   "RUN_REPAIR",
   "SCREENSHOT",
+  "SCAN_GAMES",
+  "UPDATE_GAME",
 ] as const;
 export type DeviceCommandType = (typeof DEVICE_COMMANDS)[number];
 
@@ -86,13 +88,127 @@ export interface CloseAppPayload {
 }
 export interface StartSessionPayload {
   sessionId: string;
-  customer: { id: string | null; displayName: string; membershipTier?: string };
+  /** age: whole years from the profile's date of birth (null = unknown) — used for game age ratings. */
+  customer: { id: string | null; displayName: string; membershipTier?: string; age?: number | null };
   startedAt: string;
   expiresAt: string | null;
   serverTime: string;
   warningMinutes: number[];
   postSessionAction: "LOCK" | "LOGOUT_WINDOWS" | "RESTART_SHELL" | "RESTART_PC" | "SHUTDOWN_PC" | "RESTORE_REBOOT";
   allowSelfExtend: boolean;
+}
+
+// ── Phase 5: games, station tools ──────────────────────────────────────────
+
+/** Fixed, allow-listed repair actions. The agent maps each to hard-coded steps — never a command line from the server. */
+export const REPAIR_ACTIONS = ["FLUSH_DNS", "RENEW_IP", "RESTART_AUDIO", "CLEAR_TEMP", "SYNC_TIME", "RESTART_SHELL", "CLOSE_GAMES"] as const;
+export type RepairAction = (typeof REPAIR_ACTIONS)[number];
+/** The subset a customer may run themselves from the Shell's Support screen. */
+export const SELF_SERVICE_REPAIRS: readonly RepairAction[] = ["FLUSH_DNS", "RESTART_AUDIO", "RESTART_SHELL"];
+
+export interface RunRepairPayload {
+  action: RepairAction;
+}
+
+/** How a game is started. The agent builds launcher URIs itself from the id — the server never sends a raw URI. */
+export type LaunchSpec =
+  | { kind: "PATH"; executablePath: string; arguments?: string | null; workingDirectory?: string | null }
+  | { kind: "STEAM"; appId: string }
+  | { kind: "EPIC"; appName: string };
+
+export interface UpdateGamePayload {
+  jobId: string;
+  gameId: string;
+  title: string;
+  launch: LaunchSpec;
+}
+
+export interface LibraryGame {
+  id: string;
+  title: string;
+  categories: string[];
+  coverUrl: string | null;
+  minAge: number | null;
+  featured: boolean;
+  sortOrder: number;
+  launcherKey: string | null;
+  launch: LaunchSpec | null;
+  processNames: string[];
+  /** from this PC's last scan */
+  installed: boolean;
+  updateRequired: boolean;
+}
+
+export interface LibraryApp {
+  id: string;
+  name: string;
+  kind: string;
+  executablePath: string;
+  arguments: string | null;
+}
+
+export interface ConnectivityTarget {
+  name: string;
+  /** IPv4/IPv6/hostname, or the literal "gateway" (this PC's default gateway) */
+  host: string;
+}
+
+export interface PeripheralPreset {
+  id: string;
+  name: string;
+  /** Windows pointer speed 1–20 (10 = default) and "Enhance pointer precision" */
+  settings: { mouseSpeed?: number; enhancePointerPrecision?: boolean };
+}
+
+/**
+ * Station configuration, delivered as a SIGNED REFRESH_CONFIG command envelope
+ * (payload = StationConfig) so a PC only ever launches executables the branch
+ * signed off. It is not persisted as a DeviceCommand and not acknowledged.
+ */
+export interface StationConfig {
+  revision: string;
+  games: LibraryGame[];
+  apps: LibraryApp[];
+  connectivityTargets: ConnectivityTarget[];
+  peripheralPresets: PeripheralPreset[];
+}
+
+export const DEFAULT_CONNECTIVITY_TARGETS: ConnectivityTarget[] = [
+  { name: "Router", host: "gateway" },
+  { name: "Cloudflare", host: "1.1.1.1" },
+  { name: "Google DNS", host: "8.8.8.8" },
+];
+
+export interface DetectedGame {
+  source: "STEAM" | "EPIC" | "PATH";
+  /** Steam appid, Epic AppName, or for PATH the catalog game id the agent checked */
+  key: string;
+  name: string;
+  installPath?: string | null;
+  buildId?: string | null;
+  sizeBytes?: number | null;
+  updateRequired?: boolean;
+}
+
+export interface DetectedPeripheral {
+  hardwareId: string;
+  type: "CONTROLLER" | "HEADSET" | "STEERING_WHEEL" | "JOYSTICK" | "KEYBOARD" | "MOUSE" | "WEBCAM" | "MICROPHONE" | "OTHER";
+  name: string;
+  vendor?: string | null;
+}
+
+export interface NetworkProbe {
+  targets: Array<{ name: string; host: string; pingMs: number | null; lossPct: number }>;
+  linkType?: "ETHERNET" | "WIFI" | "OTHER" | null;
+  linkSpeedMbps?: number | null;
+  dnsMs?: number | null;
+}
+
+export interface BootReport {
+  mode: "LOCAL_DISK" | "ISCSI" | "UNKNOWN";
+  provider?: string | null;
+  bootServer?: string | null;
+  imageName?: string | null;
 }
 
 // ── WebSocket messages ──────────────────────────────────────────────────────
@@ -132,12 +248,22 @@ export type DeviceToServer =
   | { type: "shell_logout"; requestId: string; sessionId: string }
   | { type: "heartbeat"; metrics: DeviceMetrics }
   | { type: "hardware"; snapshot: HardwareSnapshot }
-  | ({ type: "ack" } & CommandAck);
+  | ({ type: "ack" } & CommandAck)
+  // Phase 5
+  | { type: "inventory"; games: DetectedGame[] }
+  | { type: "peripherals"; items: DetectedPeripheral[] }
+  | { type: "network"; probe: NetworkProbe }
+  | { type: "boot"; report: BootReport }
+  | { type: "game_event"; event: "started" | "exited"; gameId: string; sessionId?: string | null }
+  | { type: "help_request"; requestId: string; topic: "general" | "game" | "peripheral" | "network" | "payment"; note?: string | null }
+  | { type: "self_repair"; action: RepairAction; ok: boolean; detail?: string | null };
 
 export type ServerToDevice =
   | { type: "welcome"; serverTime: string; heartbeatSeconds: number; deviceName: string; venue?: { name: string; branchName: string; logoUrl: string | null } }
   | { type: "command"; command: SignedCommand }
+  | { type: "config"; command: SignedCommand } // envelope.type = REFRESH_CONFIG, payload = StationConfig
   | { type: "shell_result"; requestId: string; ok: boolean; error?: string; message?: string; displayName?: string; timeBalanceMinutes?: number }
+  | { type: "help_result"; requestId: string; ok: boolean; error?: string }
   | { type: "error"; error: string };
 
 /**

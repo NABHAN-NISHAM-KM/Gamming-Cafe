@@ -32,6 +32,11 @@ import { SessionTimerService } from "./sessions/session-timer.service.js";
 import { SessionsController } from "./sessions/sessions.controller.js";
 import { SessionsService } from "./sessions/sessions.service.js";
 import { ShellAuthService } from "./sessions/shell-auth.service.js";
+import { GameUpdatesService } from "./games/game-updates.service.js";
+import { GamesController } from "./games/games.controller.js";
+import { InventoryService } from "./games/inventory.service.js";
+import { StationConfigService } from "./games/station-config.service.js";
+import { StationReportsService } from "./stations/station-reports.service.js";
 
 @Controller()
 class HealthController {
@@ -79,6 +84,7 @@ export class AppModule {
         SessionsController,
         PricingController,
         CustomersController,
+        GamesController,
       ],
       providers: [
         TokensService,
@@ -97,6 +103,10 @@ export class AppModule {
         SessionsService,
         SessionTimerService,
         ShellAuthService,
+        StationConfigService,
+        InventoryService,
+        GameUpdatesService,
+        StationReportsService,
         { provide: APP_GUARD, useClass: AuthGuard },
         { provide: APP_INTERCEPTOR, useClass: TenantInterceptor },
         { provide: APP_FILTER, useClass: ErrorsFilter },

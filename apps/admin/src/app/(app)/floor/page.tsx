@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { AlertTriangle, Cpu, LayoutGrid, Megaphone, Move, Plus, RotateCcw, Wifi, WifiOff } from "lucide-react";
+import { AlertTriangle, BellRing, Cpu, Gamepad2, LayoutGrid, Megaphone, Move, Plus, RotateCcw, Wifi, WifiOff } from "lucide-react";
 import { api } from "@/lib/client/api";
 import { useAction, useApi } from "@/lib/client/hooks";
 import { useBranch } from "@/lib/client/branch";
@@ -15,14 +15,15 @@ import { fmtCountdown, remaining, useTick } from "@/lib/client/sessions";
 
 const CELL = 76; // px per grid cell
 
-function Tile({ d, selected, editing, onPointerDown, onClick }: { d: FloorDevice; selected: boolean; editing: boolean; onPointerDown?: (e: ReactPointerEvent) => void; onClick: () => void }) {
+function Tile({ d, selected, editing, help, onPointerDown, onClick }: { d: FloorDevice; selected: boolean; editing: boolean; help?: boolean; onPointerDown?: (e: ReactPointerEvent) => void; onClick: () => void }) {
   const st = STATUS[d.displayStatus] ?? STATUS.OFFLINE;
   const hot = (d.metrics?.cpuTempC ?? 0) >= 90 || (d.metrics?.gpuTempC ?? 0) >= 88;
   return (
     <button
       onClick={onClick}
       onPointerDown={onPointerDown}
-      aria-label={`${d.name}, ${st.label}`}
+      aria-label={`${d.name}, ${st.label}${d.currentGame ? `, playing ${d.currentGame.title}` : ""}${help ? ", needs help" : ""}`}
+      title={d.currentGame ? `Playing ${d.currentGame.title}` : undefined}
       className={cx(
         "group relative flex size-[68px] flex-col items-center justify-center rounded-lg border-2 text-center transition",
         editing ? "cursor-grab active:cursor-grabbing" : "hover:-translate-y-0.5",
@@ -41,6 +42,8 @@ function Tile({ d, selected, editing, onPointerDown, onClick }: { d: FloorDevice
       )}
       {!d.session && d.isOnline && d.metrics?.cpuTempC != null && <span className={cx("text-[9px] tabular", hot ? "text-danger font-semibold" : "text-ink-3")}>{fmtTemp(d.metrics.cpuTempC)}</span>}
       {hot && <AlertTriangle className="absolute -right-1.5 -top-1.5 size-4 rounded-full bg-bg text-danger" />}
+      {help && <BellRing className="absolute -left-1.5 -top-1.5 size-5 animate-bounce rounded-full bg-reserved p-0.5 text-bg" />}
+      {d.currentGame && <Gamepad2 className="absolute -bottom-1.5 -right-1.5 size-4 rounded-full bg-bg p-0.5 text-ok" />}
     </button>
   );
 }
@@ -53,7 +56,9 @@ function ZoneSection({
   editing,
   onMove,
   canMass,
+  helpIds,
 }: {
+  helpIds: Set<string>;
   zone: FloorZone;
   devices: FloorDevice[];
   selectedId: string | null;
@@ -118,6 +123,7 @@ function ZoneSection({
               <div key={d.id} className="absolute p-1 transition-[left,top] duration-100" style={{ left: d.mapX * CELL, top: d.mapY * CELL }}>
                 <Tile
                   d={d}
+                  help={helpIds.has(d.id)}
                   selected={selectedId === d.id}
                   editing={editing}
                   onClick={() => !editing && onSelect(d.id)}
@@ -239,6 +245,7 @@ export default function LiveFloorPage() {
     return c;
   }, [devices]);
   const alerts = Object.values(floor.alerts).sort((a, b) => (a.severity === "CRITICAL" ? -1 : 1) - (b.severity === "CRITICAL" ? -1 : 1));
+  const helpIds = new Set(alerts.filter((a) => a.type === "HELP_REQUESTED" && a.status === "OPEN" && a.deviceId).map((a) => a.deviceId!));
 
   const move = (id: string, x: number, y: number) => {
     const d = floor.devices[id];
@@ -336,6 +343,7 @@ export default function LiveFloorPage() {
               editing={editing}
               onMove={move}
               canMass={can("station.mass_action", branchId)}
+              helpIds={helpIds}
             />
           ))}
           {!editing && floor.zones.some((z) => !byZone.has(z.id)) && (

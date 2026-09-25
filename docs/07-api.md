@@ -109,6 +109,32 @@ Device WebSocket additions: `shell_login` / `shell_logout` → `shell_result`; `
 
 **Demo customers** (seeded into Demo Arena): `ahmed` / `ahmed123` (PIN `1234`, 120 min prepaid) and `sara` / `sara1234`.
 
+## Games & station tools (Phase 5)
+
+See [10-games-and-station-tools](10-games-and-station-tools.md).
+
+| Method | Path | Permission |
+|---|---|---|
+| GET | /games?branchId= | game.view (install counts per branch) |
+| POST · PATCH | /games · /games/:gameId | game.manage (org). Custom games only; the platform catalog is read-only |
+| PUT | /games/:gameId/settings | game.manage: enabled, featured, sort order, min-age override, allowed zones |
+| GET | /games/:gameId/installations?branchId= | game.view |
+| GET | /launchers · /shell-apps · /peripheral-presets | game.view |
+| POST · PATCH | /shell-apps · /shell-apps/:appId | game.manage |
+| POST | /peripheral-presets | shell.configure |
+| POST | /branches/:branchId/game-scan | game.update |
+| GET · POST | /branches/:branchId/game-updates | game.view · game.update |
+| POST | /game-updates/:jobId/cancel | game.update over the job's branch |
+| GET | /devices/:deviceId/tools | station.view: playing, network, boot, games, peripherals |
+| PUT | /branches/:branchId/connectivity-targets | settings.manage |
+| GET · POST | /branches/:branchId/diskless | diskless.view · diskless.manage |
+| PATCH | /diskless/:integrationId | diskless.manage |
+
+**Commands:**
+- `RUN_REPAIR {action}` needs station.restart and takes allow-listed actions only.
+- `SCAN_GAMES` needs game.update.
+- `UPDATE_GAME` is issued only by the update orchestrator.
+
 ## Tests (`apps/api/test/api.e2e.test.ts`, real Postgres)
 
 18 scenarios:

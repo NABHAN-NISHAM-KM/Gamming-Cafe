@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { AppWindow, Gamepad2, Globe, Headphones, Home, Languages, LifeBuoy, Loader2, LogOut, Monitor, UtensilsCrossed, Wifi, WifiOff } from "lucide-react";
+import { AppWindow, Gamepad2, Globe, Home, Languages, Layers, LifeBuoy, Loader2, LogOut, Monitor, Mouse, Signal, UtensilsCrossed, Wifi, WifiOff } from "lucide-react";
 import { bridge, type HostMessage, type ShellState } from "./bridge";
 import { strings, type Lang, type Strings } from "./i18n";
+import { AppsScreen, ConnectivityScreen, FeaturedRow, GamesScreen, PeripheralsScreen, SupportScreen, type Notify } from "./screens";
+import { useStation } from "./station";
 
 const cx = (...c: Array<string | false | null | undefined>) => c.filter(Boolean).join(" ");
 
@@ -177,12 +179,15 @@ function ConnectionBanner({ t }: { t: Strings }) {
 
 // ── Session ─────────────────────────────────────────────────────────────────
 
-type Tab = "home" | "games" | "platforms" | "apps" | "internet" | "food" | "support";
+type Tab = "home" | "games" | "platforms" | "apps" | "internet" | "connectivity" | "peripherals" | "food" | "support";
 const TABS: Array<{ id: Tab; label: string; icon: typeof Home }> = [
   { id: "home", label: "Home", icon: Home },
   { id: "games", label: "Games", icon: Gamepad2 },
-  { id: "platforms", label: "Platforms", icon: AppWindow },
+  { id: "platforms", label: "Platforms", icon: Layers },
+  { id: "apps", label: "Apps", icon: AppWindow },
   { id: "internet", label: "Internet", icon: Globe },
+  { id: "connectivity", label: "Connection", icon: Signal },
+  { id: "peripherals", label: "Peripherals", icon: Mouse },
   { id: "food", label: "Food", icon: UtensilsCrossed },
   { id: "support", label: "Support", icon: LifeBuoy },
 ];
@@ -230,6 +235,14 @@ function SessionScreen({ state, t }: { state: ShellState; t: Strings }) {
   const total = s.expiresAt ? new Date(s.expiresAt).getTime() - new Date(s.startedAt).getTime() : 1;
   const [tab, setTab] = useState<Tab>("home");
   const [toast, setToast] = useState<string | null>(null);
+  const [note, setNote] = useState<{ text: string; tone: "good" | "warn" | "alarm" } | null>(null);
+  const noteTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const notify: Notify = (text, tone = "good") => {
+    clearTimeout(noteTimer.current);
+    setNote({ text, tone });
+    noteTimer.current = setTimeout(() => setNote(null), 5000);
+  };
+  const { playing } = useStation();
   const shown = useRef(new Set<number>());
 
   // Warnings at the configured thresholds (30/15/10/5/1 min). The server's clock decides.
@@ -254,21 +267,13 @@ function SessionScreen({ state, t }: { state: ShellState; t: Strings }) {
 
   return (
     <main className="relative flex h-full flex-col">
-      <header className="glass relative z-10 flex h-20 items-center gap-6 border-x-0 border-t-0 px-8">
+      <header className="glass relative z-10 flex h-20 shrink-0 items-center gap-6 border-x-0 border-t-0 px-8">
         <VenueMark state={state} />
-        <nav className="ml-6 flex h-full items-stretch gap-1">
-          {TABS.map((x) => (
-            <button
-              key={x.id}
-              onClick={() => setTab(x.id)}
-              className={cx("relative flex items-center gap-2 px-5 font-display text-base tracking-wide transition", tab === x.id ? "text-glow" : "text-dim hover:text-text")}
-            >
-              <x.icon className="size-5" />
-              {x.label.toUpperCase()}
-              {tab === x.id && <span className="absolute inset-x-4 bottom-0 h-0.5 rounded-full bg-glow" />}
-            </button>
-          ))}
-        </nav>
+        {playing && (
+          <button onClick={() => setTab("games")} className="ml-4 flex items-center gap-2 rounded-full border border-good/40 bg-good/10 px-4 py-1.5 text-sm text-good">
+            <span className="size-2 animate-pulse rounded-full bg-good" /> Playing {playing.title}
+          </button>
+        )}
         <div className="ml-auto flex items-center gap-5">
           {!state.connected && <WifiOff className="size-5 text-warn" aria-label={t.offline} />}
           <div className={cx("rounded-2xl border px-5 py-2 text-right", lastMinute ? "border-alarm/60 bg-alarm/15" : remaining !== null && remaining <= 5 * 60_000 ? "border-warn/50 bg-warn/10" : "border-rim bg-deck-2")}>
@@ -288,9 +293,23 @@ function SessionScreen({ state, t }: { state: ShellState; t: Strings }) {
         </div>
       </header>
 
-      <section className="relative flex-1 overflow-y-auto p-10">
+      <div className="relative flex min-h-0 flex-1">
+      <nav className="glass flex w-56 shrink-0 flex-col gap-1 border-y-0 border-l-0 p-3">
+        {TABS.map((x) => (
+          <button
+            key={x.id}
+            onClick={() => setTab(x.id)}
+            className={cx("relative flex items-center gap-3 rounded-xl px-4 py-3 font-display text-base tracking-wide transition", tab === x.id ? "bg-glow/10 text-glow" : "text-dim hover:bg-deck-2 hover:text-text")}
+          >
+            {tab === x.id && <span className="absolute inset-y-2 left-0 w-1 rounded-full bg-glow" />}
+            <x.icon className="size-5" />
+            {x.label}
+          </button>
+        ))}
+      </nav>
+      <section className="relative min-w-0 flex-1 overflow-y-auto p-10">
         {tab === "home" && (
-          <div className="mx-auto grid h-full max-w-6xl items-center gap-12 lg:grid-cols-[auto_1fr]">
+          <div className="mx-auto grid min-h-full max-w-6xl items-center gap-12 lg:grid-cols-[auto_1fr]">
             <div className="relative grid place-items-center">
               {remaining !== null && <TimeRing remainingMs={remaining} totalMs={total} />}
               <div className="absolute text-center">
@@ -301,25 +320,30 @@ function SessionScreen({ state, t }: { state: ShellState; t: Strings }) {
             <div>
               <p className="text-xl text-dim">{t.welcome},</p>
               <h1 className="mt-1 font-display text-6xl font-semibold tracking-tight">{s.customerName}</h1>
-              <div className="mt-10 grid max-w-2xl grid-cols-2 gap-4">
-                {TABS.filter((x) => x.id !== "home").map((x) => (
-                  <button key={x.id} onClick={() => setTab(x.id)} className="glass group flex items-center gap-4 rounded-2xl p-5 text-left transition hover:border-glow/60">
-                    <x.icon className="size-7 text-glow transition group-hover:scale-110" />
-                    <span className="font-display text-xl">{x.label}</span>
-                  </button>
-                ))}
-              </div>
+              <p className="mt-10 mb-4 text-sm uppercase tracking-[0.25em] text-dim">Featured</p>
+              <FeaturedRow notify={notify} />
+              <button onClick={() => setTab("games")} className="mt-6 flex items-center gap-2 text-glow hover:underline">
+                <Gamepad2 className="size-5" /> All games
+              </button>
             </div>
           </div>
         )}
-        {tab === "games" && <Placeholder icon={Gamepad2} title="Game library" text="Your venue's installed games will appear here with one-click launch. (Arriving in the next update.)" />}
-        {tab === "platforms" && <Placeholder icon={AppWindow} title="Game platforms" text="Steam, Epic, Riot, Battle.net and more — launched safely, and signed out automatically when your session ends." />}
-        {tab === "internet" && <Placeholder icon={Globe} title="Internet" text="A private browser window that forgets everything when you log out." />}
-        {tab === "food" && <Placeholder icon={UtensilsCrossed} title="Food & drinks" text="Order to your seat without leaving the game — it's added to your bill." />}
-        {tab === "support" && (
-          <Placeholder icon={Headphones} title="Need help?" text={`Tell a member of staff your station: ${state.station.name}. They can see your PC and help remotely.`} />
-        )}
+        {tab === "games" && <GamesScreen notify={notify} />}
+        {tab === "platforms" && <AppsScreen kinds={["PLATFORM_LAUNCHER"]} title="Game platforms" hint="Sign in with your own account. You're signed out automatically when your session ends." notify={notify} />}
+        {tab === "apps" && <AppsScreen kinds={null} title="Apps" hint="Chat, music and tools." notify={notify} />}
+        {tab === "internet" && <AppsScreen kinds={["BROWSER"]} title="Internet" hint="Private browsing: nothing is kept after you log out." notify={notify} />}
+        {tab === "connectivity" && <ConnectivityScreen notify={notify} />}
+        {tab === "peripherals" && <PeripheralsScreen notify={notify} />}
+        {tab === "food" && <Placeholder icon={UtensilsCrossed} title="Food & drinks" text="Order to your seat without leaving the game — it's added to your bill. (Arriving with the restaurant module.)" />}
+        {tab === "support" && <SupportScreen station={state.station.name} notify={notify} />}
       </section>
+      </div>
+
+      {note && (
+        <div role="status" className={cx("fixed bottom-8 left-1/2 z-20 -translate-x-1/2 rounded-2xl border px-6 py-3 shadow-2xl", note.tone === "good" ? "border-good/40 bg-deck text-good" : note.tone === "warn" ? "border-warn/50 bg-deck text-warn" : "border-alarm bg-deck text-alarm")}>
+          {note.text}
+        </div>
+      )}
 
       {toast && !timesUp && (
         <div role="status" className={cx("fixed left-1/2 top-24 z-20 -translate-x-1/2 rounded-2xl border px-8 py-4 font-display text-xl shadow-2xl", lastMinute ? "border-alarm bg-alarm/20 text-alarm" : "border-warn/50 bg-deck text-warn")}>

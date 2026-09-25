@@ -30,6 +30,10 @@ public sealed class ShellHub(SessionManager sessions, ILogger<ShellHub> log) : B
     public event Func<ShellRequest.Login, Task>? LoginRequested;
     /// <summary>The customer pressed "Log out".</summary>
     public event Func<Task>? LogoutRequested;
+    /// <summary>Launch / help / self-repair requests (already validated by ShellProtocol.Parse).</summary>
+    public event Func<ShellRequest, Task>? RequestReceived;
+    /// <summary>A Shell (re)loaded and wants everything it shows.</summary>
+    public event Action? ClientReady;
 
     public int ClientCount => _clients.Count;
 
@@ -63,7 +67,7 @@ public sealed class ShellHub(SessionManager sessions, ILogger<ShellHub> log) : B
         lock (_gate) return ShellProtocol.State(_connected, _station, _venue, sessions.Current, sessions.ClockOffset, _safeMode);
     }
 
-    private void Broadcast(string line)
+    public void Broadcast(string line)
     {
         foreach (var c in _clients.Values) c.Enqueue(line);
     }
@@ -125,10 +129,12 @@ public sealed class ShellHub(SessionManager sessions, ILogger<ShellHub> log) : B
         {
             var line = await ReadBoundedLineAsync(reader, stop);
             if (line is null) break;
-            switch (ShellProtocol.Parse(line))
+            var request = ShellProtocol.Parse(line);
+            switch (request)
             {
                 case ShellRequest.Ready:
                     client.Enqueue(StateLine());
+                    ClientReady?.Invoke();
                     break;
                 case ShellRequest.Login login:
                     // Local flood guard; the server applies the real per-device/per-account throttles.
@@ -140,6 +146,9 @@ public sealed class ShellHub(SessionManager sessions, ILogger<ShellHub> log) : B
                     break;
                 case ShellRequest.Logout:
                     if (LogoutRequested is { } onLogout) await onLogout();
+                    break;
+                case ShellRequest.Launch or ShellRequest.LaunchApp or ShellRequest.Help or ShellRequest.Repair:
+                    if (RequestReceived is { } onRequest) await onRequest(request!);
                     break;
                 default:
                     log.LogDebug("Ignored a malformed message from the Shell");

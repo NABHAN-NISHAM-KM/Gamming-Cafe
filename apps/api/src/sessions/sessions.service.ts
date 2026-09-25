@@ -36,6 +36,14 @@ const ZONE_CLASS: Record<string, StationClass> = {
   SIMULATOR: "SIMULATOR", INTERNET: "INTERNET", PRIVATE_ROOM: "PRIVATE_ROOM", OTHER: "PC", RESTAURANT: "PC",
 };
 
+/** Whole years on the given day (for game age ratings); null when unknown. */
+export function ageOn(dob: Date | null | undefined, now = new Date()): number | null {
+  if (!dob) return null;
+  let age = now.getUTCFullYear() - dob.getUTCFullYear();
+  if (now.getUTCMonth() < dob.getUTCMonth() || (now.getUTCMonth() === dob.getUTCMonth() && now.getUTCDate() < dob.getUTCDate())) age--;
+  return age;
+}
+
 export function stationClassFor(zoneType: string, deviceKind: string): StationClass {
   if (deviceKind === "INTERNET_PC") return "INTERNET";
   if (deviceKind === "CONSOLE") return "CONSOLE";
@@ -98,14 +106,14 @@ export class SessionsService {
     });
     if (!device || !device.isEnabled) throw new NotFoundException({ error: "not_found" });
     const unit = await this.minorUnit(t, device.branch.currency);
-    let customer: { id: string; displayName: string; status: string; membershipTierId: string | null; tierName: string | null; discountPct: number } | null = null;
+    let customer: { id: string; displayName: string; status: string; membershipTierId: string | null; tierName: string | null; discountPct: number; age: number | null } | null = null;
     if (customerId) {
-      const c = await t.customer.findUnique({ where: { id: customerId }, select: { id: true, displayName: true, status: true, membershipTierId: true, membershipTier: { select: { name: true, gamingDiscountPct: true } } } });
+      const c = await t.customer.findUnique({ where: { id: customerId }, select: { id: true, displayName: true, status: true, dateOfBirth: true, membershipTierId: true, membershipTier: { select: { name: true, gamingDiscountPct: true } } } });
       if (!c) throw new NotFoundException({ error: "customer_not_found" });
       if (c.status === "BANNED" || c.status === "DELETED") throw new ForbiddenException({ error: "customer_banned" });
       const ban = await t.customerRestriction.findFirst({ where: { customerId, type: "BAN", liftedAt: null, OR: [{ endsAt: null }, { endsAt: { gt: new Date() } }] }, select: { reason: true } });
       if (ban) throw new ForbiddenException({ error: "customer_banned", reason: ban.reason });
-      customer = { id: c.id, displayName: c.displayName, status: c.status, membershipTierId: c.membershipTierId, tierName: c.membershipTier?.name ?? null, discountPct: Number(c.membershipTier?.gamingDiscountPct ?? 0) };
+      customer = { id: c.id, displayName: c.displayName, status: c.status, membershipTierId: c.membershipTierId, tierName: c.membershipTier?.name ?? null, discountPct: Number(c.membershipTier?.gamingDiscountPct ?? 0), age: ageOn(c.dateOfBirth) };
     }
     const plans = await t.pricingPlan.findMany({ where: { isActive: true, currency: device.branch.currency }, include: { pricingPackages: { orderBy: { sortOrder: "asc" } } } });
     const ctx = {
@@ -242,7 +250,7 @@ export class SessionsService {
     await this.commands.issue(t, {
       deviceId: device.id,
       type: "START_SESSION",
-      payload: this.startPayload(session, customer?.displayName ?? session.guestLabel ?? "Guest", customer?.tierName ?? null),
+      payload: this.startPayload(session, customer?.displayName ?? session.guestLabel ?? "Guest", customer?.tierName ?? null, customer?.age ?? null),
       requestedBy: actor.type === "EMPLOYEE" ? { type: "EMPLOYEE", id: actor.id } : { type: "SYSTEM", id: null },
     });
     await auditAs(t, actor, { action: "session.start", entityType: "GamingSession", entityId: session.id, branchId: device.branchId, after: { device: device.name, quote: q, payment: input.payment.method, customerId: customer?.id } });
@@ -376,7 +384,7 @@ export class SessionsService {
 
   /** Move a running session to another station (e.g. hardware fault, upgrade). */
   async move(t: TenantTx, sessionId: string, toDeviceId: string, reason: string | null, actor: Actor) {
-    const s = await t.gamingSession.findUnique({ where: { id: sessionId }, include: { customer: { select: { displayName: true, membershipTier: { select: { name: true } } } } } });
+    const s = await t.gamingSession.findUnique({ where: { id: sessionId }, include: { customer: { select: { displayName: true, dateOfBirth: true, membershipTier: { select: { name: true } } } } } });
     if (!s || !["ACTIVE", "ENDING"].includes(s.status)) throw new ConflictException({ error: "session_not_movable" });
     if (s.deviceId === toDeviceId) throw new ConflictException({ error: "same_station" });
     const target = await t.device.findUnique({ where: { id: toDeviceId }, select: { id: true, branchId: true, zoneId: true, status: true, isEnabled: true, name: true } });
@@ -396,7 +404,7 @@ export class SessionsService {
     const by = actor.type === "EMPLOYEE" ? { type: "EMPLOYEE" as const, id: actor.id } : { type: "SYSTEM" as const, id: null };
     await this.commands.issue(t, { deviceId: from, type: "END_SESSION", payload: { sessionId: s.id, reason: "MOVED", postSessionAction: "LOCK", serverTime: new Date().toISOString() }, requestedBy: by });
     const moved = await t.gamingSession.findUniqueOrThrow({ where: { id: s.id } });
-    await this.commands.issue(t, { deviceId: target.id, type: "START_SESSION", payload: this.startPayload(moved, s.customer?.displayName ?? s.guestLabel ?? "Guest", s.customer?.membershipTier?.name ?? null), requestedBy: by });
+    await this.commands.issue(t, { deviceId: target.id, type: "START_SESSION", payload: this.startPayload(moved, s.customer?.displayName ?? s.guestLabel ?? "Guest", s.customer?.membershipTier?.name ?? null, ageOn(s.customer?.dateOfBirth)), requestedBy: by });
     await auditAs(t, actor, { action: "session.move", entityType: "GamingSession", entityId: s.id, branchId: s.branchId, after: { from, to: target.id, reason } });
     await this.publishDevice(t, from);
     await this.publishDevice(t, target.id);
@@ -443,10 +451,10 @@ export class SessionsService {
     return s ? this.view(t, s.id) : null;
   }
 
-  startPayload(s: { id: string; startedAt: Date | null; expiresAt: Date | null; postSessionAction: string; customerId: string | null }, displayName: string, tier: string | null) {
+  startPayload(s: { id: string; startedAt: Date | null; expiresAt: Date | null; postSessionAction: string; customerId: string | null }, displayName: string, tier: string | null, age: number | null = null) {
     return {
       sessionId: s.id,
-      customer: { id: s.customerId, displayName, membershipTier: tier ?? undefined },
+      customer: { id: s.customerId, displayName, membershipTier: tier ?? undefined, age },
       startedAt: (s.startedAt ?? new Date()).toISOString(),
       expiresAt: s.expiresAt?.toISOString() ?? null,
       serverTime: new Date().toISOString(),

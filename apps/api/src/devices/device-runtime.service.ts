@@ -60,7 +60,7 @@ export class DeviceRuntimeService implements OnModuleInit, OnModuleDestroy {
   /** Public view of a device for the Live Floor, with live connection state merged in. */
   view(d: Record<string, any>) {
     const live = this.hub.live(d["id"]);
-    return { ...d, isOnline: !!live, displayStatus: live ? d["status"] : "OFFLINE", metrics: live?.metrics ?? null, metricsAt: live?.metricsAt ?? null };
+    return { ...d, isOnline: !!live, displayStatus: live ? d["status"] : "OFFLINE", metrics: live?.metrics ?? null, metricsAt: live?.metricsAt ?? null, currentGame: live?.currentGame ?? null };
   }
 
   async onHello(c: Connection, hello: { agentVersion: string; shellVersion?: string | null; ipAddress?: string | null; hostname?: string | null; macAddress?: string | null; activeSessionId?: string | null }) {

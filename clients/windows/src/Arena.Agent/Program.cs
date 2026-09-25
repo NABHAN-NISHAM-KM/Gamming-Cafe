@@ -49,6 +49,13 @@ switch (verb)
         builder.Services.AddSingleton<CommandExecutor>();
         builder.Services.AddSingleton(_ => new SessionManager(paths.Session));
         builder.Services.AddSingleton<ShellHub>();
+        builder.Services.AddSingleton<ServerLink>();
+        builder.Services.AddSingleton<GameScanner>();
+        builder.Services.AddSingleton<PeripheralScanner>();
+        builder.Services.AddSingleton<NetworkProber>();
+        builder.Services.AddSingleton<RepairRunner>();
+        builder.Services.AddSingleton<StationService>();
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<StationService>());
         builder.Services.AddHostedService(sp => sp.GetRequiredService<ShellHub>());
         builder.Services.AddHostedService<SessionWatchdog>();
         builder.Services.AddHostedService<AgentWorker>();

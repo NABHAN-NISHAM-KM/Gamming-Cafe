@@ -78,7 +78,95 @@ async function seedPlatform(db: PlatformClient) {
     await db.rolePermission.deleteMany({ where: { roleId: role.id } });
     await db.rolePermission.createMany({ data: [...templatePermissions(t.key)].map((permissionKey) => ({ roleId: role.id, permissionKey })) });
   }
-  console.log(`platform: ${CURRENCIES.length} currencies, ${COUNTRIES.length} countries, ${PLANS.length} plans, ${PERMISSIONS.length} permissions, ${ROLE_TEMPLATES.length} role templates`);
+  await seedCatalog(db);
+  console.log(`platform: ${CURRENCIES.length} currencies, ${COUNTRIES.length} countries, ${PLANS.length} plans, ${PERMISSIONS.length} permissions, ${ROLE_TEMPLATES.length} role templates, ${LAUNCHERS.length} launchers, ${GAMES.length} games, ${APPS.length} apps`);
+}
+
+// ── Platform game catalog (organizationId = NULL; every tenant can enable these) ──
+// Metadata only — no cover art is shipped; the Shell draws its own tiles.
+// Store ids are what the agent matches against Steam/Epic manifests on each PC.
+
+const LAUNCHERS: Array<{ key: string; name: string; executablePath: string | null; processNames: string[] }> = [
+  { key: "STEAM", name: "Steam", executablePath: "C:\\Program Files (x86)\\Steam\\steam.exe", processNames: ["steam.exe", "steamwebhelper.exe"] },
+  { key: "EPIC", name: "Epic Games", executablePath: "C:\\Program Files (x86)\\Epic Games\\Launcher\\Portal\\Binaries\\Win64\\EpicGamesLauncher.exe", processNames: ["EpicGamesLauncher.exe", "EpicWebHelper.exe"] },
+  { key: "RIOT", name: "Riot Client", executablePath: "C:\\Riot Games\\Riot Client\\RiotClientServices.exe", processNames: ["RiotClientServices.exe", "RiotClientUx.exe"] },
+  { key: "BATTLENET", name: "Battle.net", executablePath: "C:\\Program Files (x86)\\Battle.net\\Battle.net Launcher.exe", processNames: ["Battle.net.exe"] },
+  { key: "EA", name: "EA app", executablePath: "C:\\Program Files\\Electronic Arts\\EA Desktop\\EA Desktop\\EALauncher.exe", processNames: ["EADesktop.exe"] },
+  { key: "UBISOFT", name: "Ubisoft Connect", executablePath: "C:\\Program Files (x86)\\Ubisoft\\Ubisoft Game Launcher\\UbisoftConnect.exe", processNames: ["UbisoftConnect.exe"] },
+];
+
+type CatalogGame = { slug: string; title: string; developer: string; categories: string[]; launcher: string | null; storeId?: string; exe?: string; args?: string; process: string[]; ageRating: string; minAge: number; account: boolean };
+const GAMES: CatalogGame[] = [
+  { slug: "counter-strike-2", title: "Counter-Strike 2", developer: "Valve", categories: ["FPS", "COMPETITIVE", "MULTIPLAYER"], launcher: "STEAM", storeId: "730", process: ["cs2.exe"], ageRating: "PEGI 18", minAge: 18, account: true },
+  { slug: "dota-2", title: "Dota 2", developer: "Valve", categories: ["MOBA", "COMPETITIVE", "MULTIPLAYER"], launcher: "STEAM", storeId: "570", process: ["dota2.exe"], ageRating: "PEGI 12", minAge: 12, account: true },
+  { slug: "pubg-battlegrounds", title: "PUBG: Battlegrounds", developer: "Krafton", categories: ["BATTLE_ROYALE", "FPS", "MULTIPLAYER"], launcher: "STEAM", storeId: "578080", process: ["TslGame.exe"], ageRating: "PEGI 18", minAge: 18, account: true },
+  { slug: "apex-legends", title: "Apex Legends", developer: "Respawn", categories: ["BATTLE_ROYALE", "FPS", "MULTIPLAYER"], launcher: "STEAM", storeId: "1172470", process: ["r5apex.exe", "r5apex_dx12.exe"], ageRating: "PEGI 16", minAge: 16, account: true },
+  { slug: "marvel-rivals", title: "Marvel Rivals", developer: "NetEase Games", categories: ["FPS", "COMPETITIVE", "MULTIPLAYER"], launcher: "STEAM", storeId: "2767030", process: ["Marvel-Win64-Shipping.exe"], ageRating: "PEGI 12", minAge: 12, account: true },
+  { slug: "rust", title: "Rust", developer: "Facepunch Studios", categories: ["MULTIPLAYER", "SIMULATION"], launcher: "STEAM", storeId: "252490", process: ["RustClient.exe"], ageRating: "PEGI 18", minAge: 18, account: true },
+  { slug: "gta-v", title: "Grand Theft Auto V", developer: "Rockstar Games", categories: ["STORY", "MULTIPLAYER"], launcher: "STEAM", storeId: "271590", process: ["GTA5.exe", "PlayGTAV.exe"], ageRating: "PEGI 18", minAge: 18, account: true },
+  { slug: "call-of-duty", title: "Call of Duty", developer: "Activision", categories: ["FPS", "BATTLE_ROYALE", "MULTIPLAYER"], launcher: "STEAM", storeId: "1938090", process: ["cod.exe"], ageRating: "PEGI 18", minAge: 18, account: true },
+  { slug: "naraka-bladepoint", title: "Naraka: Bladepoint", developer: "24 Entertainment", categories: ["BATTLE_ROYALE", "FIGHTING"], launcher: "STEAM", storeId: "1203220", process: ["NarakaBladepoint.exe"], ageRating: "PEGI 16", minAge: 16, account: true },
+  { slug: "ea-sports-fc-25", title: "EA SPORTS FC 25", developer: "EA Sports", categories: ["SPORTS", "MULTIPLAYER"], launcher: "STEAM", storeId: "2669320", process: ["FC25.exe"], ageRating: "PEGI 3", minAge: 3, account: true },
+  { slug: "elden-ring", title: "Elden Ring", developer: "FromSoftware", categories: ["RPG", "STORY"], launcher: "STEAM", storeId: "1245620", process: ["eldenring.exe"], ageRating: "PEGI 16", minAge: 16, account: true },
+  { slug: "fortnite", title: "Fortnite", developer: "Epic Games", categories: ["BATTLE_ROYALE", "MULTIPLAYER", "KIDS"], launcher: "EPIC", storeId: "Fortnite", process: ["FortniteClient-Win64-Shipping.exe"], ageRating: "PEGI 12", minAge: 12, account: true },
+  { slug: "rocket-league", title: "Rocket League", developer: "Psyonix", categories: ["SPORTS", "RACING", "COMPETITIVE", "KIDS"], launcher: "EPIC", storeId: "Sugar", process: ["RocketLeague.exe"], ageRating: "PEGI 3", minAge: 3, account: true },
+  { slug: "valorant", title: "VALORANT", developer: "Riot Games", categories: ["FPS", "COMPETITIVE", "MULTIPLAYER"], launcher: "RIOT", exe: "C:\\Riot Games\\Riot Client\\RiotClientServices.exe", args: "--launch-product=valorant --launch-patchline=live", process: ["VALORANT-Win64-Shipping.exe"], ageRating: "PEGI 16", minAge: 16, account: true },
+  { slug: "league-of-legends", title: "League of Legends", developer: "Riot Games", categories: ["MOBA", "COMPETITIVE", "MULTIPLAYER"], launcher: "RIOT", exe: "C:\\Riot Games\\Riot Client\\RiotClientServices.exe", args: "--launch-product=league_of_legends --launch-patchline=live", process: ["League of Legends.exe", "LeagueClient.exe"], ageRating: "PEGI 12", minAge: 12, account: true },
+  { slug: "overwatch-2", title: "Overwatch 2", developer: "Blizzard", categories: ["FPS", "COMPETITIVE", "MULTIPLAYER"], launcher: "STEAM", storeId: "2357570", process: ["Overwatch.exe"], ageRating: "PEGI 12", minAge: 12, account: true },
+  { slug: "minecraft", title: "Minecraft", developer: "Mojang", categories: ["CASUAL", "KIDS", "MULTIPLAYER"], launcher: null, exe: "C:\\XboxGames\\Minecraft Launcher\\Content\\Minecraft.exe", process: ["Minecraft.exe", "javaw.exe"], ageRating: "PEGI 7", minAge: 7, account: true },
+  { slug: "roblox", title: "Roblox", developer: "Roblox Corporation", categories: ["CASUAL", "KIDS", "MULTIPLAYER"], launcher: null, exe: "C:\\Program Files (x86)\\Roblox\\Versions\\RobloxPlayerLauncher.exe", process: ["RobloxPlayerBeta.exe"], ageRating: "PEGI 7", minAge: 7, account: true },
+];
+
+const APPS: Array<{ name: string; kind: string; executablePath: string; arguments?: string; sortOrder: number }> = [
+  { name: "Google Chrome", kind: "BROWSER", executablePath: "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe", arguments: "--incognito", sortOrder: 0 },
+  { name: "Microsoft Edge", kind: "BROWSER", executablePath: "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe", arguments: "--inprivate", sortOrder: 1 },
+  ...LAUNCHERS.filter((l) => l.executablePath).map((l, i) => ({ name: l.name, kind: "PLATFORM_LAUNCHER", executablePath: l.executablePath!, sortOrder: 10 + i })),
+  { name: "Notepad", kind: "UTILITY", executablePath: "C:\\Windows\\System32\\notepad.exe", sortOrder: 50 },
+  { name: "Calculator", kind: "UTILITY", executablePath: "C:\\Windows\\System32\\calc.exe", sortOrder: 51 },
+];
+
+async function seedCatalog(db: PlatformClient) {
+  const launcherIds: Record<string, string> = {};
+  for (const l of LAUNCHERS) {
+    const data = { name: l.name, executablePath: l.executablePath, processNames: l.processNames, requiresAccount: true, isActive: true };
+    const row = await db.launcher.findFirst({ where: { organizationId: null, key: l.key } });
+    launcherIds[l.key] = (row ? await db.launcher.update({ where: { id: row.id }, data }) : await db.launcher.create({ data: { key: l.key, ...data } })).id;
+  }
+  for (const g of GAMES) {
+    const data = {
+      title: g.title, developer: g.developer, categories: g.categories as any, launcherId: g.launcher ? launcherIds[g.launcher]! : null,
+      launcherGameId: g.storeId ?? null, executablePath: g.exe ?? null, arguments: g.args ?? null, processNames: g.process,
+      ageRating: g.ageRating, minAge: g.minAge, requiresAccount: g.account, isActive: true,
+    };
+    const row = await db.game.findFirst({ where: { organizationId: null, slug: g.slug } });
+    if (row) await db.game.update({ where: { id: row.id }, data });
+    else await db.game.create({ data: { slug: g.slug, ...data } });
+  }
+  for (const a of APPS) {
+    const data = { kind: a.kind as any, executablePath: a.executablePath, arguments: a.arguments ?? null, sortOrder: a.sortOrder, isActive: true, allowedZoneIds: [] };
+    const row = await db.shellApp.findFirst({ where: { organizationId: null, name: a.name } });
+    if (row) await db.shellApp.update({ where: { id: row.id }, data });
+    else await db.shellApp.create({ data: { name: a.name, ...data } });
+  }
+}
+
+/** Demo tenant: enable most of the catalog, feature a few, and add pointer presets. */
+async function seedGamesForOrg(db: PlatformClient, organizationId: string) {
+  const featured = new Set(["counter-strike-2", "valorant", "fortnite", "ea-sports-fc-25"]);
+  const games = await db.game.findMany({ where: { organizationId: null }, select: { id: true, slug: true } });
+  for (const [i, g] of games.entries()) {
+    if (await db.orgGameSetting.findFirst({ where: { organizationId, gameId: g.id } })) continue;
+    await db.orgGameSetting.create({ data: { organizationId, gameId: g.id, isEnabled: true, isFeatured: featured.has(g.slug), sortOrder: featured.has(g.slug) ? 0 : 10 + i, allowedZoneIds: [] } });
+  }
+  const presets: Array<{ name: string; settings: Record<string, unknown>; isDefault?: boolean }> = [
+    { name: "Windows default", settings: { mouseSpeed: 10, enhancePointerPrecision: true }, isDefault: true },
+    { name: "FPS — low sensitivity, raw", settings: { mouseSpeed: 6, enhancePointerPrecision: false } },
+    { name: "MOBA — fast", settings: { mouseSpeed: 14, enhancePointerPrecision: true } },
+  ];
+  for (const p of presets) {
+    if (await db.peripheralProfile.findFirst({ where: { organizationId, name: p.name } })) continue;
+    await db.peripheralProfile.create({ data: { organizationId, category: "MOUSE", name: p.name, settings: p.settings as object, isDefault: !!p.isDefault } });
+  }
 }
 
 interface DemoOrg {
@@ -140,6 +228,7 @@ async function seedOrg(db: PlatformClient, spec: DemoOrg) {
     }
   }
   await seedPricingAndCustomers(db, organizationId, branchIds);
+  await seedGamesForOrg(db, organizationId);
   console.log(`org ${spec.slug}: ${spec.branches.length} branches, ${spec.staff.length} staff`);
 }
 
@@ -164,9 +253,9 @@ async function seedPricingAndCustomers(db: PlatformClient, organizationId: strin
     }
   }
 
-  const customers: Array<{ username: string; displayName: string; password: string; pin?: string; minutes: number }> = [
-    { username: "ahmed", displayName: "Ahmed", password: "ahmed123", pin: "1234", minutes: 120 },
-    { username: "sara", displayName: "Sara", password: "sara1234", minutes: 0 },
+  const customers: Array<{ username: string; displayName: string; password: string; pin?: string; minutes: number; dob: string }> = [
+    { username: "ahmed", displayName: "Ahmed", password: "ahmed123", pin: "1234", minutes: 120, dob: "1998-04-12" },
+    { username: "sara", displayName: "Sara", password: "sara1234", minutes: 0, dob: "2013-02-20" }, // 13: PEGI 16/18 games are hidden for her
   ];
   for (const c of customers) {
     let row = await db.customer.findFirst({ where: { organizationId, username: c.username } });
@@ -175,6 +264,7 @@ async function seedPricingAndCustomers(db: PlatformClient, organizationId: strin
         data: { organizationId, username: c.username, displayName: c.displayName, passwordHash: await hashSecret(c.password), pinHash: c.pin ? await hashSecret(c.pin) : null },
       });
     }
+    if (!row.dateOfBirth) await db.customer.update({ where: { id: row.id }, data: { dateOfBirth: new Date(c.dob) } });
     if (c.minutes > 0 && !(await db.walletTransaction.findFirst({ where: { organizationId, idempotencyKey: `seed:${c.username}:time` } }))) {
       const wallet = (await db.wallet.findFirst({ where: { customerId: row.id, currency: "AED" } })) ?? (await db.wallet.create({ data: { organizationId, customerId: row.id, currency: "AED" } }));
       const after = wallet.timeBalanceMin + c.minutes;
@@ -219,5 +309,5 @@ export async function seed(url = process.env["DATABASE_URL"]) {
 if (process.argv[1]?.replace(/\\/g, "/").endsWith("scripts/seed.ts")) {
   await seed();
   console.log(`\nDemo logins (password: ${DEMO_PASSWORD}): owner@demo.test · manager@demo.test · cashier@demo.test · tech@demo.test · owner@rival.test`);
-  console.log("Demo customers (Gaming Shell): ahmed / ahmed123 (PIN 1234, 2h prepaid) · sara / sara1234 (no time)");
+  console.log("Demo customers (Gaming Shell): ahmed / ahmed123 (PIN 1234, 2h prepaid) · sara / sara1234 (no time, age 13)");
 }

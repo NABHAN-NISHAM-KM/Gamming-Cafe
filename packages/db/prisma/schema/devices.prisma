@@ -155,10 +155,15 @@ model DeviceAccessory {
   serialNumber    String?
   status          AccessoryStatus @default(OK)
   inventoryItemId String?         @db.Uuid
+  /// Windows PnP instance id for peripherals the agent detects (null = added by staff).
+  hardwareId      String?
+  connected       Boolean         @default(true)
+  lastSeenAt      DateTime?       @db.Timestamptz(3)
   createdAt       DateTime        @default(now()) @db.Timestamptz(3)
   updatedAt       DateTime        @updatedAt @db.Timestamptz(3)
   device          Device          @relation(fields: [deviceId, organizationId], references: [id, organizationId], onDelete: Cascade)
 
+  @@unique([deviceId, hardwareId])
   @@index([organizationId, deviceId])
 }
 
@@ -298,6 +303,8 @@ enum DeviceCommandType {
   UPDATE_CLIENT
   RUN_REPAIR
   SCREENSHOT
+  SCAN_GAMES
+  UPDATE_GAME
 }
 
 enum DeviceCommandStatus {

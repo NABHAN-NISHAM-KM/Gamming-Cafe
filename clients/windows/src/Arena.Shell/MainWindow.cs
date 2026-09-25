@@ -18,7 +18,13 @@ namespace Arena.Shell;
 public sealed class MainWindow : Window
 {
     private const string Origin = "https://shell.arena/";
-    private static readonly HashSet<string> AllowedFromPage = ["ready", "login", "logout"];
+    /// <summary>Forwarded to the agent (which validates again).</summary>
+    private static readonly HashSet<string> AllowedFromPage = ["ready", "login", "logout", "launch", "launch_app", "help", "repair"];
+    /// <summary>Handled here, in the customer's desktop session.</summary>
+    private static readonly HashSet<string> HandledByHost = ["pointer_get", "pointer_apply"];
+    /// <summary>The venue's pointer settings, restored when a session ends or the Shell closes.</summary>
+    private readonly Pointer.Settings _venuePointer = Pointer.Read();
+    private bool _inSession;
 
     private readonly bool _dev;
     private readonly bool _kiosk;
@@ -110,8 +116,9 @@ public sealed class MainWindow : Window
             using var doc = JsonDocument.Parse(json);
             if (doc.RootElement.ValueKind != JsonValueKind.Object
                 || !doc.RootElement.TryGetProperty("type", out var t)
-                || t.GetString() is not { } type
-                || !AllowedFromPage.Contains(type)) return;
+                || t.GetString() is not { } type) return;
+            if (HandledByHost.Contains(type)) { PointerRequest(type, doc.RootElement); return; }
+            if (!AllowedFromPage.Contains(type)) return;
 
             if (type == "ready")
             {
@@ -132,10 +139,31 @@ public sealed class MainWindow : Window
         try
         {
             using var doc = JsonDocument.Parse(line);
-            if (doc.RootElement.TryGetProperty("type", out var t) && t.GetString() == "state") _lastState = line;
+            var type = doc.RootElement.TryGetProperty("type", out var t) ? t.GetString() : null;
+            if (type == "reload") { _web.CoreWebView2?.Reload(); return; } // RESTART_SHELL repair
+            if (type == "state")
+            {
+                _lastState = line;
+                var inSession = doc.RootElement.TryGetProperty("session", out var s) && s.ValueKind == JsonValueKind.Object;
+                if (_inSession && !inSession) Pointer.Apply(_venuePointer.MouseSpeed, _venuePointer.EnhancePointerPrecision); // next customer starts clean
+                _inSession = inSession;
+            }
         }
         catch (JsonException) { return; }
         Post(line);
+    }
+
+    private void PointerRequest(string type, JsonElement msg)
+    {
+        Pointer.Settings now;
+        if (type == "pointer_apply" && _inSession)
+        {
+            int? speed = msg.TryGetProperty("mouseSpeed", out var sp) && sp.TryGetInt32(out var v) ? v : null;
+            bool? precision = msg.TryGetProperty("enhancePointerPrecision", out var pr) && pr.ValueKind is JsonValueKind.True or JsonValueKind.False ? pr.GetBoolean() : null;
+            now = Pointer.Apply(speed, precision);
+        }
+        else now = Pointer.Read();
+        Post(JsonSerializer.Serialize(new { type = "pointer", mouseSpeed = now.MouseSpeed, enhancePointerPrecision = now.EnhancePointerPrecision }));
     }
 
     private void AgentConnectionChanged(bool connected)
@@ -189,6 +217,7 @@ public sealed class MainWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        Pointer.Apply(_venuePointer.MouseSpeed, _venuePointer.EnhancePointerPrecision);
         _pipe.Dispose();
         base.OnClosed(e);
     }

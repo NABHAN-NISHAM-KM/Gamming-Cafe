@@ -18,6 +18,10 @@ public abstract record ShellRequest
     public sealed record Ready : ShellRequest;
     public sealed record Login(string RequestId, string Username, string Secret) : ShellRequest;
     public sealed record Logout : ShellRequest;
+    public sealed record Launch(string RequestId, string GameId) : ShellRequest;
+    public sealed record LaunchApp(string RequestId, string AppId) : ShellRequest;
+    public sealed record Help(string RequestId, string Topic, string? Note) : ShellRequest;
+    public sealed record Repair(string RequestId, string Action) : ShellRequest;
 }
 
 public static partial class ShellProtocol
@@ -27,6 +31,11 @@ public static partial class ShellProtocol
 
     [GeneratedRegex("^[A-Za-z0-9-]{8,64}$")]
     private static partial Regex RequestIdPattern();
+
+    [GeneratedRegex("^[0-9a-fA-F-]{36}$")]
+    private static partial Regex UuidPattern();
+
+    private static readonly string[] HelpTopics = ["general", "game", "peripheral", "network", "payment"];
 
     /// <summary>Parses one line from the Shell. Returns null for anything malformed, oversized or unknown.</summary>
     public static ShellRequest? Parse(string line)
@@ -43,6 +52,29 @@ public static partial class ShellProtocol
                     return new ShellRequest.Ready();
                 case "logout":
                     return new ShellRequest.Logout();
+                case "launch" or "launch_app":
+                {
+                    var rid = Str(root, "requestId");
+                    var id = Str(root, type.GetString() == "launch" ? "gameId" : "appId");
+                    if (rid is null || !RequestIdPattern().IsMatch(rid) || id is null || !UuidPattern().IsMatch(id)) return null;
+                    return type.GetString() == "launch" ? new ShellRequest.Launch(rid, id) : new ShellRequest.LaunchApp(rid, id);
+                }
+                case "help":
+                {
+                    var rid = Str(root, "requestId");
+                    var topic = Str(root, "topic") ?? "general";
+                    var note = Str(root, "note");
+                    if (rid is null || !RequestIdPattern().IsMatch(rid) || !HelpTopics.Contains(topic) || note is { Length: > 300 }) return null;
+                    return new ShellRequest.Help(rid, topic, string.IsNullOrWhiteSpace(note) ? null : note.Trim());
+                }
+                case "repair":
+                {
+                    // Customers get only the self-service subset; the rest is for staff (signed RUN_REPAIR).
+                    var rid = Str(root, "requestId");
+                    var action = Str(root, "action");
+                    if (rid is null || !RequestIdPattern().IsMatch(rid) || action is null || !Stations.RepairActions.SelfService.Contains(action)) return null;
+                    return new ShellRequest.Repair(rid, action);
+                }
                 case "login":
                     var requestId = Str(root, "requestId");
                     var username = Str(root, "username")?.Trim();
@@ -86,6 +118,40 @@ public static partial class ShellProtocol
 
     public static string Message(string title, string text) =>
         JsonSerializer.Serialize(new { type = "message", title, text }, Json.Options);
+
+    /// <summary>
+    /// The library as the Shell may see it: no executable paths or arguments.
+    /// "locked" marks games above the signed-in customer's age.
+    /// </summary>
+    public static string Library(Games.StationConfig? config, SessionState? session)
+    {
+        var age = session?.CustomerAge;
+        return JsonSerializer.Serialize(new
+        {
+            type = "library",
+            games = (config?.Games ?? []).Select(g => new
+            {
+                id = g.Id, title = g.Title, categories = g.Categories, coverUrl = g.CoverUrl, minAge = g.MinAge, featured = g.Featured,
+                launcher = g.LauncherKey, installed = g.Installed, updateRequired = g.UpdateRequired,
+                locked = g.MinAge is { } min && age is { } a && a < min,
+            }),
+            apps = (config?.Apps ?? []).Select(a => new { id = a.Id, name = a.Name, kind = a.Kind }),
+            presets = (config?.PeripheralPresets ?? []).Select(p => new { id = p.Id, name = p.Name, mouseSpeed = p.Settings.MouseSpeed, enhancePointerPrecision = p.Settings.EnhancePointerPrecision }),
+        }, StateOptions);
+    }
+
+    public static string Result(string type, string requestId, bool ok, string? error = null, string? message = null) =>
+        JsonSerializer.Serialize(new { type, requestId, ok, error, message }, Json.Options);
+
+    public static string Playing(string? gameId, string? title) => JsonSerializer.Serialize(new { type = "playing", gameId, title }, StateOptions);
+
+    public static string Network(Stations.NetworkProbe probe) => JsonSerializer.Serialize(new { type = "network", probe }, Json.Options);
+
+    public static string Peripherals(IEnumerable<Stations.DetectedPeripheral> items) =>
+        JsonSerializer.Serialize(new { type = "peripherals", items = items.Select(p => new { type = p.Type, name = p.Name, vendor = p.Vendor }) }, Json.Options);
+
+    /// <summary>Tells the host to reload the Shell page (RESTART_SHELL repair).</summary>
+    public const string Reload = """{"type":"reload"}""";
 
     // session:null and logoUrl:null must be sent explicitly — the Shell treats a missing session as unknown.
     private static readonly JsonSerializerOptions StateOptions = new(JsonSerializerDefaults.Web);
