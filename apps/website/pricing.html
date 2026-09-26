@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en" data-page="pricing">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pricing — ArenaOS</title>
+  <meta name="description" content="ArenaOS plans: Starter for a single venue, Pro for growing chains, Enterprise for unlimited branches, brands and API access. Compare limits and every module." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/site.css" />
+  <style>
+    .soon { font-size: 10.5px; font-weight: 600; padding: 2px 7px; border-radius: 999px; background: #2a2410; color: var(--amber); border: 1px solid #574a17; margin-left: 6px; vertical-align: middle; }
+    .calc { display: grid; grid-template-columns: 1.2fr 1fr; gap: 28px; align-items: center; }
+    .calc input[type=range] { width: 100%; accent-color: var(--cyan); }
+    .calc label { display: flex; justify-content: space-between; font-size: 14px; color: var(--ink-2); margin: 18px 0 6px; }
+    .calc label b { color: var(--ink); font-family: var(--mono); }
+    .rec { text-align: center; padding: 30px; }
+    .rec b.plan-name { font-family: var(--display); font-size: 34px; display: block; margin: 6px 0; }
+    @media (max-width: 820px) { .calc { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header id="nav"></header>
+  <main>
+    <section class="hero center" style="padding-bottom:40px">
+      <div class="hero-grid"></div>
+      <div class="wrap">
+        <span class="eyebrow">Simple, per-organization pricing</span>
+        <h1 style="font-size:clamp(34px,5vw,56px)">Plans that grow <span class="grad">branch by branch</span></h1>
+        <p class="lead">One subscription covers your whole organization — every station, staff account and customer inside your limits. No per-seat surprises.</p>
+        <div style="margin-top:30px">
+          <div class="toggle" role="group" aria-label="Billing period">
+            <button class="on" data-period="m">Monthly</button>
+            <button data-period="y">Yearly <span class="save">2 months free</span></button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="wrap">
+      <div class="plans" id="plans"></div>
+      <p class="center dim" style="font-size:13.5px;margin-top:22px">Prices in USD, excluding taxes. Local currency billing available in the UAE, Saudi Arabia, Qatar, Kuwait, Bahrain, Oman, India, the UK and the US.</p>
+    </div>
+
+    <section>
+      <div class="wrap">
+        <div class="sec-head"><span class="tag">Which plan fits?</span><h2>Size your venue</h2><p>Move the sliders to see the plan that covers your setup.</p></div>
+        <div class="card calc">
+          <div>
+            <label for="rb">Branches <b id="vb">1</b></label><input id="rb" type="range" min="1" max="20" value="1" />
+            <label for="rd">Stations (PCs, consoles, VR) <b id="vd">24</b></label><input id="rd" type="range" min="5" max="600" step="5" value="24" />
+            <label for="re">Staff accounts <b id="ve">8</b></label><input id="re" type="range" min="1" max="250" value="8" />
+            <label style="justify-content:flex-start;gap:10px;margin-top:22px"><input type="checkbox" id="rf" /> I run a restaurant / kitchen</label>
+            <label style="justify-content:flex-start;gap:10px;margin-top:8px"><input type="checkbox" id="rt" /> I host tournaments</label>
+            <label style="justify-content:flex-start;gap:10px;margin-top:8px"><input type="checkbox" id="ra" /> I need the public API or multiple brands</label>
+          </div>
+          <div class="card rec" style="background:var(--bg-2)">
+            <small class="dim">Recommended</small>
+            <b class="plan-name grad" id="recName">Starter</b>
+            <div class="muted" id="recPrice">$199 / month</div>
+            <p class="dim" id="recWhy" style="font-size:14px;margin-top:12px"></p>
+            <a class="btn btn-primary" href="contact.html" style="margin-top:14px">Get started</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="alt">
+      <div class="wrap">
+        <div class="sec-head"><span class="tag">Compare</span><h2>Every module, every plan</h2><p>Enterprise customers can also switch individual modules on or off per organization.</p></div>
+        <div class="matrix-wrap"><table class="matrix" id="matrix"></table></div>
+      </div>
+    </section>
+
+    <section id="faq">
+      <div class="wrap">
+        <div class="sec-head"><span class="tag">FAQ</span><h2>Questions, answered</h2></div>
+        <div class="faq">
+          <details open><summary>What counts as a station?</summary><p>Any device you bill time on: a gaming PC running the ArenaOS agent, a console, a VR rig, a racing simulator or an internet-café PC. Staff PCs, POS terminals and kitchen displays don't count.</p></details>
+          <details><summary>What happens when the internet goes down?</summary><p>The Windows agent keeps a local fail-safe lock and the session state, so players are never locked out mid-game and never get free time. The branch edge server (Offline Edge) keeps sessions and the POS running and syncs everything back when the connection returns.</p></details>
+          <details><summary>Can I change plans later?</summary><p>Yes. Upgrades apply immediately; downgrades apply at the next billing period as long as you're within the lower plan's limits.</p></details>
+          <details><summary>Do you support my hardware and launchers?</summary><p>The agent runs on Windows 10/11 PCs. The game library supports the major launchers (Steam, Epic, Riot, Battle.net, EA, Ubisoft) and detects installs automatically. Consoles, VR and TVs run agentless.</p></details>
+          <details><summary>Which payment methods and currencies?</summary><p>Your venue can take cash, card and mixed payments through the POS, with wallets in your local currency. ArenaOS supports AED, SAR, QAR, KWD, BHD, OMR, INR, GBP and USD out of the box.</p></details>
+          <details><summary>Is my data isolated from other venues?</summary><p>Yes — three independent layers: PostgreSQL row-level security, a tenant-scoped data client, and route-level authorization. Each layer is tested in CI on every change.</p></details>
+          <details><summary>Is there a free trial?</summary><p>Try every surface right now in the <a href="demos.html" style="color:var(--cyan)">interactive demos</a>. For a pilot at your venue, <a href="contact.html" style="color:var(--cyan)">talk to us</a>.</p></details>
+        </div>
+      </div>
+    </section>
+  </main>
+  <footer id="footer"></footer>
+  <script src="assets/site.js"></script>
+  <script>
+    // Mirrors packages/contracts/src/features.ts and the plans seeded in apps/api/scripts/seed.ts.
+    const GROUPS = [
+      ["Stations & gaming", [["PC_GAMING", "PC gaming & Gaming Shell"], ["CONSOLE", "Console stations"], ["VR_SIMULATOR", "VR & simulators"], ["INTERNET_CAFE", "Internet café (browsing, printing, office)"], ["GAME_UPDATES", "Central game update orchestration"], ["LICENSE_POOL", "Game account / license pool"], ["DISKLESS", "Diskless integration"], ["REMOTE_SUPPORT", "Remote support"]]],
+      ["Customers", [["CUSTOMER_APP", "Customer web / mobile app"], ["WALLET", "Customer wallet"], ["MEMBERSHIP", "Memberships"], ["BOOKINGS", "Bookings"]]],
+      ["Food & retail", [["INVENTORY", "Inventory & warehouses"], ["RESTAURANT", "Restaurant POS"], ["KDS", "Kitchen display system"], ["TABLES", "Restaurant table management"], ["PURCHASING", "Purchasing & suppliers"]]],
+      ["Growth", [["LOYALTY", "Loyalty"], ["PROMOTIONS", "Promotions engine"], ["TOURNAMENTS", "Tournaments & esports"], ["CRM", "CRM & campaigns"]]],
+      ["Finance & platform", [["ADVANCED_REPORTS", "Advanced analytics", true], ["ACCOUNTING", "Accounting (general ledger)", true], ["OFFLINE_EDGE", "Branch edge server (offline mode)"], ["PUBLIC_API", "Public API & webhooks"], ["MULTI_BRAND", "Multiple brands"]]],
+    ];
+    const ALL = GROUPS.flatMap(([, f]) => f.map(([k]) => k));
+    const STARTER = ["PC_GAMING", "CONSOLE", "INTERNET_CAFE", "BOOKINGS", "MEMBERSHIP", "WALLET", "INVENTORY", "LOYALTY", "PROMOTIONS", "CUSTOMER_APP", "REMOTE_SUPPORT", "OFFLINE_EDGE", "GAME_UPDATES"];
+    const PLANS = [
+      { name: "Starter", price: 199, for: "A single café or internet café getting off spreadsheets.", b: 1, d: 30, e: 10, feats: STARTER,
+        hl: ["Locked Gaming Shell & Live Floor", "Sessions, packages & happy hours", "Wallet, memberships & bookings", "Loyalty points & promotions", "Customer app for your venue", "Offline fail-safe at the branch"] },
+      { name: "Pro", price: 599, for: "Growing venues and chains with food, events and multiple branches.", b: 5, d: 250, e: 100, pop: true,
+        feats: ALL.filter((f) => !["PUBLIC_API", "MULTI_BRAND", "DISKLESS", "ACCOUNTING"].includes(f)),
+        hl: ["Everything in Starter", "Restaurant POS, tables & kitchen display", "Purchasing, suppliers & recipes", "Tournaments with brackets & prizes", "CRM segments & campaigns", "VR, simulators & license pool"] },
+      { name: "Enterprise", price: 1999, for: "Arenas and franchises that need scale, brands and integrations.", b: null, d: null, e: null, feats: ALL,
+        hl: ["Everything in Pro", "Unlimited branches, stations & staff", "Multiple brands under one org", "Public API & webhooks", "Diskless integration & accounting", "Priority support & onboarding"] },
+    ];
+    let yearly = false;
+    const fmt = (n) => "$" + n.toLocaleString("en-US");
+    const lim = (n) => (n == null ? "∞" : n.toLocaleString("en-US"));
+
+    function renderPlans() {
+      document.getElementById("plans").innerHTML = PLANS.map((p) => {
+        const monthly = yearly ? Math.round((p.price * 10) / 12) : p.price;
+        return `<div class="card plan ${p.pop ? "pop" : ""}">
+          ${p.pop ? '<span class="badge">Most popular</span>' : ""}
+          <h3>${p.name}</h3><div class="for">${p.for}</div>
+          <div class="price"><b>${fmt(monthly)}</b><span>/ month</span></div>
+          <div class="price-sub">${yearly ? `${fmt(p.price * 10)} billed yearly` : "billed monthly"}</div>
+          <div class="limits"><div><b>${lim(p.b)}</b><small>branches</small></div><div><b>${lim(p.d)}</b><small>stations</small></div><div><b>${lim(p.e)}</b><small>staff</small></div></div>
+          <ul>${p.hl.map((h) => `<li>${h}</li>`).join("")}</ul>
+          <a class="btn ${p.pop ? "btn-primary" : "btn-ghost"}" href="contact.html?plan=${p.name.toLowerCase()}">${p.name === "Enterprise" ? "Contact sales" : "Start with " + p.name}</a>
+        </div>`;
+      }).join("");
+    }
+    function renderMatrix() {
+      const head = `<thead><tr><th>Module</th>${PLANS.map((p) => `<th>${p.name}</th>`).join("")}</tr></thead>`;
+      const limits = `<tr class="grp"><td colspan="4">Limits</td></tr>` +
+        [["Branches", "b"], ["Stations", "d"], ["Staff accounts", "e"]].map(([l, k]) => `<tr><td>${l}</td>${PLANS.map((p) => `<td class="mono">${p[k] == null ? "Unlimited" : p[k]}</td>`).join("")}</tr>`).join("");
+      const rows = GROUPS.map(([g, fs]) => `<tr class="grp"><td colspan="4">${g}</td></tr>` + fs.map(([k, l, soon]) =>
+        `<tr><td>${l}${soon ? '<span class="soon">Soon</span>' : ""}</td>${PLANS.map((p) => p.feats.includes(k) ? '<td class="y">✓</td>' : '<td class="n">—</td>').join("")}</tr>`).join("")).join("");
+      document.getElementById("matrix").innerHTML = head + `<tbody>${limits}${rows}</tbody>`;
+    }
+    document.querySelectorAll(".toggle button").forEach((b) => b.addEventListener("click", () => {
+      document.querySelectorAll(".toggle button").forEach((x) => x.classList.toggle("on", x === b));
+      yearly = b.dataset.period === "y"; renderPlans(); recommend();
+    }));
+
+    function recommend() {
+      const $ = (id) => document.getElementById(id);
+      const b = +$("rb").value, d = +$("rd").value, e = +$("re").value;
+      $("vb").textContent = b; $("vd").textContent = d; $("ve").textContent = e;
+      const needs = [];
+      let plan = PLANS[0];
+      if (b > 1 || d > 30 || e > 10 || $("rf").checked || $("rt").checked) plan = PLANS[1];
+      if (b > 5 || d > 250 || e > 100 || $("ra").checked) plan = PLANS[2];
+      if (b > 1) needs.push(`${b} branches`);
+      if ($("rf").checked) needs.push("restaurant & KDS");
+      if ($("rt").checked) needs.push("tournaments");
+      if ($("ra").checked) needs.push("API / multi-brand");
+      $("recName").textContent = plan.name;
+      const m = yearly ? Math.round((plan.price * 10) / 12) : plan.price;
+      $("recPrice").textContent = `${fmt(m)} / month${yearly ? " (billed yearly)" : ""}`;
+      $("recWhy").textContent = `Covers ${d} stations and ${e} staff${needs.length ? ", plus " + needs.join(", ") : ""}.`;
+    }
+    ["rb", "rd", "re", "rf", "rt", "ra"].forEach((id) => document.getElementById(id).addEventListener("input", recommend));
+    renderPlans(); renderMatrix(); recommend();
+  </script>
+</body>
+</html>

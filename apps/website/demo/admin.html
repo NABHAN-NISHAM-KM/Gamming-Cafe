@@ -1,0 +1,591 @@
+<!doctype html>
+<html lang="en" data-demo="admin">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Venue admin demo — ArenaOS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    /* Mirrors apps/admin/src/app/globals.css */
+    :root {
+      --bg: #0b0e14; --panel: #121722; --panel-2: #171d2b; --line: #232b3b; --line-2: #2f3a4f;
+      --ink: #e6ebf5; --ink-2: #a7b1c6; --ink-3: #6c7891; --acc: #22d3ee; --acc-ink: #04212a; --acc-soft: #0e3440;
+      --ok: #34d399; --busy: #f87171; --res: #facc15; --end: #fb923c; --off: #64748b; --maint: #a78bfa; --danger: #f43f5e;
+      --font: Inter, system-ui, sans-serif; --display: "Space Grotesk", Inter, sans-serif; --mono: "JetBrains Mono", Consolas, monospace;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--font); -webkit-font-smoothing: antialiased; }
+    button, input, select, textarea { font: inherit; color: inherit; }
+    .app { display: grid; grid-template-columns: 228px 1fr; min-height: calc(100vh - 40px); }
+    aside { border-right: 1px solid var(--line); padding: 16px 10px; display: flex; flex-direction: column; background: #090c11; position: sticky; top: 40px; height: calc(100vh - 40px); overflow-y: auto; }
+    .logo { display: flex; align-items: center; gap: 10px; padding: 4px 10px 12px; font: 700 16px var(--display); }
+    .logo i { width: 28px; height: 28px; border-radius: 8px; background: var(--acc); color: var(--acc-ink); display: grid; place-items: center; font-style: normal; }
+    .branch { margin: 0 6px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; font-size: 12.5px; }
+    .branch b { display: block; font-size: 13.5px; }
+    .sec { font-size: 10.5px; color: var(--ink-3); text-transform: uppercase; letter-spacing: .12em; padding: 12px 12px 4px; }
+    .nav button { display: flex; align-items: center; gap: 10px; width: 100%; background: none; border: 0; padding: 7px 12px; border-radius: 8px; color: var(--ink-2); cursor: pointer; text-align: left; font-size: 13.5px; }
+    .nav button:hover { background: var(--panel); color: var(--ink); }
+    .nav button.on { background: var(--acc-soft); color: var(--acc); }
+    .nav .badge { margin-left: auto; font-size: 11px; background: var(--danger); color: #fff; border-radius: 999px; padding: 0 7px; }
+    .role { margin-top: auto; padding: 12px 8px 0; border-top: 1px solid var(--line); font-size: 12px; color: var(--ink-3); }
+    .role select { width: 100%; margin-top: 6px; background: var(--panel); border: 1px solid var(--line-2); border-radius: 8px; padding: 7px 8px; color-scheme: dark; }
+    main { padding: 22px 26px 60px; min-width: 0; }
+    h1 { font: 700 23px var(--display); margin: 0; letter-spacing: -.02em; }
+    .sub { color: var(--ink-3); margin: 3px 0 18px; }
+    .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; flex-wrap: wrap; }
+    .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .kpi { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+    .kpi small { color: var(--ink-3); }
+    .kpi b { display: block; font: 700 24px var(--display); margin-top: 2px; }
+    .kpi em { font-style: normal; font-size: 12px; color: var(--ok); }
+    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+    .panel h3 { margin: 0 0 12px; font: 600 15px var(--display); display: flex; justify-content: space-between; align-items: center; }
+    .two { display: grid; grid-template-columns: 1.5fr 1fr; gap: 12px; margin-top: 12px; }
+    .three { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; font-weight: 500; color: var(--ink-3); font-size: 12px; padding: 9px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+    td { padding: 10px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+    .tw { overflow-x: auto; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--panel-2); cursor: pointer; font-weight: 500; font-size: 13.5px; }
+    .btn:hover { border-color: var(--ink-3); }
+    .btn.pri { background: var(--acc); color: var(--acc-ink); border-color: var(--acc); font-weight: 600; }
+    .btn.danger { color: var(--danger); border-color: #6a2a35; }
+    .btn.sm { padding: 5px 10px; font-size: 12.5px; }
+    .chip { display: inline-flex; align-items: center; gap: 5px; padding: 1px 9px; border-radius: 999px; font-size: 12px; font-weight: 500; color: var(--c); border: 1px solid color-mix(in oklab, var(--c) 40%, transparent); background: color-mix(in oklab, var(--c) 12%, transparent); }
+    .mono { font-family: var(--mono); font-size: 12.5px; }
+    .tab { font-variant-numeric: tabular-nums; }
+    .dim { color: var(--ink-3); }
+    input.in, select.in, textarea.in { background: var(--bg); border: 1px solid var(--line-2); border-radius: 8px; padding: 8px 11px; color-scheme: dark; width: 100%; }
+
+    /* floor */
+    .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--ink-3); margin-bottom: 14px; }
+    .legend span::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 6px; background: var(--c); vertical-align: -1px; }
+    .zone { margin-bottom: 18px; }
+    .zone h4 { margin: 0 0 8px; font: 600 13px var(--font); color: var(--ink-2); display: flex; gap: 10px; align-items: center; }
+    .zone h4 small { color: var(--ink-3); font-weight: 400; }
+    .zone h4 button { margin-left: auto; }
+    .sts { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; }
+    .st { border-radius: 10px; border: 1px solid color-mix(in oklab, var(--c) 45%, var(--line)); background: color-mix(in oklab, var(--c) 10%, var(--panel)); padding: 9px 10px; cursor: pointer; text-align: left; min-height: 84px; display: flex; flex-direction: column; gap: 2px; transition: transform .12s; }
+    .st:hover { transform: translateY(-2px); }
+    .st .top { display: flex; justify-content: space-between; align-items: center; }
+    .st b { font: 600 13px var(--mono); }
+    .st .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c); box-shadow: 0 0 8px var(--c); }
+    .st .who { font-size: 12px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .st .t { font: 600 15px var(--mono); color: var(--c); margin-top: auto; }
+    .st .temp { font-size: 11px; color: var(--ink-3); }
+    .st.hot .temp { color: var(--busy); }
+
+    .drawer { position: fixed; top: 40px; right: 0; bottom: 0; width: min(440px, 100%); background: var(--panel); border-left: 1px solid var(--line-2); transform: translateX(100%); transition: transform .25s; z-index: 50; overflow-y: auto; padding: 20px; box-shadow: -30px 0 80px rgb(0 0 0 / .5); }
+    .drawer.open { transform: none; }
+    .x { float: right; background: none; border: 0; color: var(--ink-3); font-size: 22px; cursor: pointer; }
+    .dl { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 14px 0; }
+    .dl div { background: var(--panel-2); border-radius: 8px; padding: 9px 11px; }
+    .dl small { color: var(--ink-3); display: block; font-size: 11.5px; }
+    .grid-btn { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .big-t { font: 700 40px var(--mono); color: var(--c); text-align: center; margin: 10px 0; }
+    label.f { display: grid; gap: 5px; font-size: 12.5px; color: var(--ink-2); margin: 10px 0; }
+
+    /* POS */
+    .pos { display: grid; grid-template-columns: 1fr 340px; gap: 12px; }
+    .cats { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+    .cats button { padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line-2); background: var(--panel); cursor: pointer; font-size: 13px; color: var(--ink-2); }
+    .cats button.on { background: var(--acc); color: var(--acc-ink); border-color: var(--acc); }
+    .prods { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+    .prod { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; cursor: pointer; text-align: left; }
+    .prod:hover { border-color: var(--acc); }
+    .prod .e { font-size: 26px; }
+    .prod b { display: block; font-size: 13.5px; margin-top: 6px; }
+    .prod span { color: var(--acc); font: 600 13px var(--mono); }
+    .prod small { display: block; color: var(--ink-3); font-size: 11px; }
+    .cart { position: sticky; top: 62px; align-self: start; }
+    .line { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px dashed var(--line); font-size: 13px; }
+    .qty { display: flex; align-items: center; gap: 6px; }
+    .qty button { width: 24px; height: 24px; border-radius: 6px; border: 1px solid var(--line-2); background: var(--panel-2); cursor: pointer; }
+    .tot { display: flex; justify-content: space-between; margin-top: 8px; font-size: 13px; color: var(--ink-2); }
+    .tot.g { font: 700 20px var(--display); color: var(--ink); margin-top: 10px; }
+    .pay { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 14px; }
+
+    /* KDS */
+    .kds { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+    .tk { background: var(--panel); border: 1px solid var(--line); border-top: 4px solid var(--c); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; }
+    .tk .th { display: flex; justify-content: space-between; align-items: baseline; }
+    .tk .th b { font: 700 18px var(--display); }
+    .tk .th span { font: 600 14px var(--mono); color: var(--c); }
+    .tk ul { list-style: none; padding: 0; margin: 10px 0; flex: 1; }
+    .tk li { padding: 5px 0; border-bottom: 1px dashed var(--line); font-size: 14px; }
+    .tk li small { display: block; color: var(--end); font-size: 12px; }
+
+    /* bracket */
+    .bracket { display: flex; gap: 26px; overflow-x: auto; padding-bottom: 8px; }
+    .round { display: flex; flex-direction: column; justify-content: space-around; gap: 14px; min-width: 200px; }
+    .round h5 { margin: 0 0 4px; font-size: 12px; color: var(--ink-3); text-transform: uppercase; letter-spacing: .1em; }
+    .match { background: var(--panel-2); border: 1px solid var(--line-2); border-radius: 10px; overflow: hidden; cursor: pointer; }
+    .match:hover { border-color: var(--acc); }
+    .match div { display: flex; justify-content: space-between; padding: 8px 12px; font-size: 13px; }
+    .match div + div { border-top: 1px solid var(--line); }
+    .match .w { color: var(--ok); font-weight: 600; }
+    .match .tbd { color: var(--ink-3); }
+
+    /* bookings timeline */
+    .tl { display: grid; grid-template-columns: 110px repeat(12, 1fr); font-size: 12px; min-width: 820px; }
+    .tl .h { color: var(--ink-3); padding: 6px 0; border-bottom: 1px solid var(--line); }
+    .tl .r { padding: 8px 0; border-bottom: 1px solid var(--line); color: var(--ink-2); font-family: var(--mono); }
+    .tl .cell { border-bottom: 1px solid var(--line); border-left: 1px solid color-mix(in oklab, var(--line) 50%, transparent); position: relative; }
+    .bk { position: absolute; top: 5px; bottom: 5px; border-radius: 6px; background: color-mix(in oklab, var(--res) 22%, var(--panel)); border: 1px solid color-mix(in oklab, var(--res) 50%, transparent); color: var(--res); font-size: 11px; padding: 2px 6px; overflow: hidden; white-space: nowrap; z-index: 1; }
+
+    .bars { display: flex; align-items: flex-end; gap: 6px; height: 170px; }
+    .bars div { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; justify-content: flex-end; }
+    .bars i { width: 100%; border-radius: 4px 4px 0 0; background: linear-gradient(180deg, var(--acc), #0e7490); }
+    .bars i.food { background: linear-gradient(180deg, var(--end), #9a3412); }
+    .bars span { font-size: 10.5px; color: var(--ink-3); }
+    .meter { height: 8px; background: var(--line); border-radius: 999px; overflow: hidden; }
+    .meter i { display: block; height: 100%; background: var(--c, var(--acc)); }
+    .li { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px dashed var(--line); font-size: 13px; }
+    .li:last-child { border-bottom: 0; }
+    .modal-bg { position: fixed; inset: 0; background: rgb(3 6 12 / .7); display: none; place-items: center; z-index: 80; backdrop-filter: blur(2px); }
+    .modal-bg.open { display: grid; }
+    .modal { background: var(--panel); border: 1px solid var(--line-2); border-radius: 14px; padding: 20px; width: min(440px, 92vw); max-height: 86vh; overflow: auto; }
+    .modal h3 { margin: 0 0 6px; font-family: var(--display); }
+    .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(120px); background: #0b2a2f; color: #a5f3fc; border: 1px solid #155e6b; padding: 11px 18px; border-radius: 10px; transition: transform .25s; z-index: 90; max-width: 90vw; }
+    .toast.show { transform: translateX(-50%); }
+    .menu-t { display: none; }
+    @media (max-width: 1100px) { .pos { grid-template-columns: 1fr; } .cart { position: static; } }
+    @media (max-width: 1000px) { .kpis { grid-template-columns: repeat(2, 1fr); } .two, .three { grid-template-columns: 1fr; } }
+    @media (max-width: 760px) {
+      .app { grid-template-columns: 1fr; }
+      aside { position: fixed; z-index: 60; width: 240px; transform: translateX(-100%); transition: .2s; }
+      aside.open { transform: none; }
+      .menu-t { display: inline-flex; }
+      main { padding: 16px 16px 60px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside id="side">
+      <div class="logo"><i>A</i>ArenaOS</div>
+      <div class="branch"><span class="dim">Demo Arena</span><b>Dubai Marina · DXB1</b></div>
+      <div class="nav" id="nav"></div>
+      <div class="role">Viewing as (RBAC demo)
+        <select id="roleSel"><option value="owner">Olivia · Org Owner</option><option value="manager">Mo · Branch Manager</option><option value="cashier">Cara · Cashier</option><option value="kitchen">Karim · Kitchen</option></select>
+      </div>
+    </aside>
+    <main id="main"></main>
+  </div>
+  <div class="drawer" id="drawer"></div>
+  <div class="modal-bg" id="modal"><div class="modal" id="modalBody"></div></div>
+  <div class="toast" id="toast"></div>
+
+  <script src="demo-bar.js"></script>
+  <script>
+    const $ = (s, r = document) => r.querySelector(s);
+    const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+    const aed = (n) => "AED " + n.toLocaleString("en-US", { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 });
+    const MIN = 60000;
+    const now = () => Date.now();
+    const fmtT = (ms) => { ms = Math.max(0, ms); const s = Math.floor(ms / 1000); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60; return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(x).padStart(2, "0"); };
+    function toast(t) { const el = $("#toast"); el.textContent = t; el.classList.add("show"); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove("show"), 2800); }
+
+    // ---------- data ----------
+    const ZONES = [
+      { id: "reg", name: "Regular PCs", rate: 15, cls: "PC", prefix: "PC", n: 16 },
+      { id: "vip", name: "VIP", rate: 25, cls: "PC", prefix: "VIP", n: 6 },
+      { id: "ps5", name: "PS5 Lounge", rate: 30, cls: "CONSOLE", prefix: "PS5", n: 4 },
+      { id: "vr", name: "VR Zone", rate: 40, cls: "VR", prefix: "VR", n: 2 },
+      { id: "sim", name: "Racing Sims", rate: 60, cls: "SIMULATOR", prefix: "SIM", n: 2 },
+    ];
+    const GAMES = ["Valorant", "Counter-Strike 2", "League of Legends", "Fortnite", "Dota 2", "Apex Legends", "EA FC 26", "Call of Duty", "Rocket League", "Minecraft"];
+    const customers = [
+      ["Ahmed Hassan", "ahmed", "Gold", 150, 20, 120, 2480], ["Sara Malik", "sara", "Silver", 35, 0, 0, 640], ["Omar Khalid", "omark", "Gold", 220, 40, 300, 5120],
+      ["Lina Farouk", "lina.f", "Bronze", 12, 0, 45, 180], ["Yusuf Rahman", "yusuf", "Platinum", 480, 100, 600, 12400], ["Noor Aziz", "noor", "Silver", 60, 5, 90, 1320],
+      ["Rayan Saeed", "rayan", "Bronze", 0, 0, 0, 40], ["Hamdan Ali", "hamdan", "Gold", 95, 10, 180, 3310], ["Mariam Obaid", "mariam", "Silver", 44, 0, 30, 870],
+      ["Zaid Nasser", "zaidn", "Bronze", 8, 0, 0, 95], ["Faisal Qasim", "faisal", "Gold", 130, 25, 240, 2950], ["Aisha Karim", "aisha", "Platinum", 310, 60, 420, 9870],
+    ].map(([name, user, tier, cash, bonus, time, pts], i) => ({ id: i + 1, name, user, tier, cash, bonus, time, pts, visits: 5 + (i * 7) % 60, phone: "+971 5" + (i % 9) + " " + (100 + i * 37) + " " + (1000 + i * 211) }));
+    const stations = [];
+    ZONES.forEach(z => { for (let i = 1; i <= z.n; i++) stations.push({ id: `${z.prefix}-${String(i).padStart(2, "0")}`, zone: z.id, status: "free", temp: 48 + ((i * 17) % 30), session: null }); });
+    // Seed a busy evening.
+    stations.forEach((s, i) => {
+      const r = (i * 37 + 11) % 100;
+      if (r < 58) startSession(s, customers[i % customers.length], 10 + ((i * 29) % 150), GAMES[i % GAMES.length], true);
+      else if (r < 64) startSession(s, customers[(i + 3) % customers.length], 1 + (i % 4), GAMES[(i + 2) % GAMES.length], true);
+      else if (r < 72) s.status = "reserved";
+      else if (r < 75) s.status = "maint";
+      else if (r < 78) s.status = "offline";
+    });
+    stations.find(s => s.id === "PC-14").temp = 89;
+    const history = [];
+    const orders = [];
+    let orderNo = 1041;
+    const tickets = [
+      { no: 1037, where: "PC-03", items: [["Chicken burger", 1, "No onions"], ["Fries", 1]], at: now() - 11 * MIN, state: "cooking" },
+      { no: 1038, where: "Table 4", items: [["Loaded nachos", 1], ["Iced latte", 2]], at: now() - 6 * MIN, state: "new" },
+      { no: 1039, where: "VIP-02", items: [["Pepperoni pizza", 1, "Extra cheese"]], at: now() - 3 * MIN, state: "new" },
+      { no: 1040, where: "Takeaway", items: [["Chicken wings (8)", 1], ["Red Bull", 2]], at: now() - 1 * MIN, state: "new" },
+    ];
+    const PRODUCTS = [
+      { id: "t1", cat: "Time", e: "⏱", name: "1 hour · Regular", price: 15, time: 60 }, { id: "t3", cat: "Time", e: "⏱", name: "3 hours + 30 bonus", price: 40, time: 210 },
+      { id: "t5", cat: "Time", e: "🌙", name: "Night pass (10pm–8am)", price: 60, time: 600 }, { id: "tv", cat: "Time", e: "👑", name: "VIP 3 hours", price: 70, time: 180 },
+      { id: "f1", cat: "Food", e: "🍔", name: "Chicken burger", price: 32, kitchen: true, recipe: { bun: 1, patty: 1 } }, { id: "f2", cat: "Food", e: "🍕", name: "Pepperoni pizza", price: 45, kitchen: true, recipe: { dough: 1, cheese: 0.2 } },
+      { id: "f3", cat: "Food", e: "🍟", name: "Fries", price: 14, kitchen: true, recipe: { fries: 0.25 } }, { id: "f4", cat: "Food", e: "🌮", name: "Loaded nachos", price: 28, kitchen: true, recipe: { nachos: 0.2, cheese: 0.1 } },
+      { id: "f5", cat: "Food", e: "🍗", name: "Chicken wings (8)", price: 36, kitchen: true, recipe: { wings: 8 } },
+      { id: "d1", cat: "Drinks", e: "🥤", name: "Red Bull", price: 12, stock: "redbull" }, { id: "d2", cat: "Drinks", e: "🧋", name: "Iced latte", price: 18, kitchen: true, recipe: { milk: 0.25 } },
+      { id: "d3", cat: "Drinks", e: "💧", name: "Water", price: 4, stock: "water" }, { id: "d4", cat: "Drinks", e: "🥫", name: "Pepsi", price: 7, stock: "pepsi" },
+      { id: "s1", cat: "Snacks", e: "🍫", name: "Snickers", price: 6, stock: "snickers" }, { id: "s2", cat: "Snacks", e: "🥔", name: "Lay's chips", price: 5, stock: "lays" },
+      { id: "w1", cat: "Top-up", e: "💳", name: "Wallet top-up 100", price: 100, topup: 100, bonus: 10 }, { id: "w2", cat: "Top-up", e: "💳", name: "Wallet top-up 200", price: 200, topup: 200, bonus: 30 },
+    ];
+    const inventory = {
+      bun: ["Burger buns", "pcs", 42, 30], patty: ["Chicken patties", "pcs", 18, 25], dough: ["Pizza dough", "pcs", 14, 10], cheese: ["Mozzarella", "kg", 3.4, 2],
+      fries: ["Frozen fries", "kg", 11, 8], nachos: ["Nacho chips", "kg", 2.1, 2], wings: ["Chicken wings", "pcs", 96, 64], milk: ["Milk", "L", 7.5, 6],
+      redbull: ["Red Bull 250ml", "cans", 38, 48], water: ["Water 500ml", "btl", 120, 60], pepsi: ["Pepsi 330ml", "cans", 64, 48], snickers: ["Snickers", "pcs", 22, 20], lays: ["Lay's chips", "pcs", 9, 20],
+    };
+    const bookings = [
+      { who: "Yusuf Rahman", st: "VIP-01", from: 18, len: 3 }, { who: "Team Falcons (5)", st: "VIP-02", from: 20, len: 3 }, { who: "Team Falcons (5)", st: "VIP-03", from: 20, len: 3 },
+      { who: "Noor Aziz", st: "PS5-02", from: 19, len: 2 }, { who: "Birthday — Zaid", st: "VR-01", from: 17, len: 1.5 }, { who: "Omar Khalid", st: "SIM-01", from: 21, len: 1 },
+      { who: "Hamdan Ali", st: "PC-05", from: 22, len: 4 }, { who: "Faisal Qasim", st: "PC-06", from: 22, len: 4 },
+    ];
+    const teams = ["Falcons", "Desert Wolves", "Night Owls", "Sandstorm", "Crimson Five", "Oasis Esports", "Marina Kings", "Yas Raiders"];
+    const bracket = [[[0, 7, 13, 9], [3, 4, 13, 11], [1, 6, null, null], [2, 5, null, null]], [[null, null, null, null], [null, null, null, null]], [[null, null, null, null]]];
+    const promos = [
+      { name: "Happy hour 2–5pm", kind: "Time window", effect: "-30% PC time", uses: 412, on: true },
+      { name: "Weekend bonus minutes", kind: "Weekend", effect: "+20 min per 2h package", uses: 188, on: true },
+      { name: "Birthday treat", kind: "Birthday", effect: "1 free hour + dessert", uses: 23, on: true },
+      { name: "FIRSTVISIT", kind: "Code · first visit", effect: "AED 10 off", uses: 76, on: true },
+      { name: "Ramadan nights", kind: "Time window", effect: "Night pass AED 45", uses: 0, on: false },
+    ];
+
+    function zoneOf(s) { return ZONES.find(z => z.id === s.zone); }
+    function startSession(s, cust, minutes, game, seed) {
+      const z = zoneOf(s);
+      s.status = "busy";
+      s.session = { cust, game: game ?? GAMES[Math.floor(Math.random() * GAMES.length)], start: now() - (seed ? (30 + (minutes * 7) % 90) * MIN : 0), end: now() + minutes * MIN, rate: z.rate, total: minutes };
+    }
+    function stState(s) {
+      if (s.status === "busy") { const left = s.session.end - now(); if (left <= 0) return "expired"; return left < 5 * MIN ? "ending" : "busy"; }
+      return s.status;
+    }
+    const COL = { free: "var(--ok)", busy: "var(--busy)", ending: "var(--end)", reserved: "var(--res)", offline: "var(--off)", maint: "var(--maint)", expired: "var(--ok)" };
+    const LBL = { free: "Available", busy: "In use", ending: "Ending", reserved: "Reserved", offline: "Offline", maint: "Maintenance" };
+
+    // ---------- nav & roles ----------
+    const NAV = [
+      ["Operate", [["dash", "Dashboard", "◧"], ["floor", "Live Floor", "▦"], ["sessions", "Sessions", "⏱"], ["bookings", "Bookings", "📅"], ["customers", "Customers", "👤"]]],
+      ["Sell", [["pos", "POS", "🛒"], ["kitchen", "Kitchen", "👨‍🍳"], ["inventory", "Inventory", "📦"]]],
+      ["Engage", [["tournaments", "Tournaments", "🏆"], ["marketing", "Loyalty & promos", "📣"]]],
+      ["Manage", [["staff", "Staff & roles", "🛡"], ["rates", "Rates", "🏷"]]],
+    ];
+    const ROLE_PAGES = {
+      owner: null,
+      manager: null,
+      cashier: ["floor", "sessions", "bookings", "customers", "pos", "kitchen"],
+      kitchen: ["kitchen", "inventory"],
+    };
+    let role = "owner", page = "floor";
+    function allowed(p) { const r = ROLE_PAGES[role]; return !r || r.includes(p); }
+    function renderNav() {
+      $("#nav").innerHTML = NAV.map(([sec, items]) => {
+        const vis = items.filter(([k]) => allowed(k));
+        if (!vis.length) return "";
+        return `<div class="sec">${sec}</div>` + vis.map(([k, l, i]) => {
+          const badge = k === "kitchen" ? tickets.length : k === "floor" ? stations.filter(s => stState(s) === "ending" || s.temp > 85).length : 0;
+          return `<button class="${k === page ? "on" : ""}" data-p="${k}"><span style="width:18px;text-align:center">${i}</span>${l}${badge ? `<span class="badge">${badge}</span>` : ""}</button>`;
+        }).join("");
+      }).join("");
+      $$("#nav button").forEach(b => b.onclick = () => { page = b.dataset.p; $("#side").classList.remove("open"); render(); });
+    }
+    $("#roleSel").onchange = (e) => { role = e.target.value; if (!allowed(page)) page = ROLE_PAGES[role][0]; render(); toast(`Now viewing as ${e.target.selectedOptions[0].text} — menu filtered by permissions`); };
+    const menuBtn = `<button class="btn menu-t" onclick="document.getElementById('side').classList.toggle('open')">☰</button>`;
+    const header = (t, s, right = "") => `<div class="head">${menuBtn}<div style="flex:1"><h1>${t}</h1><div class="sub">${s}</div></div>${right}</div>`;
+
+    // ---------- pages ----------
+    const V = {};
+    V.dash = () => {
+      const busy = stations.filter(s => ["busy", "ending"].includes(stState(s))).length;
+      const hours = ["12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23"];
+      const g = [320, 280, 410, 520, 610, 760, 940, 1120, 1260, 1180, 980, 640], f = [120, 180, 90, 110, 160, 240, 380, 460, 520, 430, 300, 180];
+      const mx = Math.max(...g.map((x, i) => x + f[i]));
+      const rev = g.reduce((a, b) => a + b, 0) + f.reduce((a, b) => a + b, 0) + orders.reduce((a, o) => a + o.total, 0);
+      return header("Good evening, " + ($("#roleSel").selectedOptions[0].text.split(" · ")[0]), "Dubai Marina · Saturday") + `
+        <div class="kpis">
+          <div class="kpi"><small>Occupancy now</small><b>${Math.round(busy / stations.length * 100)}%</b><em>${busy} of ${stations.length} stations</em></div>
+          <div class="kpi"><small>Revenue today</small><b>${aed(rev)}</b><em>▲ 12% vs last Sat</em></div>
+          <div class="kpi"><small>Orders today</small><b>${128 + orders.length}</b><em>avg ticket AED 34</em></div>
+          <div class="kpi"><small>Bookings tonight</small><b>${bookings.length}</b><em style="color:var(--res)">2 teams arriving 8pm</em></div>
+        </div>
+        <div class="two">
+          <div class="panel"><h3>Revenue by hour <span class="dim" style="font:400 12px var(--font)"><span style="color:var(--acc)">■</span> gaming <span style="color:var(--end)">■</span> food</span></h3>
+            <div class="bars">${hours.map((h, i) => `<div><div style="width:100%;display:flex;flex-direction:column;justify-content:flex-end;height:100%"><i class="food" style="height:${f[i] / mx * 100}%;border-radius:4px 4px 0 0"></i><i style="height:${g[i] / mx * 100}%;border-radius:0"></i></div><span>${h}</span></div>`).join("")}</div></div>
+          <div class="panel"><h3>Occupancy by zone</h3>${ZONES.map(z => { const zs = stations.filter(s => s.zone === z.id); const b = zs.filter(s => ["busy", "ending"].includes(stState(s))).length; return `<div style="margin:10px 0"><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:5px"><span>${z.name}</span><span class="dim">${b}/${zs.length}</span></div><div class="meter"><i style="width:${b / zs.length * 100}%"></i></div></div>`; }).join("")}
+            <h3 style="margin-top:18px">Alerts</h3>
+            <div class="li"><span>🌡 PC-14 GPU at ${stations.find(s => s.id === "PC-14").temp}°C</span><button class="btn sm" onclick="openStation('PC-14')">View</button></div>
+            <div class="li"><span>📦 Lay's chips below par (${inventory.lays[2]} left)</span><button class="btn sm" onclick="go('inventory')">Stock</button></div>
+            <div class="li"><span>🔌 ${stations.filter(s => s.status === "offline").length} station(s) offline</span><button class="btn sm" onclick="go('floor')">Floor</button></div>
+          </div>
+        </div>`;
+    };
+
+    V.floor = () => header("Live Floor", "Updates stream in real time. Click a station to control it.", `<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" onclick="massAction()">Mass action</button><button class="btn pri" onclick="quickStart()">+ Start session</button></div>`) +
+      `<div class="legend">${["free", "busy", "ending", "reserved", "maint", "offline"].map(k => `<span style="--c:${COL[k]}">${LBL[k]} · ${stations.filter(s => stState(s) === k || (k === "free" && stState(s) === "expired")).length}</span>`).join("")}</div>
+       <div id="floorZones">${floorZones()}</div>`;
+    function floorZones() {
+      return ZONES.map(z => `<div class="zone"><h4>${z.name} <small>AED ${z.rate}/h</small></h4><div class="sts">${stations.filter(s => s.zone === z.id).map(stCard).join("")}</div></div>`).join("");
+    }
+    function stCard(s) {
+      let st = stState(s);
+      if (st === "expired") { endSession(s, true); st = "free"; }
+      const c = COL[st];
+      const body = s.session ? `<div class="who">${s.session.cust.name.split(" ")[0]} · ${s.session.game}</div><div class="t tab">${fmtT(s.session.end - now())}</div>` :
+        st === "reserved" ? `<div class="who">Booked 20:00</div><div class="t">RES</div>` : st === "maint" ? `<div class="who">Tariq · GPU swap</div><div class="t">MAINT</div>` : st === "offline" ? `<div class="who">No heartbeat 4m</div><div class="t">OFF</div>` : `<div class="who">Ready</div><div class="t">FREE</div>`;
+      return `<button class="st ${s.temp > 85 ? "hot" : ""}" style="--c:${c}" onclick="openStation('${s.id}')"><div class="top"><b>${s.id}</b><span class="dot"></span></div>${body}<span class="temp">${st === "offline" ? "—" : s.temp + "°C" + (s.temp > 85 ? " ⚠" : "")}</span></button>`;
+    }
+
+    window.openStation = (id) => {
+      const s = stations.find(x => x.id === id), z = zoneOf(s), st = stState(s), d = $("#drawer");
+      const cmd = (label) => `<button class="btn sm" onclick="sendCmd('${id}','${label}')">${label}</button>`;
+      d.innerHTML = `<button class="x" onclick="closeDrawer()">×</button><h1 style="font-size:22px">${s.id}</h1><div class="dim">${z.name} · AED ${z.rate}/h · ${z.cls}</div>
+        <div style="margin-top:8px"><span class="chip" style="--c:${COL[st]}">● ${LBL[st] ?? st}</span></div>
+        ${s.session ? `<div class="big-t tab" style="--c:${COL[st]}" id="drawerT">${fmtT(s.session.end - now())}</div>
+          <div class="dl"><div><small>Customer</small>${s.session.cust.name}</div><div><small>Tier</small>${s.session.cust.tier}</div><div><small>Playing</small>${s.session.game}</div><div><small>Started</small>${new Date(s.session.start).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div></div>
+          <div class="grid-btn"><button class="btn pri" onclick="extend('${id}',30)">+30 min</button><button class="btn pri" onclick="extend('${id}',60)">+1 hour</button><button class="btn" onclick="moveSession('${id}')">Move</button></div>
+          <button class="btn danger" style="width:100%;margin-top:8px" onclick="endNow('${id}')">End session &amp; settle</button>` :
+          st === "free" || st === "reserved" ? `<div style="margin-top:14px">${startForm(id)}</div>` : `<p class="dim" style="margin-top:14px">${st === "maint" ? "In maintenance mode — customers can't sign in." : "The agent hasn't sent a heartbeat. Commands will be queued."}</p><button class="btn" onclick="setStatus('${id}','free')">Mark available</button>`}
+        <h3 style="font:600 14px var(--display);margin:22px 0 8px">Remote commands <span class="dim" style="font:400 12px var(--font)">· signed ES256</span></h3>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">${cmd("Lock")}${cmd("Message")}${cmd("Restart")}${cmd("Shutdown")}${cmd("Wake-on-LAN")}${cmd("Run repair")}${s.status !== "maint" && !s.session ? `<button class="btn sm" onclick="setStatus('${id}','maint')">Maintenance</button>` : ""}</div>
+        <h3 style="font:600 14px var(--display);margin:22px 0 8px">Hardware</h3>
+        <div class="dl"><div><small>CPU</small>${z.id === "vip" ? "i7-14700K" : "Ryzen 5 7600"}</div><div><small>GPU</small>${z.id === "vip" ? "RTX 4080 Super" : "RTX 4060"} · <span style="color:${s.temp > 85 ? "var(--busy)" : "inherit"}">${s.temp}°C</span></div><div><small>RAM</small>${z.id === "vip" ? 32 : 16} GB</div><div><small>Disk free</small>${120 + (s.temp * 3) % 300} GB</div></div>`;
+      d.classList.add("open"); d.dataset.id = id;
+      const cs = $("#startCust", d); if (cs) cs.oninput = () => updateQuote(id);
+      const cm = $("#startMin", d); if (cm) cm.oninput = () => updateQuote(id);
+      if (cs) updateQuote(id);
+    };
+    function startForm(id) {
+      return `<label class="f">Customer<select class="in" id="startCust"><option value="0">Walk-in (guest)</option>${customers.map(c => `<option value="${c.id}">${c.name} · ${c.tier} · ${c.time ? Math.floor(c.time / 60) + "h" + (c.time % 60) + "m prepaid" : aed(c.cash + c.bonus)}</option>`).join("")}</select></label>
+        <label class="f">Duration<select class="in" id="startMin"><option value="30">30 min</option><option value="60" selected>1 hour</option><option value="120">2 hours</option><option value="180">3 hours</option></select></label>
+        <div class="panel" style="background:var(--panel-2);padding:12px" id="quote"></div>
+        <button class="btn pri" style="width:100%;margin-top:10px" onclick="doStart('${id}')">Start &amp; unlock</button>`;
+    }
+    const DISC = { Bronze: 0, Silver: 5, Gold: 10, Platinum: 15 };
+    function quote(id) {
+      const s = stations.find(x => x.id === id), z = zoneOf(s);
+      const cid = +$("#startCust").value, min = +$("#startMin").value, c = customers.find(x => x.id === cid);
+      const base = z.rate * min / 60, disc = c ? base * DISC[c.tier] / 100 : 0;
+      const usesTime = c && c.time >= min;
+      return { base, disc, total: usesTime ? 0 : base - disc, c, min, usesTime };
+    }
+    function updateQuote(id) {
+      const q = quote(id);
+      $("#quote").innerHTML = `<div class="tot" style="margin:0"><span>Base · ${q.min} min</span><span>${aed(q.base)}</span></div>${q.disc ? `<div class="tot"><span>${q.c.tier} membership −${DISC[q.c.tier]}%</span><span>−${aed(q.disc)}</span></div>` : ""}${q.usesTime ? `<div class="tot"><span>Paid from prepaid time</span><span>−${q.min} min</span></div>` : ""}<div class="tot g"><span>Due</span><span>${aed(q.total)}</span></div>`;
+    }
+    window.doStart = (id) => {
+      const s = stations.find(x => x.id === id), q = quote(id);
+      const c = q.c ?? { name: "Guest " + Math.floor(100 + Math.random() * 900), tier: "Bronze", pts: 0, time: 0 };
+      if (q.usesTime) c.time -= q.min;
+      startSession(s, c, q.min);
+      history.unshift({ st: id, who: c.name, min: q.min, amt: q.total, at: new Date(), kind: "Start" });
+      toast(`${id} unlocked for ${c.name} — command acknowledged in ${120 + Math.floor(Math.random() * 180)} ms`);
+      closeDrawer(); render();
+    };
+    window.extend = (id, m) => { const s = stations.find(x => x.id === id); s.session.end += m * MIN; s.session.total += m; history.unshift({ st: id, who: s.session.cust.name, min: m, amt: s.session.rate * m / 60, at: new Date(), kind: "Extend" }); toast(`${id} extended by ${m} min · ${aed(s.session.rate * m / 60)} added to the bill`); openStation(id); render(); };
+    function endSession(s, auto) {
+      const ses = s.session; if (!ses) return;
+      const used = Math.round((now() - ses.start) / MIN), left = Math.max(0, Math.round((ses.end - now()) / MIN));
+      history.unshift({ st: s.id, who: ses.cust.name, min: used, amt: 0, at: new Date(), kind: auto ? "Expired" : "Ended", refund: left });
+      if (left && ses.cust.time !== undefined) ses.cust.time += left;
+      if (ses.cust.pts !== undefined) ses.cust.pts += Math.round(used / 6);
+      s.session = null; s.status = "free";
+      if (auto) toast(`${s.id} session expired — PC locked automatically`);
+      return left;
+    }
+    window.endNow = (id) => { const s = stations.find(x => x.id === id); const name = s.session.cust.name; const left = endSession(s); toast(`${id} ended · ${left ? left + " unused min refunded to " + name.split(" ")[0] + "'s wallet" : "settled"} · points added`); closeDrawer(); render(); };
+    window.moveSession = (id) => {
+      const free = stations.filter(s => stState(s) === "free");
+      modal(`<h3>Move session from ${id}</h3><p class="dim">The timer and bill move with the customer.</p><label class="f">To station<select class="in" id="mvTo">${free.map(s => `<option>${s.id}</option>`).join("")}</select></label>`, "Move", () => {
+        const a = stations.find(x => x.id === id), b = stations.find(x => x.id === $("#mvTo").value);
+        b.session = a.session; b.status = "busy"; a.session = null; a.status = "free";
+        toast(`Moved ${b.session.cust.name} from ${id} to ${b.id}`); closeDrawer(); render();
+      });
+    };
+    window.sendCmd = (id, c) => {
+      if (c === "Message") return modal(`<h3>Message ${id}</h3><label class="f">Shown on the Gaming Shell<textarea class="in" rows="3" id="msgT">Your food is ready at the counter 🍔</textarea></label>`, "Send", () => toast(`Message delivered to ${id}`));
+      const s = stations.find(x => x.id === id);
+      toast(s.status === "offline" && c !== "Wake-on-LAN" ? `${c} queued for ${id} — will run when it reconnects` : `${c} → ${id}: signed, verified by agent, done in ${90 + Math.floor(Math.random() * 200)} ms`);
+      if (c === "Wake-on-LAN" && s.status === "offline") { setTimeout(() => { s.status = "free"; render(); toast(`${id} is back online`); }, 1800); }
+      if (c === "Run repair" && s.temp > 85) { setTimeout(() => { s.temp = 72; render(); if ($("#drawer").dataset.id === id) openStation(id); toast(`${id}: fan curve reset, GPU now 72°C`); }, 1500); }
+    };
+    window.setStatus = (id, st) => { stations.find(x => x.id === id).status = st; toast(`${id} → ${LBL[st]}`); openStation(id); render(); };
+    window.closeDrawer = () => { $("#drawer").classList.remove("open"); $("#drawer").dataset.id = ""; };
+    window.quickStart = () => { const f = stations.find(s => stState(s) === "free"); if (f) openStation(f.id); };
+    window.massAction = () => modal(`<h3>Mass action</h3><label class="f">Zone<select class="in" id="maZ">${ZONES.map(z => `<option value="${z.id}">${z.name}</option>`).join("")}</select></label><label class="f">Command<select class="in" id="maC"><option>Message</option><option>Restart free stations</option><option>Wake-on-LAN</option><option>Update games</option></select></label>`, "Send to zone", () => {
+      const z = ZONES.find(x => x.id === $("#maZ").value); toast(`${$("#maC").value} sent to ${stations.filter(s => s.zone === z.id).length} stations in ${z.name}`);
+    });
+
+    V.sessions = () => {
+      const live = stations.filter(s => s.session);
+      return header("Sessions", "Server-authoritative timers. Expiry within ±2 s, even across restarts.") + `
+        <div class="panel tw" style="padding:0;margin-bottom:12px"><table><thead><tr><th>Station</th><th>Customer</th><th>Game</th><th>Rate</th><th>Started</th><th>Remaining</th><th></th></tr></thead><tbody>
+        ${live.sort((a, b) => a.session.end - b.session.end).map(s => { const st = stState(s); return `<tr><td class="mono">${s.id}</td><td>${s.session.cust.name}</td><td>${s.session.game}</td><td>AED ${s.session.rate}/h</td><td class="dim">${new Date(s.session.start).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</td><td class="mono tab" style="color:${COL[st]}" data-left="${s.id}">${fmtT(s.session.end - now())}</td><td><button class="btn sm" onclick="openStation('${s.id}')">Manage</button></td></tr>`; }).join("")}
+        </tbody></table></div>
+        <div class="panel tw"><h3>Activity</h3>${history.length ? `<table><thead><tr><th>Time</th><th>Event</th><th>Station</th><th>Customer</th><th>Minutes</th><th>Amount</th></tr></thead><tbody>${history.slice(0, 30).map(h => `<tr><td class="dim">${h.at.toLocaleTimeString()}</td><td>${h.kind}${h.refund ? ` <span class="chip" style="--c:var(--ok)">${h.refund} min refunded</span>` : ""}</td><td class="mono">${h.st}</td><td>${h.who}</td><td>${h.min}</td><td>${h.amt ? aed(h.amt) : "—"}</td></tr>`).join("")}</tbody></table>` : `<p class="dim">Start, extend or end a session on the Live Floor and it appears here.</p>`}</div>`;
+    };
+
+    V.bookings = () => {
+      const hrs = Array.from({ length: 12 }, (_, i) => 14 + i);
+      const rows = [...new Set(bookings.map(b => b.st))].sort();
+      return header("Bookings", "Tonight · no double booking, enforced by the database.", `<button class="btn pri" onclick="newBooking()">+ New booking</button>`) + `
+        <div class="panel tw"><div class="tl"><div class="h"></div>${hrs.map(h => `<div class="h">${h}:00</div>`).join("")}
+        ${rows.map(st => `<div class="r">${st}</div>${hrs.map((h, i) => `<div class="cell">${i === 0 ? bookings.filter(b => b.st === st).map(b => `<div class="bk" title="${b.who}" style="left:${(b.from - 14) / 12 * 1200}%;width:${b.len / 12 * 1200}%">${b.who}</div>`).join("") : ""}</div>`).join("")}`).join("")}
+        </div></div>`;
+    };
+    window.newBooking = () => modal(`<h3>New booking</h3><label class="f">Customer<select class="in" id="bkC">${customers.map(c => `<option>${c.name}</option>`).join("")}</select></label><label class="f">Station<select class="in" id="bkS">${stations.map(s => `<option>${s.id}</option>`).join("")}</select></label><label class="f">From<select class="in" id="bkF">${Array.from({ length: 11 }, (_, i) => `<option value="${14 + i}">${14 + i}:00</option>`).join("")}</select></label><label class="f">Hours<select class="in" id="bkL"><option>1</option><option selected>2</option><option>3</option></select></label>`, "Book", () => {
+      const b = { who: $("#bkC").value, st: $("#bkS").value, from: +$("#bkF").value, len: +$("#bkL").value };
+      const clash = bookings.find(x => x.st === b.st && b.from < x.from + x.len && x.from < b.from + b.len);
+      if (clash) { toast(`✕ ${b.st} is already booked by ${clash.who} at that time`); return false; }
+      bookings.push(b); toast(`Booked ${b.st} for ${b.who} at ${b.from}:00 — confirmation sent`); render();
+    });
+
+    V.customers = () => header("Customers", `${customers.length} accounts shared across all Demo Arena branches.`, `<input class="in" style="max-width:260px" id="cq" placeholder="Search name or username…" />`) + `
+      <div class="panel tw" style="padding:0"><table><thead><tr><th>Customer</th><th>Tier</th><th>Wallet</th><th>Bonus</th><th>Prepaid time</th><th>Points</th><th>Visits</th><th></th></tr></thead><tbody id="custRows"></tbody></table></div>`;
+    function custRows() {
+      const q = ($("#cq")?.value ?? "").toLowerCase();
+      $("#custRows").innerHTML = customers.filter(c => !q || (c.name + c.user).toLowerCase().includes(q)).map(c => `<tr><td><b>${c.name}</b><br /><span class="dim mono">@${c.user}</span></td><td><span class="chip" style="--c:${{ Bronze: "#d97706", Silver: "#94a3b8", Gold: "#facc15", Platinum: "#a78bfa" }[c.tier]}">${c.tier}</span></td><td class="mono">${aed(c.cash)}</td><td class="mono">${aed(c.bonus)}</td><td class="mono">${Math.floor(c.time / 60)}h ${c.time % 60}m</td><td class="mono">${c.pts.toLocaleString()}</td><td>${c.visits}</td><td><button class="btn sm" onclick="topUp(${c.id})">Top up</button></td></tr>`).join("");
+    }
+    window.topUp = (id) => { const c = customers.find(x => x.id === id); modal(`<h3>Top up ${c.name}</h3><label class="f">Amount (AED)<select class="in" id="tuA"><option value="50">50</option><option value="100" selected>100 (+10 bonus)</option><option value="200">200 (+30 bonus)</option></select></label><label class="f">Payment<select class="in"><option>Cash</option><option>Card</option></select></label>`, "Top up", () => { const a = +$("#tuA").value; c.cash += a; c.bonus += a === 100 ? 10 : a === 200 ? 30 : 0; toast(`${aed(a)} added to ${c.name}'s wallet (idempotent ledger entry)`); render(); }); };
+
+    // POS
+    let cat = "Time", cart = [], posCust = 0;
+    V.pos = () => header("POS", "Gaming time, food and top-ups on one bill. Shift #214 open · Cara Cashier") + `
+      <div class="pos"><div><div class="cats">${["Time", "Food", "Drinks", "Snacks", "Top-up"].map(c => `<button class="${c === cat ? "on" : ""}" onclick="setCat('${c}')">${c}</button>`).join("")}</div>
+        <div class="prods">${PRODUCTS.filter(p => p.cat === cat).map(p => { const lowS = p.stock && inventory[p.stock][2] <= 0; return `<button class="prod" ${lowS ? "disabled style='opacity:.4'" : ""} onclick="addCart('${p.id}')"><div class="e">${p.e}</div><b>${p.name}</b><span>${aed(p.price)}</span>${p.stock ? `<small>${inventory[p.stock][2]} in stock</small>` : p.kitchen ? "<small>→ kitchen</small>" : ""}</button>`; }).join("")}</div></div>
+        <div class="panel cart"><h3>Current order <span class="dim mono" style="font-size:12px">#${orderNo}</span></h3>
+          <label class="f" style="margin-top:0">Customer<select class="in" id="posC" onchange="posCust=+this.value;renderCart()"><option value="0">Walk-in</option>${customers.map(c => `<option value="${c.id}" ${c.id === posCust ? "selected" : ""}>${c.name} · ${aed(c.cash + c.bonus)}</option>`).join("")}</select></label>
+          <label class="f">Deliver to<select class="in" id="posTo"><option>Counter</option>${stations.filter(s => s.session).map(s => `<option>${s.id} (in-seat)</option>`).join("")}<option>Table 2</option><option>Table 4</option></select></label>
+          <div id="cartBody"></div></div></div>`;
+    window.setCat = (c) => { cat = c; render(); };
+    window.addCart = (id) => { const l = cart.find(x => x.id === id); l ? l.q++ : cart.push({ id, q: 1 }); renderCart(); };
+    window.qty = (id, d) => { const l = cart.find(x => x.id === id); l.q += d; if (l.q <= 0) cart = cart.filter(x => x !== l); renderCart(); };
+    function cartTotals() {
+      const sub = cart.reduce((a, l) => a + PRODUCTS.find(p => p.id === l.id).price * l.q, 0);
+      const c = customers.find(x => x.id === posCust);
+      const food = cart.filter(l => ["Food", "Drinks", "Snacks"].includes(PRODUCTS.find(p => p.id === l.id).cat)).reduce((a, l) => a + PRODUCTS.find(p => p.id === l.id).price * l.q, 0);
+      const hh = new Date().getHours() >= 14 && new Date().getHours() < 17;
+      const disc = c ? Math.round(food * DISC[c.tier]) / 100 : 0;
+      const sub2 = sub - disc, vat = Math.round(sub2 * 5) / 105;
+      return { sub, disc, vat, total: sub2, c, hh };
+    }
+    window.renderCart = () => {
+      const el = $("#cartBody"); if (!el) return;
+      const t = cartTotals();
+      el.innerHTML = cart.length ? cart.map(l => { const p = PRODUCTS.find(x => x.id === l.id); return `<div class="line"><span>${p.e} ${p.name}</span><span class="qty"><button onclick="qty('${l.id}',-1)">−</button>${l.q}<button onclick="qty('${l.id}',1)">+</button><b class="mono" style="min-width:70px;text-align:right">${aed(p.price * l.q)}</b></span></div>`; }).join("") +
+        `<div class="tot"><span>Subtotal</span><span>${aed(t.sub)}</span></div>${t.disc ? `<div class="tot" style="color:var(--ok)"><span>${t.c.tier} member discount (food)</span><span>−${aed(t.disc)}</span></div>` : ""}<div class="tot"><span>incl. VAT 5%</span><span>${aed(Math.round(t.vat * 100) / 100)}</span></div><div class="tot g"><span>Total</span><span>${aed(t.total)}</span></div>
+        <div class="pay"><button class="btn pri" onclick="pay('Cash')">Cash</button><button class="btn pri" onclick="pay('Card')">Card</button><button class="btn pri" ${!t.c || t.c.cash + t.c.bonus < t.total ? "disabled style='opacity:.4'" : ""} onclick="pay('Wallet')">Wallet</button></div>
+        <button class="btn" style="width:100%;margin-top:6px" onclick="pay('Split')">Split payment…</button>` : `<p class="dim" style="text-align:center;padding:30px 0">Tap products to add them.</p>`;
+    };
+    window.pay = (method) => {
+      const t = cartTotals(), to = $("#posTo").value;
+      const doPay = () => {
+        const kitchenItems = [];
+        cart.forEach(l => {
+          const p = PRODUCTS.find(x => x.id === l.id);
+          if (p.stock) inventory[p.stock][2] = Math.max(0, inventory[p.stock][2] - l.q);
+          if (p.recipe) for (const [k, v] of Object.entries(p.recipe)) inventory[k][2] = Math.max(0, Math.round((inventory[k][2] - v * l.q) * 100) / 100);
+          if (p.kitchen) kitchenItems.push([p.name, l.q]);
+          if (p.time && t.c) t.c.time += p.time * l.q;
+          if (p.topup && t.c) { t.c.cash += p.topup * l.q; t.c.bonus += p.bonus * l.q; }
+        });
+        if (method === "Wallet") { let due = t.total; const fromBonus = Math.min(t.c.bonus, due); t.c.bonus -= fromBonus; t.c.cash -= due - fromBonus; }
+        if (t.c) t.c.pts += Math.round(t.total);
+        if (kitchenItems.length) tickets.push({ no: orderNo, where: to.replace(" (in-seat)", ""), items: kitchenItems, at: now(), state: "new" });
+        orders.push({ no: orderNo, total: t.total, method });
+        toast(`Order #${orderNo} paid by ${method} · ${aed(t.total)}${kitchenItems.length ? " · sent to kitchen" : ""}${t.c ? " · +" + Math.round(t.total) + " pts" : ""}`);
+        orderNo++; cart = []; render();
+      };
+      if (method === "Split") return modal(`<h3>Split ${aed(t.total)}</h3><label class="f">Cash<input class="in" id="spC" type="number" value="${Math.floor(t.total / 2)}" /></label><label class="f">Card<input class="in" id="spK" type="number" value="${Math.round((t.total - Math.floor(t.total / 2)) * 100) / 100}" /></label>`, "Take payment", () => { if (Math.abs(+$("#spC").value + +$("#spK").value - t.total) > 0.01) { toast("Amounts must add up to the total"); return false; } method = "Cash + Card"; doPay(); });
+      doPay();
+    };
+
+    V.kitchen = () => header("Kitchen display", "Tickets from the POS, tables and in-seat orders from the Gaming Shell.") +
+      (tickets.length ? `<div class="kds">${tickets.map((t, i) => { const age = Math.floor((now() - t.at) / MIN); const c = age >= 10 ? "var(--busy)" : age >= 5 ? "var(--end)" : "var(--ok)"; return `<div class="tk" style="--c:${c}"><div class="th"><b>#${t.no}</b><span data-age="${t.at}">${age}m</span></div><div class="dim" style="font-size:13px">${t.where} · ${t.state === "cooking" ? "🔥 cooking" : "new"}</div><ul>${t.items.map(([n, q, note]) => `<li>${q}× ${n}${note ? `<small>${note}</small>` : ""}</li>`).join("")}</ul><div style="display:flex;gap:6px">${t.state === "new" ? `<button class="btn" style="flex:1" onclick="cook(${i})">Start</button>` : ""}<button class="btn pri" style="flex:1" onclick="bump(${i})">Bump ✓</button></div></div>`; }).join("")}</div>` : `<div class="panel" style="text-align:center;padding:50px"><div style="font-size:40px">✨</div><p class="dim">All caught up. Sell food on the POS to create tickets.</p></div>`);
+    window.cook = (i) => { tickets[i].state = "cooking"; render(); };
+    window.bump = (i) => { const t = tickets.splice(i, 1)[0]; toast(`#${t.no} ready — ${/^(PC|VIP|PS5|VR|SIM)-/.test(t.where) ? "notification shown on " + t.where + "'s Gaming Shell" : "called at " + t.where}`); render(); };
+
+    V.inventory = () => header("Inventory", "Main store · Dubai Marina. Recipes deduct ingredients as items sell.", `<button class="btn pri" onclick="autoPO()">Create PO for low stock</button>`) + `
+      <div class="panel tw" style="padding:0"><table><thead><tr><th>Item</th><th>On hand</th><th>Par level</th><th>Status</th><th style="width:30%">Level</th></tr></thead><tbody>
+      ${Object.entries(inventory).map(([k, [n, u, q, par]]) => { const low = q < par; const pct = Math.min(100, q / (par * 2) * 100); return `<tr><td>${n}</td><td class="mono">${q} ${u}</td><td class="mono dim">${par} ${u}</td><td>${low ? `<span class="chip" style="--c:var(--busy)">Low</span>` : `<span class="chip" style="--c:var(--ok)">OK</span>`}</td><td><div class="meter" style="--c:${low ? "var(--busy)" : "var(--ok)"}"><i style="width:${pct}%"></i></div></td></tr>`; }).join("")}
+      </tbody></table></div>`;
+    window.autoPO = () => {
+      const low = Object.entries(inventory).filter(([, v]) => v[2] < v[3]);
+      if (!low.length) return toast("Nothing below par 🎉");
+      modal(`<h3>Purchase order PO-0${318 + orders.length}</h3><p class="dim">Supplier: Gulf Foods Trading LLC</p>${low.map(([, [n, u, q, par]]) => `<div class="li"><span>${n}</span><span class="mono">${Math.ceil(par * 2 - q)} ${u}</span></div>`).join("")}`, "Send to supplier", () => { toast(`PO sent for ${low.length} items — receive it here when it arrives`); setTimeout(() => { low.forEach(([, v]) => v[2] = Math.ceil(v[3] * 2)); if (page === "inventory") render(); toast("Delivery received — stock updated"); }, 2500); });
+    };
+
+    V.tournaments = () => header("Friday Valorant Cup", "Single elimination · 8 teams · Entry AED 50/team · Prize pool AED 2,000 (wallet)") + `
+      <div class="three" style="margin-bottom:12px"><div class="kpi"><small>Teams</small><b>8</b></div><div class="kpi"><small>Prize pool</small><b>AED 2,000</b></div><div class="kpi"><small>Status</small><b style="color:var(--ok)">${bracket[2][0][2] != null ? "Finished" : "Live"}</b></div></div>
+      <div class="panel"><h3>Bracket <span class="dim" style="font:400 12px var(--font)">Click a match to report a score</span></h3><div class="bracket">${["Quarter-finals", "Semi-finals", "Final"].map((name, r) => `<div class="round"><h5>${name}</h5>${bracket[r].map((m, i) => matchBox(m, r, i)).join("")}</div>`).join("")}
+      <div class="round"><h5>Champion</h5><div class="match" style="cursor:default;border-color:var(--res)"><div style="justify-content:center;font-weight:700;color:var(--res)">🏆 ${bracket[2][0][2] != null ? teams[winner(bracket[2][0])] : "TBD"}</div></div></div></div></div>`;
+    function winner(m) { return m[2] > m[3] ? m[0] : m[1]; }
+    function matchBox(m, r, i) {
+      const done = m[2] != null, n = (t) => t == null ? '<span class="tbd">TBD</span>' : teams[t];
+      return `<div class="match" onclick="report(${r},${i})"><div class="${done && m[2] > m[3] ? "w" : ""}"><span>${n(m[0])}</span><span class="mono">${m[2] ?? ""}</span></div><div class="${done && m[3] > m[2] ? "w" : ""}"><span>${n(m[1])}</span><span class="mono">${m[3] ?? ""}</span></div></div>`;
+    }
+    window.report = (r, i) => {
+      const m = bracket[r][i];
+      if (m[0] == null || m[1] == null) return toast("Waiting for previous round");
+      if (m[2] != null) return toast("Result already reported");
+      modal(`<h3>Report score</h3><label class="f">${teams[m[0]]}<input class="in" type="number" id="s1" value="13" /></label><label class="f">${teams[m[1]]}<input class="in" type="number" id="s2" value="${8 + Math.floor(Math.random() * 4)}" /></label>`, "Confirm result", () => {
+        const a = +$("#s1").value, b = +$("#s2").value; if (a === b) { toast("No draws in elimination"); return false; }
+        m[2] = a; m[3] = b; const w = winner(m);
+        if (r < 2) { const nm = bracket[r + 1][Math.floor(i / 2)]; nm[i % 2] = w; toast(`${teams[w]} advance`); }
+        else toast(`🏆 ${teams[w]} win! AED 2,000 paid to team wallets · +500 pts each`);
+        render();
+      });
+    };
+
+    V.marketing = () => header("Loyalty & promotions", "Points ledger, rewards and the promotions engine.") + `
+      <div class="two" style="margin-top:0"><div class="panel tw" style="padding:0"><table><thead><tr><th>Promotion</th><th>Trigger</th><th>Effect</th><th>Uses</th><th>Active</th></tr></thead><tbody>
+        ${promos.map((p, i) => `<tr><td><b>${p.name}</b></td><td class="dim">${p.kind}</td><td>${p.effect}</td><td class="mono">${p.uses}</td><td><button class="btn sm" onclick="promos[${i}].on=!promos[${i}].on;render()" style="color:${p.on ? "var(--ok)" : "var(--ink-3)"}">${p.on ? "● On" : "○ Off"}</button></td></tr>`).join("")}</tbody></table></div>
+      <div class="panel"><h3>Earning rules</h3>${[["Gaming spend", "1 pt / AED"], ["Food spend", "1 pt / AED"], ["Minutes played", "1 pt / 6 min"], ["Booking kept", "25 pts"], ["Tournament played", "100 pts"], ["Referral", "250 pts"], ["Birthday", "300 pts"]].map(([a, b]) => `<div class="li"><span>${a}</span><b class="mono">${b}</b></div>`).join("")}
+        <h3 style="margin-top:16px">Tier multipliers</h3>${[["Bronze", "1.0×"], ["Silver", "1.2×"], ["Gold", "1.5×"], ["Platinum", "2.0×"]].map(([a, b]) => `<div class="li"><span>${a}</span><b class="mono">${b}</b></div>`).join("")}</div></div>
+      <div class="panel" style="margin-top:12px"><h3>Campaign <button class="btn pri sm" onclick="campaign()">Send campaign</button></h3><p class="dim" style="margin:0">Consent-only: in-app inbox, Shell message at next session, SMS, email or WhatsApp — each recipient gets a personal one-use code.</p></div>`;
+    window.campaign = () => modal(`<h3>New campaign</h3><label class="f">Segment<select class="in"><option>Lapsed 30 days (214)</option><option>Gold & Platinum (86)</option><option>Birthday this week (12)</option></select></label><label class="f">Channel<select class="in"><option>In-app inbox</option><option>Gaming Shell message</option><option>WhatsApp</option></select></label><label class="f">Message<textarea class="in" rows="3">We miss you! Here's 1 free hour this week 🎮</textarea></label>`, "Send", () => toast("Campaign queued for 214 consenting customers with personal codes"));
+
+    V.staff = () => header("Staff & roles", "111 permissions · 14 role templates · roles assigned per branch.") + `
+      <div class="panel tw" style="padding:0"><table><thead><tr><th>Employee</th><th>Role</th><th>Branch</th><th>MFA</th><th>Status</th></tr></thead><tbody>
+      ${[["Olivia Owner", "Org Owner", "All"], ["Mo Manager", "Branch Manager", "DXB1"], ["Cara Cashier", "Cashier", "DXB1"], ["Tariq Tech", "Technician", "DXB1"], ["Wafa Waiter", "Waiter", "DXB1"], ["Karim Kitchen", "Kitchen staff", "DXB1"], ["Ines Inventory", "Inventory Manager", "All"]].map(([n, r, b], i) => `<tr><td><b>${n}</b></td><td><span class="chip" style="--c:var(--acc)">${r}</span></td><td>${b}</td><td>${i < 2 ? "✓ TOTP" : "PIN"}</td><td><span class="chip" style="--c:var(--ok)">Active</span></td></tr>`).join("")}
+      </tbody></table></div>
+      <p class="dim" style="margin-top:12px">Tip: switch "Viewing as" at the bottom of the sidebar to see the menu change per role.</p>`;
+
+    V.rates = () => header("Rates", "Pricing plans by zone with time windows, packages and membership discounts.") + `
+      <div class="three">${ZONES.map(z => `<div class="panel"><h3>${z.name}<span class="mono" style="color:var(--acc)">AED ${z.rate}/h</span></h3><div class="li"><span>Billing</span><span>${z.cls === "CONSOLE" ? "Per hour · 2 players incl. · +AED 5/extra" : z.cls === "SIMULATOR" ? "Per hour · min 15 min" : "Per hour · round 5 min"}</span></div><div class="li"><span>Happy hour 2–5pm</span><span style="color:var(--ok)">−30%</span></div><div class="li"><span>Night pass</span><span>${z.cls === "PC" ? "AED 60" : "—"}</span></div></div>`).join("")}
+      <div class="panel"><h3>Membership discounts</h3>${Object.entries(DISC).map(([k, v]) => `<div class="li"><span>${k}</span><span>${v}%</span></div>`).join("")}</div></div>`;
+
+    window.go = (p) => { page = p; render(); };
+    window.render = () => {
+      renderNav();
+      $("#main").innerHTML = V[page]();
+      if (page === "customers") { custRows(); $("#cq").oninput = custRows; }
+      if (page === "pos") renderCart();
+    };
+    function modal(html, okLabel, onOk) {
+      $("#modalBody").innerHTML = html + `<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px"><button class="btn" id="mc">Cancel</button><button class="btn pri" id="mo">${okLabel}</button></div>`;
+      $("#modal").classList.add("open");
+      $("#mc").onclick = () => $("#modal").classList.remove("open");
+      $("#mo").onclick = () => { if (onOk() !== false) $("#modal").classList.remove("open"); };
+    }
+    window.modal = modal;
+    $("#modal").onclick = (e) => { if (e.target.id === "modal") $("#modal").classList.remove("open"); };
+
+    // Live tick: refresh countdowns without re-rendering forms.
+    setInterval(() => {
+      if (page === "floor") { $("#floorZones").innerHTML = floorZones(); }
+      if (page === "sessions") $$("[data-left]").forEach(el => { const s = stations.find(x => x.id === el.dataset.left); if (s.session) el.textContent = fmtT(s.session.end - now()); });
+      if (page === "kitchen") $$("[data-age]").forEach(el => el.textContent = Math.floor((now() - +el.dataset.age) / MIN) + "m");
+      const d = $("#drawer"); if (d.classList.contains("open")) { const s = stations.find(x => x.id === d.dataset.id); const t = $("#drawerT"); if (s?.session && t) t.textContent = fmtT(s.session.end - now()); }
+      if (page !== "floor") stations.forEach(s => { if (stState(s) === "expired") endSession(s, true); });
+    }, 1000);
+    // Occasionally a walk-in arrives.
+    setInterval(() => { const f = stations.filter(s => stState(s) === "free" && s.zone === "reg"); if (f.length > 3) { const s = f[Math.floor(Math.random() * f.length)]; startSession(s, customers[Math.floor(Math.random() * customers.length)], 60 + Math.floor(Math.random() * 120)); if (page === "floor") $("#floorZones").innerHTML = floorZones(); } }, 15000);
+    render();
+  </script>
+</body>
+</html>

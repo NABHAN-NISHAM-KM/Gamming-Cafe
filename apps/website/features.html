@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en" data-page="features">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Features — ArenaOS</title>
+  <meta name="description" content="Every ArenaOS module in detail: Live Floor, Windows agent, Gaming Shell, sessions and pricing, games, consoles and VR, customers and wallet, bookings, POS, restaurant, KDS, inventory, purchasing, loyalty, promotions, tournaments, CRM, RBAC and multi-tenancy." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/site.css" />
+  <style>
+    .jump { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 28px; }
+    .jump a { padding: 7px 14px; border-radius: 999px; border: 1px solid var(--line-2); background: var(--panel); color: var(--ink-2); font-size: 14px; }
+    .jump a:hover { color: var(--ink); border-color: var(--cyan); }
+    .mod { scroll-margin-top: 90px; padding: 64px 0; border-top: 1px solid var(--line); }
+    .mod-head { display: flex; gap: 18px; align-items: flex-start; margin-bottom: 30px; }
+    .mod-head h2 { font-size: clamp(26px, 3vw, 34px); }
+    .mod-head p { color: var(--ink-2); margin: 8px 0 0; max-width: 720px; }
+    .mod .icon { width: 54px; height: 54px; flex: none; }
+    .road { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .pill { display: inline-block; font-size: 11.5px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: #2a2410; color: var(--amber); border: 1px solid #574a17; }
+    @media (max-width: 820px) { .road { grid-template-columns: 1fr; } .mod-head { flex-direction: column; } }
+  </style>
+</head>
+<body>
+  <header id="nav"></header>
+  <main>
+    <section class="hero center" style="padding-bottom:40px">
+      <div class="hero-grid"></div>
+      <div class="wrap">
+        <span class="eyebrow">Every module, one data model</span>
+        <h1 style="font-size:clamp(34px,5vw,56px)">Features built for the <span class="grad">busiest night</span> of the year</h1>
+        <p class="lead">Turn modules on per plan or per venue. Everything shares one customer, one wallet and one bill.</p>
+        <div class="jump">
+          <a href="#stations">Stations &amp; Live Floor</a><a href="#sessions">Sessions &amp; Shell</a><a href="#games">Games &amp; tools</a><a href="#consoles">Consoles, VR &amp; printing</a><a href="#customers">Customers &amp; bookings</a><a href="#pos">POS &amp; restaurant</a><a href="#inventory">Inventory</a><a href="#engage">Loyalty &amp; tournaments</a><a href="#platform">Platform &amp; security</a><a href="#roadmap">Roadmap</a>
+        </div>
+      </div>
+    </section>
+
+    <div class="wrap">
+      <div class="mod" id="stations">
+        <div class="mod-head"><span class="icon" data-icon="floor" data-size="26"></span><div><h2>Stations &amp; Live Floor</h2><p>A .NET 8 Windows agent on every PC talks to the cloud (or your branch edge) and paints a real-time map of the whole venue.</p></div></div>
+        <div class="grid g3">
+          <div class="card"><h3>Live Floor map</h3><ul><li>Status within 1 s: free, in use, reserved, ending, offline, maintenance</li><li>Drag-and-drop layout editor per zone</li><li>Station drawer with customer, game, time, hardware</li></ul></div>
+          <div class="card"><h3>Remote control</h3><ul><li>Lock, unlock, restart, shutdown, message, Wake-on-LAN</li><li>Mass actions for an entire zone</li><li>Commands queued for offline PCs and signed per branch</li></ul></div>
+          <div class="card"><h3>Monitoring &amp; alerts</h3><ul><li>WMI hardware inventory and NVIDIA GPU telemetry</li><li>Alerts for temperature, low disk, hardware changes, offline</li><li>Enrolment by code, device key protected by DPAPI</li></ul></div>
+        </div>
+      </div>
+
+      <div class="mod" id="sessions">
+        <div class="mod-head"><span class="icon" data-icon="timer" data-size="26" style="--c:var(--green)"></span><div><h2>Sessions, pricing &amp; the Gaming Shell</h2><p>Server-authoritative sessions that end on time — even if the PC, the agent, the API or Redis restarts.</p></div></div>
+        <div class="grid g3">
+          <div class="card"><h3>Pricing engine</h3><ul><li>Rates by zone, branch or organization</li><li>Time windows in the branch's timezone (happy hours)</li><li>Tiers, packages, passes, postpaid, per-minute</li><li>Membership and staff discounts; quotes snapshotted per session</li></ul></div>
+          <div class="card"><h3>Session control</h3><ul><li>Start, extend, move and end — each one transactional and idempotent</li><li>Warnings at 30 / 15 / 10 / 5 / 1 minutes</li><li>Unused prepaid time refunded on logout</li><li>Customer sign-in at the PC with password or PIN</li></ul></div>
+          <div class="card"><h3>Gaming Shell</h3><ul><li>WPF + WebView2 host with a hardened named pipe</li><li>Lock screen, countdown ring, EN/AR</li><li>Local fail-safe lock when the network is down</li><li>In-seat food ordering and staff messages</li></ul></div>
+        </div>
+      </div>
+
+      <div class="mod" id="games">
+        <div class="mod-head"><span class="icon" data-icon="game" data-size="26" style="--c:var(--violet)"></span><div><h2>Games &amp; station tools</h2><p>Keep hundreds of PCs on the same, up-to-date library without walking the floor with a USB stick.</p></div></div>
+        <div class="grid g3">
+          <div class="card"><h3>Signed game library</h3><ul><li>Steam, Epic, Riot, Battle.net and more launchers</li><li>Automatic install detection per PC</li><li>Central update orchestration by zone</li></ul></div>
+          <div class="card"><h3>Peripherals &amp; connectivity</h3><ul><li>Peripheral profiles and accessory tracking</li><li>Ping and connectivity check from the seat</li><li>Headset, mouse and display fixes players can run themselves</li></ul></div>
+          <div class="card"><h3>Repairs &amp; diskless</h3><ul><li>Remote repair scripts from the Live Floor</li><li>Maintenance sessions for technicians</li><li>Adapter layer for diskless boot systems</li></ul></div>
+        </div>
+      </div>
+
+      <div class="mod" id="consoles">
+        <div class="mod-head"><span class="icon" data-icon="vr" data-size="26" style="--c:var(--amber)"></span><div><h2>Consoles, VR, simulators &amp; printing</h2><p>Agentless stations are first-class citizens: same timers, same bills, same Live Floor.</p></div></div>
+        <div class="grid g3">
+          <div class="card"><h3>Console &amp; VR stations</h3><ul><li>Player-based pricing (included players + extra player rate)</li><li>Cleaning-required flag between VR sessions</li><li>Racing sims with short packages</li></ul></div>
+          <div class="card"><h3>TV station displays</h3><ul><li>Pair a TV with a code, show its timer and status</li><li>Smart-plug bridge to power screens on/off with sessions</li></ul></div>
+          <div class="card"><h3>Internet café printing</h3><ul><li>Print jobs held for approval and charged per page</li><li>Per-minute browsing and office-app plans</li></ul></div>
+        </div>
+      </div>
+
+      <div class="mod" id="customers">
+        <div class="mod-head"><span class="icon" data-icon="wallet" data-size="26" style="--c:var(--green)"></span><div><h2>Customers, wallet &amp; bookings</h2><p>One account across every branch — with a wallet ledger your accountant will love.</p></div></div>
+        <div class="grid g3">
+          <div class="card"><h3>Wallet</h3><ul><li>Cash, bonus, promo and gift buckets plus prepaid time</li><li>Append-only ledger, idempotent top-ups</li><li>Balances can never go negative — enforced by the database</li></ul></div>
+          <div class="card"><h3>Memberships</h3><ul><li>Tiers with discounts and point multipliers</li><li>Restrictions (age, bans) enforced at sign-in</li></ul></div>
+          <div class="card"><h3>Bookings &amp; customer app</h3><ul><li>Book PCs, consoles, VR or whole zones</li><li>No double booking — enforced with a database exclusion constraint</li><li>Mobile PWA: wallet, bookings, shop, rewards, tournaments, inbox</li></ul></div>
+        </div>
+      </div>
+
+      <div class="mod" id="pos">
+        <div class="mod-head"><span class="icon" data-icon="cart" data-size="26" style="--c:var(--orange)"></span><div><h2>POS, restaurant &amp; kitchen</h2><p>Gaming time, snacks and a full restaurant menu on one combined bill.</p></div></div>
+        <div class="grid g3">
+          <div class="card"><h3>Unified POS</h3><ul><li>Sell time, products, packages and top-ups</li><li>Split and mixed payments, refunds with reasons</li><li>Cash drawers, shifts and cash movements</li></ul></div>
+          <div class="card"><h3>Restaurant &amp; tables</h3><ul><li>Table map, dine-in, takeaway and in-seat orders</li><li>Modifiers and course firing</li></ul></div>
+          <div class="card"><h3>Kitchen display (KDS)</h3><ul><li>Tickets by station with timers</li><li>Bump, recall and ready notifications to the seat</li></ul></div>
+        </div>
+      </div>
+
+      <div class="mod" id="inventory">
+        <div class="mod-head"><span class="icon" data-icon="box" data-size="26" style="--c:var(--amber)"></span><div><h2>Inventory &amp; purchasing</h2><p>Know exactly how many energy drinks you have — per branch, per warehouse, per lot.</p></div></div>
+        <div class="grid g3">
+          <div class="card"><h3>Stock ledger</h3><ul><li>Lots, movements, transfers between branches</li><li>Stock counts and variance</li><li>Waste tracking with reasons</li></ul></div>
+          <div class="card"><h3>Recipes</h3><ul><li>Recipes deduct ingredients as items sell</li><li>Planned waste % per ingredient</li></ul></div>
+          <div class="card"><h3>Purchasing</h3><ul><li>Suppliers, purchase orders and receiving</li><li>Supplier invoices matched to receipts</li></ul></div>
+        </div>
+      </div>
+
+      <div class="mod" id="engage">
+        <div class="mod-head"><span class="icon" data-icon="trophy" data-size="26" style="--c:#f472b6"></span><div><h2>Loyalty, promotions, tournaments &amp; CRM</h2><p>The growth engine: reward regulars, fill quiet hours and run events that pack the house.</p></div></div>
+        <div class="grid g2">
+          <div class="card"><h3>Loyalty</h3><ul><li>Points for gaming, food, minutes played, bookings kept, tournaments, referrals, birthdays</li><li>Tier multipliers, FIFO expiry, refunds reverse points</li><li>Rewards: free minutes, wallet credit, one-use discount or product codes</li></ul></div>
+          <div class="card"><h3>Promotions engine</h3><ul><li>Deterministic rules: conditions → effects, best non-stackable plus stackables, capped</li><li>Happy hours, weekend bonus minutes, birthday and first-visit offers</li><li>Shared and personal codes with budgets and per-customer limits</li></ul></div>
+          <div class="card"><h3>Tournaments</h3><ul><li>Single/double elimination, round robin, league and Swiss</li><li>Seeding with byes, score reporting, automatic advancement</li><li>Entry fees via POS or wallet; wallet prizes and points</li></ul></div>
+          <div class="card"><h3>CRM &amp; campaigns</h3><ul><li>Built-in and custom segments, static lists</li><li>Consent-only campaigns: in-app inbox, Shell message, SMS, email, WhatsApp</li><li>Personal promo codes per recipient</li></ul></div>
+        </div>
+      </div>
+
+      <div class="mod" id="platform">
+        <div class="mod-head"><span class="icon" data-icon="shield" data-size="26"></span><div><h2>Platform, roles &amp; security</h2><p>Multi-tenant SaaS from day one, with a Super Admin console for the platform operator.</p></div></div>
+        <div class="grid g3">
+          <div class="card"><h3>Super Admin</h3><ul><li>Create, suspend and activate organizations</li><li>Plans, limits and 26 feature flags per plan or org</li><li>Client releases, countries, currencies, taxes, gateways</li><li>Audited impersonation for support</li></ul></div>
+          <div class="card"><h3>Organizations &amp; RBAC</h3><ul><li>Organization → brand → branch → zone hierarchy</li><li>111 permissions, 14 role templates, custom roles</li><li>Anti-escalation on role grants; roles per branch</li></ul></div>
+          <div class="card"><h3>Security</h3><ul><li>EdDSA JWTs, refresh rotation with reuse detection, TOTP MFA</li><li>Row-level security in PostgreSQL; hash-chained audit log</li><li>Sensitive actions require a reason</li></ul></div>
+        </div>
+      </div>
+
+      <div class="mod" id="roadmap">
+        <div class="mod-head"><span class="icon" data-icon="zap" data-size="26" style="--c:var(--amber)"></span><div><h2>Coming next</h2><p>Phases 1–10 are shipped. Here's what's on the way.</p></div></div>
+        <div class="road">
+          <div class="card"><span class="pill">Phase 11</span><h3>Reports, accounting &amp; analytics</h3><p>General ledger, expenses, invoices, branch comparisons and advanced dashboards.</p></div>
+          <div class="card"><span class="pill">Phase 12</span><h3>Self-serve SaaS billing</h3><p>Online sign-up, subscription billing and full organization management for the Super Admin.</p></div>
+          <div class="card"><span class="pill">Phase 13</span><h3>Offline edge &amp; hardening</h3><p>Branch edge sync, monitoring, backups, disaster recovery, load and chaos testing.</p></div>
+        </div>
+      </div>
+    </div>
+
+    <section>
+      <div class="wrap">
+        <div class="cta-band">
+          <h2>Pick the modules you need</h2>
+          <p>Every plan includes the Gaming Shell, Live Floor, sessions and the customer app. Add restaurant, tournaments and CRM as you grow.</p>
+          <div class="hero-cta" style="margin-top:0"><a class="btn btn-primary btn-lg" href="pricing.html">Compare plans</a><a class="btn btn-ghost btn-lg" href="demos.html">Try the demos</a></div>
+        </div>
+      </div>
+    </section>
+  </main>
+  <footer id="footer"></footer>
+  <script src="assets/site.js"></script>
+</body>
+</html>

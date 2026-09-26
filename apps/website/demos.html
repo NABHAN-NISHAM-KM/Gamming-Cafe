@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en" data-page="demos">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Live demos — ArenaOS</title>
+  <meta name="description" content="Interactive ArenaOS demos: Super Admin platform console, venue admin with Live Floor and POS, the locked Gaming Shell, and the customer app." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/site.css" />
+  <style>
+    .shot-sa { background: linear-gradient(160deg, #0f1220, #0a0c14); padding: 18px; }
+    .shot-sa .row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .shot-sa .t { background: #151a2a; border: 1px solid #262e45; border-radius: 8px; padding: 8px 10px; font-size: 11px; color: var(--ink-3); }
+    .shot-sa .t b { display: block; color: var(--ink); font-family: var(--display); font-size: 16px; }
+    .shot-sa .bars { display: flex; align-items: flex-end; gap: 6px; height: 90px; margin-top: 12px; }
+    .shot-sa .bars i { flex: 1; background: linear-gradient(180deg, var(--violet), #4c1d95); border-radius: 4px 4px 0 0; }
+    .shot-ad { padding: 16px; display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; background: #0b0e14; }
+    .shot-ad i { aspect-ratio: 1.2; border-radius: 6px; background: color-mix(in oklab, var(--c) 18%, #121722); border: 1px solid color-mix(in oklab, var(--c) 45%, #232b3b); }
+    .shot-sh { background: radial-gradient(60% 90% at 30% 10%, rgb(167 139 250 / .45), transparent 60%), radial-gradient(50% 70% at 90% 90%, rgb(124 246 255 / .25), transparent 60%), #07060d; display: grid; place-items: center; }
+    .shot-sh .ring { width: 110px; height: 110px; border-radius: 50%; border: 7px solid #2a2540; border-top-color: #7cf6ff; border-right-color: #7cf6ff; display: grid; place-items: center; font-family: var(--display); font-weight: 700; font-size: 19px; }
+    .shot-cu { background: linear-gradient(180deg, #0d1a24, #0b0f18); display: grid; place-items: center; }
+    .shot-cu .ph { width: 118px; height: 190px; border-radius: 20px; border: 2px solid #2f3a50; background: #0b0f18; padding: 10px; margin-top: 40px; }
+    .shot-cu .ph div { height: 44px; border-radius: 10px; background: linear-gradient(135deg, #0e3440, #1e1b3a); margin-bottom: 8px; }
+    .shot-cu .ph span { display: block; height: 18px; border-radius: 6px; background: #161d2c; margin-bottom: 6px; }
+    .local { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+    .local .card { padding: 18px; }
+    .local code { font-family: var(--mono); font-size: 13px; color: var(--cyan); }
+    @media (max-width: 1024px) { .local { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 520px) { .local { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header id="nav"></header>
+  <main>
+    <section class="hero center" style="padding-bottom:40px">
+      <div class="hero-grid"></div>
+      <div class="wrap">
+        <span class="eyebrow"><span class="dot"></span>Interactive · runs in your browser · sample data</span>
+        <h1 style="font-size:clamp(34px,5vw,56px)">Take ArenaOS for a <span class="grad">test drive</span></h1>
+        <p class="lead">Four surfaces, one ecosystem. Each demo is fully clickable with realistic data from our sample venue, <b>Demo Arena · Dubai Marina</b>. Nothing you do here is saved.</p>
+      </div>
+    </section>
+
+    <div class="wrap">
+      <div class="grid g2">
+        <article class="card demo-card reveal" style="--c:var(--violet)">
+          <div class="shot shot-sa">
+            <div class="row"><div class="t"><b>18</b>Organizations</div><div class="t"><b>$11.4k</b>MRR</div><div class="t"><b>1,568</b>Stations online</div></div>
+            <div class="bars"><i style="height:30%"></i><i style="height:42%"></i><i style="height:38%"></i><i style="height:55%"></i><i style="height:61%"></i><i style="height:58%"></i><i style="height:72%"></i><i style="height:80%"></i><i style="height:92%"></i></div>
+          </div>
+          <div class="body">
+            <span class="role">Platform operator</span>
+            <h3>Super Admin console</h3>
+            <p class="muted">Manage every organization on the platform: plans, limits, feature flags, subscriptions, client releases and audited impersonation.</p>
+            <div class="actions"><a class="btn btn-primary" href="demo/superadmin.html">Open demo</a></div>
+            <div class="creds">signed in as platform@arenaos.demo</div>
+          </div>
+        </article>
+
+        <article class="card demo-card reveal" style="--c:var(--cyan)">
+          <div class="shot shot-ad" id="adShot"></div>
+          <div class="body">
+            <span class="role">Venue owner · manager · cashier</span>
+            <h3>Venue admin</h3>
+            <p class="muted">Live Floor with running timers, sessions, bookings, customers, POS with a combined bill, kitchen display, inventory and tournaments.</p>
+            <div class="actions"><a class="btn btn-primary" href="demo/admin.html">Open demo</a></div>
+            <div class="creds">Demo Arena · owner@demo.test</div>
+          </div>
+        </article>
+
+        <article class="card demo-card reveal" style="--c:#7cf6ff">
+          <div class="shot shot-sh"><div class="ring">1:24:07</div></div>
+          <div class="body">
+            <span class="role">Player at the PC</span>
+            <h3>Gaming Shell</h3>
+            <p class="muted">The locked Windows shell: sign in with a PIN, watch the countdown, launch games, order food to your seat and run self-repair.</p>
+            <div class="actions"><a class="btn btn-primary" href="demo/shell.html">Open demo</a></div>
+            <div class="creds">user: ahmed · PIN 1234</div>
+          </div>
+        </article>
+
+        <article class="card demo-card reveal" style="--c:var(--green)">
+          <div class="shot shot-cu"><div class="ph"><div></div><span></span><span></span><span style="width:70%"></span></div></div>
+          <div class="body">
+            <span class="role">Customer on their phone</span>
+            <h3>Customer app</h3>
+            <p class="muted">Wallet and top-ups, book a station, buy time packages, redeem rewards, join tournaments and read the inbox.</p>
+            <div class="actions"><a class="btn btn-primary" href="demo/customer.html">Open demo</a></div>
+            <div class="creds">user: ahmed · Demo Arena</div>
+          </div>
+        </article>
+      </div>
+    </div>
+
+    <section>
+      <div class="wrap">
+        <div class="sec-head"><span class="tag">For developers</span><h2>Run the real apps locally</h2><p>The demos above use sample data. The production apps live in this repository and run against the ArenaOS API — seeded logins are listed in <code class="mono">docs/07-api.md</code>.</p></div>
+        <div class="local">
+          <div class="card"><h3 style="margin:0 0 6px;font-size:16px">API</h3><code>npm run dev -w @arena/api</code><p style="font-size:13.5px;margin-top:8px">localhost:4000</p></div>
+          <div class="card"><h3 style="margin:0 0 6px;font-size:16px">Admin</h3><code>npm run dev -w @arena/admin</code><p style="font-size:13.5px;margin-top:8px">localhost:3000</p></div>
+          <div class="card"><h3 style="margin:0 0 6px;font-size:16px">Gaming Shell</h3><code>npm run dev -w @arena/shell</code><p style="font-size:13.5px;margin-top:8px">localhost:5174</p></div>
+          <div class="card"><h3 style="margin:0 0 6px;font-size:16px">Customer app</h3><code>npm run dev -w @arena/customer</code><p style="font-size:13.5px;margin-top:8px">localhost:5175/demo</p></div>
+        </div>
+      </div>
+    </section>
+  </main>
+  <footer id="footer"></footer>
+  <script src="assets/site.js"></script>
+  <script>
+    const c = ["var(--red)", "var(--red)", "var(--green)", "var(--red)", "var(--orange)", "var(--amber)", "var(--red)", "var(--green)", "var(--red)", "var(--red)", "var(--violet)", "var(--red)", "var(--green)", "var(--red)", "var(--red)", "var(--orange)", "var(--red)", "var(--green)"];
+    document.getElementById("adShot").innerHTML = c.map((x) => `<i style="--c:${x}"></i>`).join("");
+  </script>
+</body>
+</html>

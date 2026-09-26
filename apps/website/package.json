@@ -1,0 +1,11 @@
+{
+  "name": "@arena/website",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "ArenaOS marketing site with interactive product demos (static, no build step)",
+  "scripts": {
+    "dev": "node serve.mjs 5180",
+    "start": "node serve.mjs 5180"
+  }
+}
