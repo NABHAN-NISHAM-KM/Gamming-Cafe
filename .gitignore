@@ -23,3 +23,6 @@ clients/windows/src/Arena.Shell/wwwroot/
 # TypeScript incremental build caches
 *.tsbuildinfo
 apps/customer/dist/
+
+# Built station installer copied in for hosting
+apps/website/downloads/*.exe

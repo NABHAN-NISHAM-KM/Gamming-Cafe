@@ -15,8 +15,13 @@
   Then on each gaming PC, as Administrator, from ArenaOS-Station\Agent:
     .\ArenaAgent.exe enroll --api http://SERVER:4000 --code ARENA-... --safe-mode off
     .\install-agent.ps1
+
+  Or build a one-file setup wizard (needs Inno Setup 6: winget install JRSoftware.InnoSetup):
+    .\clients\windows\package.ps1 -Installer -ApiUrl https://api.yourvenue.com
+  -> clients\windows\dist\installer\ArenaOS-Station-Setup.exe. Run it on each gaming PC;
+  staff only type the enrolment code (the server address is pre-filled).
 #>
-param([switch]$FrameworkDependent, [string]$Runtime = "win-x64")
+param([switch]$FrameworkDependent, [string]$Runtime = "win-x64", [switch]$Installer, [string]$ApiUrl = "", [string]$Version = "1.0.0")
 $ErrorActionPreference = "Stop"
 $repo = Resolve-Path (Join-Path $PSScriptRoot "..\..")
 $out = Join-Path $PSScriptRoot "dist\ArenaOS-Station"
@@ -41,3 +46,17 @@ try {
     Pop-Location
 }
 Write-Host "Station package ready: $out" -ForegroundColor Green
+
+if ($Installer) {
+    $iscc = @(
+        (Get-Command ISCC.exe -ErrorAction SilentlyContinue).Source,
+        (Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6\ISCC.exe"),
+        (Join-Path $env:ProgramFiles "Inno Setup 6\ISCC.exe"),
+        (Join-Path $env:LOCALAPPDATA "Programs\Inno Setup 6\ISCC.exe")
+    ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+    if (-not $iscc) { throw "Inno Setup 6 not found. Install it (winget install JRSoftware.InnoSetup) and run again." }
+    Write-Host "Building the setup wizard..." -ForegroundColor Cyan
+    & $iscc "/DDefaultApi=$($ApiUrl.TrimEnd('/'))" "/DAppVersion=$Version" (Join-Path $PSScriptRoot "installer\ArenaOS-Station.iss")
+    if ($LASTEXITCODE) { throw "Installer build failed" }
+    Write-Host "Installer ready: $(Join-Path $PSScriptRoot 'dist\installer\ArenaOS-Station-Setup.exe')" -ForegroundColor Green
+}

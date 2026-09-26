@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="en" data-page="install">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Install guide — ArenaOS</title>
+  <meta name="description" content="Host the ArenaOS server once, then install ArenaOS-Station-Setup.exe on every gaming PC and connect it to your admin with an enrolment code." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/site.css" />
+  <style>
+    .guide { display: grid; grid-template-columns: 230px 1fr; gap: 48px; align-items: start; }
+    .toc { position: sticky; top: 92px; display: grid; gap: 2px; font-size: 14px; }
+    .toc a { padding: 7px 12px; border-radius: 8px; color: var(--ink-3); border-left: 2px solid var(--line); }
+    .toc a:hover { color: var(--ink); background: var(--panel); }
+    .toc b { font-size: 11.5px; color: var(--ink-3); letter-spacing: .1em; text-transform: uppercase; padding: 14px 12px 6px; }
+    .doc { min-width: 0; }
+    .doc h2 { font-size: 30px; margin: 0 0 8px; scroll-margin-top: 90px; }
+    .doc h3 { font-size: 19px; margin: 32px 0 10px; scroll-margin-top: 90px; }
+    .doc p, .doc li { color: var(--ink-2); }
+    .doc ol, .doc ul { padding-left: 22px; }
+    .doc li { margin: 6px 0; }
+    .doc b, .doc strong { color: var(--ink); }
+    .doc section { padding: 0 0 56px; margin-bottom: 56px; border-bottom: 1px solid var(--line); }
+    .doc code { font-family: var(--mono); font-size: 13px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; color: #a5f3fc; }
+    pre { position: relative; background: #05070c; border: 1px solid var(--line-2); border-radius: 12px; padding: 16px 18px; overflow-x: auto; margin: 12px 0 18px; }
+    pre code { background: none !important; border: 0 !important; padding: 0 !important; color: #d6e2f5 !important; font-size: 13.5px !important; line-height: 1.7; white-space: pre; }
+    pre .c { color: var(--ink-3); }
+    .copy-btn { position: absolute; top: 8px; right: 8px; font: 500 12px var(--font); padding: 4px 10px; border-radius: 7px; border: 1px solid var(--line-2); background: var(--panel); color: var(--ink-2); cursor: pointer; }
+    .copy-btn:hover { color: var(--ink); }
+    .step-no { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: #0e3440; color: var(--cyan); font: 700 16px var(--display); margin-bottom: 12px; }
+    .note { border-radius: 12px; padding: 14px 16px; margin: 16px 0; font-size: 14.5px; border: 1px solid; }
+    .note.info { background: #0b2330; border-color: #155e75; color: #bae6fd; }
+    .note.warn { background: #261f0c; border-color: #6b5313; color: #fde68a; }
+    .note b { color: inherit; }
+    .arch { display: grid; grid-template-columns: 1fr auto 1fr; gap: 18px; align-items: center; margin: 26px 0; }
+    .arch .box { background: var(--panel); border: 1px solid var(--line-2); border-radius: 14px; padding: 18px; }
+    .arch .box h4 { margin: 0 0 8px; font-size: 16px; }
+    .arch .box li { font-size: 14px; margin: 3px 0; }
+    .arch .arrow { text-align: center; color: var(--cyan); font-family: var(--mono); font-size: 13px; }
+    .arch .arrow div { font-size: 26px; }
+    table.t { width: 100%; border-collapse: collapse; font-size: 14.5px; margin: 12px 0 18px; }
+    table.t th, table.t td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    table.t th { color: var(--ink-3); font-weight: 500; font-size: 13px; }
+    table.t td { color: var(--ink-2); }
+    .tw { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+    .wizard { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 16px 0; }
+    .wz { background: var(--panel); border: 1px solid var(--line-2); border-radius: 12px; overflow: hidden; }
+    .wz .bar { background: var(--panel-2); padding: 6px 10px; font-size: 11.5px; color: var(--ink-3); border-bottom: 1px solid var(--line); }
+    .wz .in { padding: 12px; font-size: 12.5px; color: var(--ink-2); min-height: 150px; }
+    .wz .in b { display: block; font-size: 13.5px; margin-bottom: 8px; }
+    .wz .f { background: var(--bg-2); border: 1px solid var(--line-2); border-radius: 6px; padding: 5px 8px; margin: 4px 0 8px; font-family: var(--mono); font-size: 11px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .dl-card { display: flex; gap: 20px; align-items: center; justify-content: space-between; flex-wrap: wrap; background: radial-gradient(80% 140% at 0% 0%, rgb(34 211 238 / .14), transparent 60%), var(--panel); border: 1px solid var(--line-2); border-radius: 16px; padding: 22px 24px; margin: 18px 0; }
+    .dl-card h4 { margin: 0 0 4px; font-size: 18px; }
+    .dl-card p { margin: 0; font-size: 14px; }
+    @media (max-width: 1000px) { .guide { grid-template-columns: 1fr; } .toc { display: none; } .wizard { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 700px) { .arch { grid-template-columns: 1fr; } .arch .arrow div { transform: rotate(90deg); } .wizard { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header id="nav"></header>
+  <main>
+    <section class="hero center" style="padding-bottom:30px">
+      <div class="hero-grid"></div>
+      <div class="wrap">
+        <span class="eyebrow">Install guide</span>
+        <h1 style="font-size:clamp(34px,5vw,54px)">Host once. <span class="grad">Install on every PC.</span></h1>
+        <p class="lead">Put the ArenaOS server online one time, then run <code class="mono">ArenaOS-Station-Setup.exe</code> on each gaming PC. Type an enrolment code and the PC appears on your Live Floor.</p>
+      </div>
+    </section>
+
+    <div class="wrap guide">
+      <nav class="toc">
+        <b>Overview</b><a href="#how">How it fits together</a>
+        <b>1 · Server (once)</b><a href="#host">Host the server</a><a href="#host-domain">Domain &amp; HTTPS</a><a href="#host-check">Check it works</a>
+        <b>2 · Installer (once)</b><a href="#build">Build the setup .exe</a>
+        <b>3 · Every gaming PC</b><a href="#pc-prepare">Prepare the PC</a><a href="#pc-code">Create a code</a><a href="#pc-install">Run the installer</a><a href="#pc-check">Check on the Live Floor</a>
+        <b>More</b><a href="#silent">Install on many PCs</a><a href="#update">Update &amp; uninstall</a><a href="#lan">Server inside the venue</a><a href="#trouble">Troubleshooting</a>
+      </nav>
+
+      <div class="doc">
+        <section id="how">
+          <h2>How it fits together</h2>
+          <p>There are only two pieces. You host the <b>server</b> one time. Every gaming PC gets the <b>station installer</b>, which connects it to that server.</p>
+          <div class="arch">
+            <div class="box"><h4>☁ Your server (host once)</h4><ul>
+              <li><b>Admin</b> — <code>admin.yourvenue.com</code></li>
+              <li><b>API</b> + customer app — <code>api.yourvenue.com</code></li>
+              <li>Database (PostgreSQL) + Redis</li></ul></div>
+            <div class="arrow"><div>⇄</div>HTTPS + WebSocket</div>
+            <div class="box"><h4>🖥 Each gaming PC</h4><ul>
+              <li><b>ArenaOS-Station-Setup.exe</b></li>
+              <li>Station agent (Windows service)</li>
+              <li>Gaming Shell (full-screen lock screen)</li></ul></div>
+          </div>
+          <p>Gaming PCs only need to reach <code>https://api.yourvenue.com</code>. Staff use the admin in any browser, from anywhere.</p>
+        </section>
+
+        <section id="host">
+          <span class="step-no">1</span>
+          <h2>Host the server (one time)</h2>
+          <p>Use any VPS or cloud machine: DigitalOcean, Hetzner, AWS Lightsail, Azure and so on.</p>
+          <div class="tw"><table class="t">
+            <tr><th>Item</th><th>Minimum</th></tr>
+            <tr><td>Server</td><td>Ubuntu 22.04/24.04, 2 vCPU, 4 GB RAM, 40 GB SSD (4 vCPU / 8 GB for 100+ stations)</td></tr>
+            <tr><td>Software</td><td>Node.js 22+, Docker, Git, Caddy (for HTTPS)</td></tr>
+            <tr><td>Domain</td><td>Two DNS records pointing at the server's IP: <code>admin</code> and <code>api</code></td></tr>
+            <tr><td>Open ports</td><td>Only <b>80</b> and <b>443</b>. Keep the database, Redis, 3000 and 4000 closed to the internet.</td></tr>
+          </table></div>
+
+          <h3>1.1 Install the software</h3>
+<pre><code>sudo apt update && sudo apt install -y git curl
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && sudo apt install -y nodejs
+curl -fsSL https://get.docker.com | sudo sh
+sudo apt install -y caddy
+sudo npm install -g pm2</code></pre>
+
+          <h3>1.2 Get the code, database and settings</h3>
+<pre><code>git clone &lt;your-repo-url&gt; /srv/arena && cd /srv/arena
+npm install
+npm run codegen -w @arena/db
+cp .env.example .env</code></pre>
+          <div class="note warn"><b>Before the first start:</b> change every <code>*_dev</code> password in <code>infra/postgres/init/001_roles.sql</code>, <code>infra/docker-compose.yml</code> and <code>.env</code> to long random ones. In <code>docker-compose.yml</code>, bind the ports to the server itself (<code>"127.0.0.1:5432:5432"</code>, <code>"127.0.0.1:6379:6379"</code>) so the database is never public.</div>
+          <p>Add these production settings to <code>.env</code>:</p>
+<pre><code>NODE_ENV=production
+CORS_ORIGINS=https://admin.yourvenue.com,https://api.yourvenue.com
+ARENA_API_URL=http://localhost:4000</code></pre>
+<pre><code>docker compose -f infra/docker-compose.yml up -d
+cd packages/db && npx prisma migrate deploy && cd ../..
+npm run keys -w @arena/api        <span class="c"># signing &amp; encryption keys → .env (back this file up!)</span>
+npm run seed -w @arena/api        <span class="c"># platform data + your organization</span></code></pre>
+          <div class="note info">Until self-serve sign-up ships (roadmap Phase 12), organizations, branches and the first owner account are created by <code>apps/api/scripts/seed.ts</code>. Replace the demo organization, emails and password there with your venue's before you run it.</div>
+
+          <h3>1.3 Start the API and admin (kept running by pm2)</h3>
+<pre><code>npm run build -w @arena/admin
+npm run build -w @arena/customer
+pm2 start "npx tsx apps/api/src/main.ts" --name arena-api
+pm2 start "npm run start -w @arena/admin" --name arena-admin
+pm2 save && pm2 startup           <span class="c"># restart automatically after a reboot</span></code></pre>
+
+          <h3 id="host-domain">1.4 Domain &amp; HTTPS</h3>
+          <p>Create DNS <b>A records</b> for <code>admin.yourvenue.com</code> and <code>api.yourvenue.com</code> pointing at the server's IP. Then replace <code>/etc/caddy/Caddyfile</code> with the following. Caddy gets HTTPS certificates automatically.</p>
+<pre><code>admin.yourvenue.com {
+    reverse_proxy localhost:3000
+}
+
+api.yourvenue.com {
+    <span class="c"># API, station WebSockets and health check</span>
+    @api path /v1/* /health
+    handle @api {
+        reverse_proxy localhost:4000
+    }
+    <span class="c"># Customer app (PWA) + TV station display on the same host</span>
+    handle {
+        root * /srv/arena/apps/customer/dist
+        try_files {path} /index.html
+        file_server
+    }
+}</code></pre>
+<pre><code>sudo systemctl reload caddy</code></pre>
+
+          <h3 id="host-check">1.5 Check it works</h3>
+          <ul>
+            <li><code>https://api.yourvenue.com/health</code> answers <b>ok</b>.</li>
+            <li><code>https://admin.yourvenue.com</code> shows the admin sign-in. Sign in with the owner account from your seed.</li>
+            <li><code>https://api.yourvenue.com/&lt;your-org-slug&gt;</code> opens the customer app.</li>
+          </ul>
+          <p>That's the whole server. You don't touch it again except for updates (<code>git pull</code>, migrate, <code>pm2 restart all</code>) and backups of the database and <code>.env</code>.</p>
+        </section>
+
+        <section id="build">
+          <span class="step-no">2</span>
+          <h2>Build the station installer (one time)</h2>
+          <p>On any Windows PC with <b>Node.js 22+</b>, the <b>.NET 8 SDK</b> and <b>Inno Setup 6</b>, from the repository folder:</p>
+<pre><code>winget install JRSoftware.InnoSetup
+.\clients\windows\package.ps1 -Installer -ApiUrl https://api.yourvenue.com</code></pre>
+          <p>This creates one file, <code>clients\windows\dist\installer\ArenaOS-Station-Setup.exe</code>. It's self-contained, so gaming PCs don't need .NET. Your server address is pre-filled in the wizard, so staff only type the enrolment code.</p>
+          <div class="dl-card">
+            <div><h4>ArenaOS-Station-Setup.exe</h4><p>Windows 10 (2004+) / 11 · 64-bit · agent + Gaming Shell</p></div>
+            <a class="btn btn-primary" href="downloads/ArenaOS-Station-Setup.exe" download>Download for Windows</a>
+          </div>
+          <div class="note info">To offer the download from this page, copy the built file to <code>apps/website/downloads/ArenaOS-Station-Setup.exe</code> on your web host. You can also just share it on a USB stick or a network folder.</div>
+        </section>
+
+        <section id="pc-prepare">
+          <span class="step-no">3</span>
+          <h2>Install on every gaming PC</h2>
+          <h3>3.1 Prepare the PC</h3>
+          <ul>
+            <li>Windows 10 (version 2004 or newer) or Windows 11, 64-bit, fully updated.</li>
+            <li>Internet access to <code>api.yourvenue.com</code>. Wired Ethernet is recommended.</li>
+            <li><b>Microsoft Edge WebView2 Runtime</b>. Windows 11 already has it; on Windows 10, install the Evergreen runtime. The installer warns you if it's missing.</li>
+            <li>A <b>standard (non-administrator) Windows account</b> for players, for example <code>Player</code>. Keep your own admin account for maintenance.</li>
+            <li>Power options: sleep <b>Never</b>. For Wake-on-LAN, enable it in the BIOS and on the network adapter, and turn off Fast Startup.</li>
+          </ul>
+
+          <h3 id="pc-code">3.2 Create an enrolment code in the admin</h3>
+          <ol>
+            <li>Sign in at <code>https://admin.yourvenue.com</code>.</li>
+            <li>Go to <b>Computers → Add stations</b>.</li>
+            <li>Pick the <b>zone</b> (for example <i>Regular PCs</i>), enter <b>how many PCs</b> you're adding, and choose how long the code is valid.</li>
+            <li>Copy the code <code>ARENA-XXXXX-XXXXX-XXXXX-XXXXX</code>. <b>It's shown only once.</b> One code covers all the PCs you asked for.</li>
+          </ol>
+
+          <h3 id="pc-install">3.3 Run the installer</h3>
+          <p>Sign in to the PC with an <b>administrator</b> account and double-click <code>ArenaOS-Station-Setup.exe</code>.</p>
+          <div class="wizard">
+            <div class="wz"><div class="bar">1 · Welcome</div><div class="in"><b>ArenaOS Station</b>Installs the station agent and the Gaming Shell, and connects this PC to your venue.</div></div>
+            <div class="wz"><div class="bar">2 · Connect to your venue</div><div class="in"><b>Server &amp; code</b>Server address<div class="f">https://api.yourvenue.com</div>Enrolment code<div class="f">ARENA-7K2QF-…</div>Station name (optional)<div class="f">PC-17</div></div></div>
+            <div class="wz"><div class="bar">3 · Installing</div><div class="in"><b>Connecting…</b>Checks the server is reachable, enrols this PC, installs the Windows service and the Gaming Shell.</div></div>
+            <div class="wz"><div class="bar">4 · Done</div><div class="in"><b>This PC is ready</b>Enrolled as PC-17. It appears on the Live Floor within seconds.</div></div>
+          </div>
+          <ul>
+            <li>If the address or code is wrong, the installer tells you on the spot and lets you type a new one. Nothing needs to be restarted.</li>
+            <li><b>Test mode</b> (checkbox) only <i>simulates</i> restart, shutdown and lock, and doesn't start the Shell automatically. Use it on your first PC if you want to try things safely. Turn it off later with <code>"C:\Program Files\ArenaOS\Agent\ArenaAgent.exe" safe-mode off</code> and then restart the ArenaAgent service.</li>
+          </ul>
+
+          <h3 id="pc-check">3.4 Check it on the Live Floor</h3>
+          <ol>
+            <li>In the admin, open <b>Live Floor</b>. The new PC shows <b style="color:var(--green)">green (Available)</b>.</li>
+            <li>Click it. CPU, GPU and RAM readings move, and hardware and peripherals are listed.</li>
+            <li>Try <b>Send message</b>. The text pops up on the PC.</li>
+            <li>Sign out of Windows and sign in as <b>Player</b>. The Gaming Shell opens full-screen on its lock screen. Start a session from the Live Floor, or let a customer sign in with their username and PIN.</li>
+          </ol>
+          <p>Repeat 3.3 on every PC. Drag the stations into place with <b>Live Floor → Edit layout</b>.</p>
+        </section>
+
+        <section id="silent">
+          <h2>Installing on many PCs at once</h2>
+          <p>The installer runs unattended. That's handy with a deployment tool, a startup script, or a diskless image. Run it as Administrator:</p>
+<pre><code>ArenaOS-Station-Setup.exe /VERYSILENT /API=https://api.yourvenue.com /CODE=ARENA-XXXXX-XXXXX-XXXXX-XXXXX</code></pre>
+          <div class="tw"><table class="t">
+            <tr><th>Option</th><th>What it does</th></tr>
+            <tr><td><code>/API=</code></td><td>Server address (not needed if it was built in with <code>-ApiUrl</code>)</td></tr>
+            <tr><td><code>/CODE=</code></td><td>Enrolment code (required for a first install)</td></tr>
+            <tr><td><code>/NAME=PC-17</code></td><td>Station name. Leave it out to number stations automatically.</td></tr>
+            <tr><td><code>/SAFEMODE=on</code></td><td>Install in test mode</td></tr>
+            <tr><td><code>/LOG="C:\arena-setup.log"</code></td><td>Write a detailed setup log</td></tr>
+          </table></div>
+        </section>
+
+        <section id="update">
+          <h2>Updating &amp; uninstalling</h2>
+          <ul>
+            <li><b>Update:</b> build a new installer and run it on the PC. It detects that the PC is already connected and offers <i>Update the software only</i>. The station keeps its name, history and connection, and no code is needed.</li>
+            <li><b>Move a PC to another venue:</b> run the installer and choose <i>Connect it again with a new enrolment code</i>.</li>
+            <li><b>Uninstall:</b> Windows Settings → Apps → <i>ArenaOS Station</i> → Uninstall. You'll be asked whether to also forget the PC's connection; answer <b>No</b> if you'll reinstall it as the same station. Retire it in the admin under <b>Computers</b>.</li>
+          </ul>
+        </section>
+
+        <section id="lan">
+          <h2>Alternative: server inside the venue</h2>
+          <p>You can also run the server on a PC in the venue, with no domain needed. Give that PC a fixed IP (for example <code>192.168.1.10</code>), open ports 3000 and 4000 in its firewall on the Private network, and build the installer with <code>-ApiUrl http://192.168.1.10:4000</code>. Staff open the admin at <code>http://192.168.1.10:3000</code>. The full step-by-step is in <code>docs/16-test-guide.md</code>.</p>
+          <div class="note warn">With this setup the admin can only be reached inside the venue unless you add a VPN or tunnel. Hosting online (step 1) lets owners check every branch from anywhere.</div>
+        </section>
+
+        <section id="trouble" style="border:0">
+          <h2>Troubleshooting</h2>
+          <div class="tw"><table class="t">
+            <tr><th>Problem</th><th>Fix</th></tr>
+            <tr><td>“Can't reach …/health”</td><td>Open that address in a browser <i>on the gaming PC</i>. If it fails, check DNS, the Caddyfile, the server firewall (80/443) and that <code>pm2 status</code> shows <b>arena-api</b> online.</td></tr>
+            <tr><td>“Enrolment code is invalid, expired…”</td><td>The code expired or its PC count ran out. Create a new one in Computers → Add stations.</td></tr>
+            <tr><td>“Your plan's station limit is reached”</td><td>Retire unused stations or move to a bigger plan.</td></tr>
+            <tr><td>The PC stays grey (offline)</td><td>In PowerShell, <code>Get-Service ArenaAgent</code> should say <b>Running</b>. Check Event Viewer → Application → ArenaAgent for errors.</td></tr>
+            <tr><td>The Gaming Shell doesn't open</td><td>Make sure the player account is <b>not</b> an administrator, test mode is off, and the WebView2 Runtime is installed.</td></tr>
+            <tr><td>Wake-on-LAN doesn't work</td><td>At least one other station on the same network must be online. Also enable WOL in the BIOS and on the network adapter, and turn off Fast Startup.</td></tr>
+          </table></div>
+          <p>Need a hand? <a href="contact.html" style="color:var(--cyan)">Contact us</a> and we'll help you set up your first branch.</p>
+        </section>
+      </div>
+    </div>
+  </main>
+  <footer id="footer"></footer>
+  <script src="assets/site.js"></script>
+  <script>
+    // Copy buttons on code blocks.
+    document.querySelectorAll("pre").forEach((pre) => {
+      const b = document.createElement("button");
+      b.className = "copy-btn"; b.textContent = "Copy";
+      b.onclick = async () => {
+        const text = pre.querySelector("code").innerText.split("\n").map((l) => l.replace(/\s+#.*$/, "")).join("\n").trim();
+        try { await navigator.clipboard.writeText(text); b.textContent = "Copied"; } catch { b.textContent = "Select & copy"; }
+        setTimeout(() => (b.textContent = "Copy"), 1500);
+      };
+      pre.appendChild(b);
+    });
+  </script>
+</body>
+</html>

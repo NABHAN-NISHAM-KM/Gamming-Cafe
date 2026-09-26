@@ -47,6 +47,7 @@
     ["features.html", "Features", "features"],
     ["pricing.html", "Pricing", "pricing"],
     ["demos.html", "Live demos", "demos"],
+    ["install.html", "Install", "install"],
     ["contact.html", "Contact", "contact"],
   ];
   const nav = document.getElementById("nav");
@@ -69,7 +70,7 @@
           <p>The operating system for gaming cafés, esports arenas, internet cafés, console &amp; VR centres and gaming restaurants.</p></div>
         <div><h4>Product</h4><a href="${base}features.html#stations">Stations &amp; Live Floor</a><a href="${base}features.html#sessions">Sessions &amp; Shell</a><a href="${base}features.html#pos">POS &amp; restaurant</a><a href="${base}features.html#engage">Loyalty &amp; tournaments</a></div>
         <div><h4>Demos</h4><a href="${base}demo/superadmin.html">Super Admin</a><a href="${base}demo/admin.html">Venue admin</a><a href="${base}demo/shell.html">Gaming Shell</a><a href="${base}demo/customer.html">Customer app</a></div>
-        <div><h4>Company</h4><a href="${base}pricing.html">Pricing</a><a href="${base}contact.html">Contact sales</a><a href="${base}pricing.html#faq">FAQ</a></div>
+        <div><h4>Company</h4><a href="${base}pricing.html">Pricing</a><a href="${base}contact.html">Contact sales</a><a href="${base}install.html">Install guide</a><a href="${base}pricing.html#faq">FAQ</a></div>
       </div>
       <div class="copy"><span>© ${new Date().getFullYear()} ArenaOS. All rights reserved.</span><span>Built for venues that never close.</span></div>
     </div>`;
