@@ -10,41 +10,12 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="assets/site.css" />
   <style>
-    .guide { display: grid; grid-template-columns: 230px 1fr; gap: 48px; align-items: start; }
-    .toc { position: sticky; top: 92px; display: grid; gap: 2px; font-size: 14px; }
-    .toc a { padding: 7px 12px; border-radius: 8px; color: var(--ink-3); border-left: 2px solid var(--line); }
-    .toc a:hover { color: var(--ink); background: var(--panel); }
-    .toc b { font-size: 11.5px; color: var(--ink-3); letter-spacing: .1em; text-transform: uppercase; padding: 14px 12px 6px; }
-    .doc { min-width: 0; }
-    .doc h2 { font-size: 30px; margin: 0 0 8px; scroll-margin-top: 90px; }
-    .doc h3 { font-size: 19px; margin: 32px 0 10px; scroll-margin-top: 90px; }
-    .doc p, .doc li { color: var(--ink-2); }
-    .doc ol, .doc ul { padding-left: 22px; }
-    .doc li { margin: 6px 0; }
-    .doc b, .doc strong { color: var(--ink); }
-    .doc section { padding: 0 0 56px; margin-bottom: 56px; border-bottom: 1px solid var(--line); }
-    .doc code { font-family: var(--mono); font-size: 13px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; color: #a5f3fc; }
-    pre { position: relative; background: #05070c; border: 1px solid var(--line-2); border-radius: 12px; padding: 16px 18px; overflow-x: auto; margin: 12px 0 18px; }
-    pre code { background: none !important; border: 0 !important; padding: 0 !important; color: #d6e2f5 !important; font-size: 13.5px !important; line-height: 1.7; white-space: pre; }
-    pre .c { color: var(--ink-3); }
-    .copy-btn { position: absolute; top: 8px; right: 8px; font: 500 12px var(--font); padding: 4px 10px; border-radius: 7px; border: 1px solid var(--line-2); background: var(--panel); color: var(--ink-2); cursor: pointer; }
-    .copy-btn:hover { color: var(--ink); }
-    .step-no { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: #0e3440; color: var(--cyan); font: 700 16px var(--display); margin-bottom: 12px; }
-    .note { border-radius: 12px; padding: 14px 16px; margin: 16px 0; font-size: 14.5px; border: 1px solid; }
-    .note.info { background: #0b2330; border-color: #155e75; color: #bae6fd; }
-    .note.warn { background: #261f0c; border-color: #6b5313; color: #fde68a; }
-    .note b { color: inherit; }
     .arch { display: grid; grid-template-columns: 1fr auto 1fr; gap: 18px; align-items: center; margin: 26px 0; }
     .arch .box { background: var(--panel); border: 1px solid var(--line-2); border-radius: 14px; padding: 18px; }
     .arch .box h4 { margin: 0 0 8px; font-size: 16px; }
     .arch .box li { font-size: 14px; margin: 3px 0; }
     .arch .arrow { text-align: center; color: var(--cyan); font-family: var(--mono); font-size: 13px; }
     .arch .arrow div { font-size: 26px; }
-    table.t { width: 100%; border-collapse: collapse; font-size: 14.5px; margin: 12px 0 18px; }
-    table.t th, table.t td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
-    table.t th { color: var(--ink-3); font-weight: 500; font-size: 13px; }
-    table.t td { color: var(--ink-2); }
-    .tw { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
     .wizard { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 16px 0; }
     .wz { background: var(--panel); border: 1px solid var(--line-2); border-radius: 12px; overflow: hidden; }
     .wz .bar { background: var(--panel-2); padding: 6px 10px; font-size: 11.5px; color: var(--ink-3); border-bottom: 1px solid var(--line); }
@@ -54,7 +25,7 @@
     .dl-card { display: flex; gap: 20px; align-items: center; justify-content: space-between; flex-wrap: wrap; background: radial-gradient(80% 140% at 0% 0%, rgb(34 211 238 / .14), transparent 60%), var(--panel); border: 1px solid var(--line-2); border-radius: 16px; padding: 22px 24px; margin: 18px 0; }
     .dl-card h4 { margin: 0 0 4px; font-size: 18px; }
     .dl-card p { margin: 0; font-size: 14px; }
-    @media (max-width: 1000px) { .guide { grid-template-columns: 1fr; } .toc { display: none; } .wizard { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 1000px) { .wizard { grid-template-columns: repeat(2, 1fr); } }
     @media (max-width: 700px) { .arch { grid-template-columns: 1fr; } .arch .arrow div { transform: rotate(90deg); } .wizard { grid-template-columns: 1fr; } }
   </style>
 </head>
@@ -273,18 +244,5 @@ api.yourvenue.com {
   </main>
   <footer id="footer"></footer>
   <script src="assets/site.js"></script>
-  <script>
-    // Copy buttons on code blocks.
-    document.querySelectorAll("pre").forEach((pre) => {
-      const b = document.createElement("button");
-      b.className = "copy-btn"; b.textContent = "Copy";
-      b.onclick = async () => {
-        const text = pre.querySelector("code").innerText.split("\n").map((l) => l.replace(/\s+#.*$/, "")).join("\n").trim();
-        try { await navigator.clipboard.writeText(text); b.textContent = "Copied"; } catch { b.textContent = "Select & copy"; }
-        setTimeout(() => (b.textContent = "Copy"), 1500);
-      };
-      pre.appendChild(b);
-    });
-  </script>
 </body>
 </html>

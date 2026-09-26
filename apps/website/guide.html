@@ -1,0 +1,690 @@
+<!doctype html>
+<html lang="en" data-page="guide">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>How ArenaOS works — complete guide</title>
+  <meta name="description" content="The complete ArenaOS guide: how the server, admin, station agent, Gaming Shell and customer app work together — stations, sessions, pricing, customers, bookings, POS, kitchen, inventory, consoles, printing, loyalty, tournaments, security and a day at the venue." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/site.css" />
+  <style>
+    .toc { max-height: calc(100vh - 110px); overflow-y: auto; scrollbar-width: thin; }
+    .toc a.on { color: var(--cyan); border-left-color: var(--cyan); background: var(--panel); }
+    .part { font: 600 12px var(--font); letter-spacing: .12em; text-transform: uppercase; color: var(--cyan); margin-bottom: 8px; display: block; }
+    .lede { font-size: 17px; }
+    .diagram { background: var(--bg-2); border: 1px solid var(--line-2); border-radius: 16px; padding: 18px; margin: 18px 0 22px; overflow-x: auto; }
+    .diagram svg { min-width: 720px; width: 100%; height: auto; }
+    .diagram .cap { font-size: 13px; color: var(--ink-3); margin-top: 8px; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin: 14px 0 18px; }
+    .mini { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+    .mini h4 { margin: 0 0 6px; font-size: 15.5px; display: flex; gap: 8px; align-items: center; }
+    .mini p, .mini li { font-size: 14px; margin: 0; color: var(--ink-2); }
+    .mini ul { margin: 6px 0 0; padding-left: 18px; }
+    .flowline { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 14px 0 18px; }
+    .flowline span { background: var(--panel); border: 1px solid var(--line-2); border-radius: 10px; padding: 7px 12px; font-size: 13.5px; color: var(--ink); }
+    .flowline i { color: var(--cyan); font-style: normal; }
+    .dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; background: var(--c); margin-right: 6px; vertical-align: -1px; }
+    .rule { border-left: 3px solid var(--cyan); background: #0b1d26; padding: 14px 18px; border-radius: 0 12px 12px 0; margin: 16px 0; color: #cdeef7; font-size: 15px; }
+    .rule b { color: #fff; }
+    .checklist { list-style: none; padding: 0 !important; counter-reset: c; }
+    .checklist li { counter-increment: c; position: relative; padding: 12px 14px 12px 52px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; margin: 8px 0; }
+    .checklist li::before { content: counter(c); position: absolute; left: 14px; top: 12px; width: 26px; height: 26px; border-radius: 8px; background: #0e3440; color: var(--cyan); display: grid; place-items: center; font: 700 13px var(--display); }
+    .checklist li small { display: block; color: var(--ink-3); margin-top: 2px; }
+    .day { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    @media (max-width: 800px) { .day { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header id="nav"></header>
+  <main>
+    <section class="hero center" style="padding-bottom:30px">
+      <div class="hero-grid"></div>
+      <div class="wrap">
+        <span class="eyebrow">Complete guide</span>
+        <h1 style="font-size:clamp(34px,5vw,54px)">How <span class="grad">ArenaOS</span> works</h1>
+        <p class="lead">Everything in one place: the pieces, how they talk to each other, and how each part of your venue runs. That means stations, sessions, customers, food, stock, events and security. Read it top to bottom once, then use the menu to jump back to a topic.</p>
+        <div class="hero-cta" style="margin-top:24px"><a class="btn btn-ghost" href="install.html">Install guide</a><a class="btn btn-ghost" href="demos.html">Try the demos</a></div>
+      </div>
+    </section>
+
+    <div class="wrap guide">
+      <nav class="toc" id="toc">
+        <b>Basics</b>
+        <a href="#pieces">1. The pieces</a>
+        <a href="#architecture">2. How they connect</a>
+        <a href="#structure">3. Organization &amp; plans</a>
+        <a href="#staff">4. Staff &amp; permissions</a>
+        <a href="#setup">5. First-time setup</a>
+        <b>Gaming</b>
+        <a href="#stations">6. Stations &amp; Live Floor</a>
+        <a href="#pricing">7. Pricing</a>
+        <a href="#sessions">8. Sessions</a>
+        <a href="#shell">9. Gaming Shell</a>
+        <a href="#games">10. Games &amp; updates</a>
+        <a href="#consoles">11. Consoles, VR &amp; TVs</a>
+        <a href="#printing">12. Printing</a>
+        <b>Customers</b>
+        <a href="#customers">13. Customers &amp; wallet</a>
+        <a href="#memberships">14. Memberships</a>
+        <a href="#bookings">15. Bookings</a>
+        <a href="#app">16. Customer app</a>
+        <b>Selling</b>
+        <a href="#pos">17. POS &amp; payments</a>
+        <a href="#shifts">18. Shifts &amp; cash</a>
+        <a href="#kitchen">19. Restaurant &amp; kitchen</a>
+        <a href="#inventory">20. Inventory &amp; purchasing</a>
+        <b>Growth</b>
+        <a href="#loyalty">21. Loyalty</a>
+        <a href="#promotions">22. Promotions</a>
+        <a href="#tournaments">23. Tournaments</a>
+        <a href="#crm">24. CRM &amp; campaigns</a>
+        <b>Running it</b>
+        <a href="#security">25. Security &amp; data</a>
+        <a href="#day">26. A day at the venue</a>
+        <a href="#limits">27. Not built yet</a>
+        <a href="#glossary">28. Glossary</a>
+      </nav>
+
+      <div class="doc">
+        <!-- 1 -->
+        <section id="pieces">
+          <span class="part">Basics</span>
+          <h2>1. The pieces</h2>
+          <p class="lede">ArenaOS is one system made of a few programs. Each person at the venue uses a different one, but they all read and write the <b>same data</b>. Every customer has one account, one wallet and one bill, across every branch.</p>
+          <div class="cards">
+            <div class="mini"><h4>☁ Server (API + database)</h4><p>The brain. It stores everything, runs every session timer, prices everything and signs every command sent to a PC. You host it once.</p></div>
+            <div class="mini"><h4>🖥 Admin console</h4><p>The website staff use: Live Floor, POS, kitchen, bookings, customers, stock, marketing and settings. It opens in any browser, and each person sees only what their role allows.</p></div>
+            <div class="mini"><h4>⚙ Station agent</h4><p>A Windows service on every gaming PC. It connects to the server, reports health, obeys signed commands, and locks the PC when time runs out.</p></div>
+            <div class="mini"><h4>🎮 Gaming Shell</h4><p>The full-screen screen players see instead of the Windows desktop: lock screen, countdown, games, food ordering, help.</p></div>
+            <div class="mini"><h4>📱 Customer app</h4><p>A phone web app (installable) for wallet, bookings, buying time, rewards, tournaments and inbox. Each venue has its own link.</p></div>
+            <div class="mini"><h4>📺 TV display &amp; KDS</h4><p>A TV screen next to a console shows its timer. The kitchen display shows food tickets. Both run in a browser.</p></div>
+          </div>
+          <div class="tw"><table class="t">
+            <tr><th>Who</th><th>Uses</th><th>For</th></tr>
+            <tr><td>Platform operator (you, as the SaaS provider)</td><td>Super Admin</td><td>Organizations, plans, feature flags, releases</td></tr>
+            <tr><td>Owner / manager</td><td>Admin console</td><td>Everything in their branches, reports, staff, settings</td></tr>
+            <tr><td>Cashier / receptionist</td><td>Admin → Live Floor, POS, Bookings, Customers</td><td>Selling time and food, check-ins, top-ups</td></tr>
+            <tr><td>Waiter / kitchen</td><td>Admin → Restaurant, Kitchen</td><td>Tables, orders, cooking tickets</td></tr>
+            <tr><td>Technician</td><td>Admin → Live Floor, Computers, Games</td><td>PC health, repairs, updates</td></tr>
+            <tr><td>Player</td><td>Gaming Shell, customer app</td><td>Playing, ordering, booking, rewards</td></tr>
+          </table></div>
+        </section>
+
+        <!-- 2 -->
+        <section id="architecture">
+          <h2>2. How they connect</h2>
+          <div class="diagram">
+            <svg viewBox="0 0 900 380" role="img" aria-label="ArenaOS architecture: browsers and phones talk to the server over HTTPS; each gaming PC runs an agent service connected by WebSocket, which drives the Gaming Shell over a local pipe.">
+              <defs>
+                <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#22d3ee" /></marker>
+              </defs>
+              <g font-family="Inter, sans-serif" font-size="13" fill="#e8edf7">
+                <!-- server -->
+                <rect x="330" y="20" width="240" height="150" rx="14" fill="#111723" stroke="#22d3ee" />
+                <text x="450" y="46" text-anchor="middle" font-weight="700" font-size="15">☁ ArenaOS server</text>
+                <rect x="350" y="60" width="200" height="30" rx="8" fill="#161d2c" stroke="#2f3a50" /><text x="450" y="80" text-anchor="middle">API · session clock · pricing</text>
+                <rect x="350" y="96" width="95" height="30" rx="8" fill="#161d2c" stroke="#2f3a50" /><text x="397" y="116" text-anchor="middle">PostgreSQL</text>
+                <rect x="455" y="96" width="95" height="30" rx="8" fill="#161d2c" stroke="#2f3a50" /><text x="502" y="116" text-anchor="middle">Redis</text>
+                <text x="450" y="152" text-anchor="middle" fill="#a9b3c8" font-size="12">holds the command-signing keys</text>
+                <!-- left clients -->
+                <rect x="20" y="20" width="200" height="44" rx="10" fill="#111723" stroke="#2f3a50" /><text x="120" y="47" text-anchor="middle">🖥 Admin (staff browser)</text>
+                <rect x="20" y="78" width="200" height="44" rx="10" fill="#111723" stroke="#2f3a50" /><text x="120" y="105" text-anchor="middle">📱 Customer app (phone)</text>
+                <rect x="20" y="136" width="200" height="44" rx="10" fill="#111723" stroke="#2f3a50" /><text x="120" y="163" text-anchor="middle">📺 TV display · 🍳 KDS</text>
+                <path d="M220 42 L330 70" stroke="#22d3ee" fill="none" marker-end="url(#ar)" marker-start="url(#ar)" />
+                <path d="M220 100 L330 95" stroke="#22d3ee" fill="none" marker-end="url(#ar)" marker-start="url(#ar)" />
+                <path d="M220 158 L330 130" stroke="#22d3ee" fill="none" marker-end="url(#ar)" marker-start="url(#ar)" />
+                <text x="275" y="30" text-anchor="middle" fill="#6f7b94" font-size="11.5">HTTPS</text>
+                <!-- right: consoles -->
+                <rect x="680" y="20" width="200" height="60" rx="10" fill="#111723" stroke="#2f3a50" /><text x="780" y="45" text-anchor="middle">🎮 Consoles · VR · sims</text><text x="780" y="64" text-anchor="middle" fill="#a9b3c8" font-size="11.5">no agent — server timer only</text>
+                <rect x="680" y="100" width="200" height="60" rx="10" fill="#111723" stroke="#2f3a50" /><text x="780" y="125" text-anchor="middle">🔌 Smart plug</text><text x="780" y="144" text-anchor="middle" fill="#a9b3c8" font-size="11.5">switched by a bridge PC on the LAN</text>
+                <path d="M570 60 L680 50" stroke="#6f7b94" stroke-dasharray="4 4" fill="none" marker-end="url(#ar)" />
+                <!-- PC -->
+                <rect x="250" y="230" width="400" height="130" rx="14" fill="#0c0a16" stroke="#a78bfa" />
+                <text x="450" y="254" text-anchor="middle" font-weight="700" font-size="15">🖥 Each gaming PC</text>
+                <rect x="270" y="270" width="170" height="70" rx="10" fill="#181527" stroke="#2a2540" /><text x="355" y="296" text-anchor="middle" font-weight="600">Station agent</text><text x="355" y="314" text-anchor="middle" fill="#9b97b8" font-size="11.5">Windows service (SYSTEM)</text><text x="355" y="330" text-anchor="middle" fill="#9b97b8" font-size="11.5">verifies · locks · reports</text>
+                <rect x="460" y="270" width="170" height="70" rx="10" fill="#181527" stroke="#2a2540" /><text x="545" y="296" text-anchor="middle" font-weight="600">Gaming Shell</text><text x="545" y="314" text-anchor="middle" fill="#9b97b8" font-size="11.5">full-screen for players</text><text x="545" y="330" text-anchor="middle" fill="#9b97b8" font-size="11.5">shows · asks · never decides</text>
+                <path d="M440 305 L460 305" stroke="#a78bfa" fill="none" marker-end="url(#ar)" marker-start="url(#ar)" />
+                <text x="450" y="355" text-anchor="middle" fill="#6f7b94" font-size="11">local pipe</text>
+                <path d="M400 170 L370 270" stroke="#22d3ee" fill="none" marker-end="url(#ar)" marker-start="url(#ar)" />
+                <text x="372" y="200" text-anchor="end" fill="#a9b3c8" font-size="12">WebSocket: heartbeats ↑</text>
+                <text x="368" y="217" text-anchor="end" fill="#a9b3c8" font-size="12">signed commands ↓</text>
+                <path d="M650 300 C720 300 760 190 760 160" stroke="#6f7b94" stroke-dasharray="4 4" fill="none" marker-end="url(#ar)" />
+                <text x="690" y="250" fill="#6f7b94" font-size="11.5">bridge PC</text>
+              </g>
+            </svg>
+            <div class="cap">Browsers and phones talk to the server over HTTPS. Each gaming PC keeps one WebSocket connection open. The server signs every command, and the PC verifies the signature before doing anything.</div>
+          </div>
+          <div class="rule"><b>The golden rule: the server owns the clock and the money.</b> A PC can show a countdown, but only the server can start, extend or end time, set a price, or take a payment. Nothing typed on a gaming PC can grant free time.</div>
+          <h3>What happens when you click "Start session"</h3>
+          <div class="flowline"><span>Cashier clicks Start on PC-07</span><i>→</i><span>Server prices it &amp; takes payment</span><i>→</i><span>Server saves the session with its end time</span><i>→</i><span>Server signs START_SESSION</span><i>→</i><span>Agent verifies the signature</span><i>→</i><span>Shell unlocks &amp; shows the countdown</span></div>
+          <p>That whole trip takes under a second on a normal network. Every change streams back to every open Live Floor within about a second.</p>
+          <h3>What if the internet drops?</h3>
+          <ul>
+            <li>The agent saved the session to disk, so the player keeps playing and the countdown keeps running.</li>
+            <li>If the server's "end" never arrives, the agent <b>locks the PC by itself</b> 20 seconds after the end time, so no free time is given.</li>
+            <li>Commands sent while a PC is offline wait on the server and are delivered when it reconnects, unless they've expired.</li>
+            <li>When the PC reconnects, it and the server compare notes. A stale session is ended, and a lost one is restarted.</li>
+            <li>Sessions that should have ended while the server itself was down are closed on its first check after restarting.</li>
+          </ul>
+        </section>
+
+        <!-- 3 -->
+        <section id="structure">
+          <h2>3. Organization, branches &amp; plans</h2>
+          <div class="flowline"><span>Platform</span><i>→</i><span>Organization (your company)</span><i>→</i><span>Brand (optional)</span><i>→</i><span>Branch (a venue)</span><i>→</i><span>Zone (a room/area)</span><i>→</i><span>Station (a PC, console, VR, sim)</span></div>
+          <ul>
+            <li><b>Organization:</b> your business. Customers, wallets, the menu, loyalty and staff are shared across all its branches.</li>
+            <li><b>Branch:</b> one physical venue with its own timezone, tax, cash drawers, kitchen stations, warehouses and floor.</li>
+            <li><b>Zone:</b> an area inside a branch, like <i>Regular PCs</i>, <i>VIP</i>, <i>PS5 Lounge</i>, <i>VR Zone</i> or <i>Restaurant</i>. Rates, game visibility and mass actions work per zone.</li>
+            <li><b>Station:</b> anything you sell time on. PCs run the agent; consoles, VR and sims are "agentless".</li>
+          </ul>
+          <h3>Plans, modules and limits</h3>
+          <p>Each organization is on a plan. The plan decides which of the 26 <b>modules</b> are switched on (for example Restaurant, Tournaments, CRM) and sets <b>limits</b>: branches, stations and staff accounts. The platform operator can override single modules for one organization. If a module is off, its pages and actions are refused, even through the API.</p>
+          <div class="tw"><table class="t">
+            <tr><th></th><th>Starter</th><th>Pro</th><th>Enterprise</th></tr>
+            <tr><td>Branches / stations / staff</td><td>1 / 30 / 10</td><td>5 / 250 / 100</td><td>Unlimited</td></tr>
+            <tr><td>Included</td><td>PC gaming &amp; Shell, consoles, internet café, bookings, memberships, wallet, inventory, loyalty, promotions, customer app, remote support, game updates, offline edge</td><td>Everything in Starter plus restaurant, KDS, tables, purchasing, tournaments, CRM, VR &amp; sims, license pool, advanced analytics</td><td>Everything, plus diskless, accounting, public API and multiple brands</td></tr>
+          </table></div>
+          <p>Adding a station beyond your limit is refused with "Your plan's station limit is reached". See <a href="pricing.html" style="color:var(--cyan)">Pricing</a> for the full module list.</p>
+        </section>
+
+        <!-- 4 -->
+        <section id="staff">
+          <h2>4. Staff, roles &amp; permissions</h2>
+          <p>Every staff member has their own login. What they can do comes from <b>roles</b>. A role is a bundle of permissions (111 in total), given to a person <b>for a scope</b>: the whole organization, one brand, or one branch. One person can hold several roles, for example Cashier at Dubai Marina plus Tournament Manager at Abu Dhabi.</p>
+          <div class="tw"><table class="t">
+            <tr><th>Role template</th><th>Typically does</th></tr>
+            <tr><td>Org Owner</td><td>Everything, including payment gateways, API keys, disabling the Shell and deleting customer data</td></tr>
+            <tr><td>Org Admin</td><td>Runs the business day to day; can't touch gateways, API keys or customer erasure</td></tr>
+            <tr><td>Branch Manager</td><td>Runs one venue: floor, staff, refunds, approvals, local reports</td></tr>
+            <tr><td>Gaming Manager</td><td>Stations, sessions, games, rates, bookings, tournaments</td></tr>
+            <tr><td>System Admin / Technician</td><td>PCs, maintenance, updates, repairs, diskless. No money.</td></tr>
+            <tr><td>Cashier / Receptionist</td><td>Sell time and food, top up wallets, bookings, check-ins. A cashier <b>can't refund</b>.</td></tr>
+            <tr><td>Restaurant Manager / Waiter / Kitchen Staff</td><td>Menu, tables, orders, the kitchen display</td></tr>
+            <tr><td>Inventory Manager / Accountant</td><td>Stock, purchasing, suppliers; finance and reconciliation</td></tr>
+            <tr><td>Tournament Manager</td><td>Brackets, matches, results</td></tr>
+          </table></div>
+          <p>You can also build <b>custom roles</b>. Nobody can grant a permission they don't have themselves.</p>
+          <h3>Safety rules built in</h3>
+          <ul>
+            <li><b>Sensitive actions need a written reason:</b> refunds, wallet adjustments, voids after cooking, stock waste, freezing a customer and similar (33 of them). The reason is stored in the audit log.</li>
+            <li><b>Separation of duties:</b> technicians, kitchen staff and waiters can't touch wallets or refunds. A manager can't approve their own cash shift or their own purchase order.</li>
+            <li><b>Two-step sign-in (TOTP)</b> by QR code, account lockout after 5 wrong passwords, and a 4-digit PIN for quick staff actions.</li>
+            <li><b>Tamper-evident audit log:</b> each entry is chained to the previous one by a hash, so an edited or deleted entry is detected.</li>
+          </ul>
+        </section>
+
+        <!-- 5 -->
+        <section id="setup">
+          <h2>5. First-time setup (in this order)</h2>
+          <ol class="checklist">
+            <li><b>Host the server and sign in as owner.</b><small>See the <a href="install.html" style="color:var(--cyan)">install guide</a>. Turn on two-step sign-in straight away.</small></li>
+            <li><b>Branches &amp; zones.</b><small>Admin → Branches &amp; zones. Set each branch's timezone, currency and tax, then create its zones.</small></li>
+            <li><b>Employees &amp; roles.</b><small>Admin → Employees. Add staff, give each a role per branch, and set PINs.</small></li>
+            <li><b>Rates.</b><small>Admin → Rates. A price per zone, packages (for example 3 hours + 30 bonus minutes), happy-hour windows, a night pass, and console player pricing.</small></li>
+            <li><b>Stations.</b><small>Computers → Add stations → enrolment code → run the setup .exe on each PC. Add consoles, VR and sims under Consoles &amp; VR, and pair their TVs.</small></li>
+            <li><b>Floor layout.</b><small>Live Floor → Edit layout. Drag stations to match the room.</small></li>
+            <li><b>Games &amp; apps.</b><small>Admin → Games. Enable titles, feature some, limit some to VIP zones, and pick the apps allowed in the Shell.</small></li>
+            <li><b>Menu, kitchen &amp; tables</b> (if you sell food).<small>Restaurant → Menu. Set categories, products, options, kitchen or bar station per product, tables, and a cash drawer.</small></li>
+            <li><b>Inventory.</b><small>Warehouses, items, recipes (burger = bun + patty + …), minimum levels and suppliers. Receive your opening stock through a purchase order.</small></li>
+            <li><b>Memberships, loyalty &amp; promotions.</b><small>Membership tiers, point rules, the rewards catalog, happy hours and codes.</small></li>
+            <li><b>Customer app link.</b><small>Share <code>https://api.yourvenue.com/&lt;your-slug&gt;</code> as a QR code at the counter.</small></li>
+            <li><b>Test day.</b><small>Run one session, one food order, one booking and one shift close before opening. The <a href="demos.html" style="color:var(--cyan)">demos</a> show what to expect.</small></li>
+          </ol>
+        </section>
+
+        <!-- 6 -->
+        <section id="stations">
+          <span class="part">Gaming</span>
+          <h2>6. Stations &amp; the Live Floor</h2>
+          <h3>Adding a PC (enrolment)</h3>
+          <ol>
+            <li>Admin → Computers → <b>Add stations</b>. Pick the zone, how many PCs (1–500) and how long the code is valid (1–72 h). The code is shown once.</li>
+            <li>On the PC, run <b>ArenaOS-Station-Setup.exe</b> and enter the code.</li>
+            <li>The PC creates its <b>own secret key</b>, which never leaves the PC, and sends only the public half. The server gives it a name (PC-01, VIP-03 …) and the branch's command-checking key.</li>
+            <li>Reinstalling Windows on the same PC re-enrols the <b>same</b> station, so its history is kept.</li>
+          </ol>
+          <h3>Colours on the Live Floor</h3>
+          <div class="cards">
+            <div class="mini"><p><span class="dot" style="--c:var(--green)"></span><b>Available</b>: ready to sell</p></div>
+            <div class="mini"><p><span class="dot" style="--c:var(--red)"></span><b>In use</b>: a session is running</p></div>
+            <div class="mini"><p><span class="dot" style="--c:var(--orange)"></span><b>Ending soon</b>: 5 minutes or less left</p></div>
+            <div class="mini"><p><span class="dot" style="--c:var(--amber)"></span><b>Reserved</b>: a booking starts within 2 hours</p></div>
+            <div class="mini"><p><span class="dot" style="--c:#64748b"></span><b>Offline</b>: no heartbeat for 30 s</p></div>
+            <div class="mini"><p><span class="dot" style="--c:var(--violet)"></span><b>Maintenance / Cleaning</b>: can't be sold</p></div>
+          </div>
+          <p>Badges show the game being played, a customer asking for help (🔔, answered with "On my way"), and alerts.</p>
+          <h3>The station drawer</h3>
+          <p>Click any station to see the customer, time left, game, live CPU/GPU/RAM/disk readings, temperatures, network, peripherals (missing ones in red), installed games, boot mode and the last commands. From there staff can:</p>
+          <div class="tw"><table class="t">
+            <tr><th>Action</th><th>What happens</th><th>Permission</th></tr>
+            <tr><td>Start / extend / move / end session</td><td>See <a href="#sessions" style="color:var(--cyan)">Sessions</a></td><td>station.start_session / end_session</td></tr>
+            <tr><td>Send message</td><td>Pops up inside the Shell (or a Windows box)</td><td>station.message</td></tr>
+            <tr><td>Lock</td><td>Locks the Windows session</td><td>station.lock</td></tr>
+            <tr><td>Restart / shut down / log out</td><td>Runs with a 5-second notice</td><td>station.restart / shutdown</td></tr>
+            <tr><td>Wake-on-LAN</td><td>Another online PC on the same network wakes it</td><td>station.shutdown</td></tr>
+            <tr><td>Run repair</td><td>Flush DNS, renew IP, restart audio, clear temp, sync time, restart Shell, close games</td><td>station.restart</td></tr>
+            <tr><td>Mass action (zone)</td><td>Message or restart a whole zone at once</td><td>station.mass_action</td></tr>
+            <tr><td>Maintenance</td><td>Takes the station out of sale for a technician</td><td>station.maintenance</td></tr>
+          </table></div>
+          <p>Every command goes through <code>PENDING → SENT → RECEIVED → EXECUTING → SUCCEEDED / FAILED</code>, and you can watch the status live.</p>
+          <h3>Health alerts</h3>
+          <div class="tw"><table class="t">
+            <tr><th>Alert</th><th>When</th></tr>
+            <tr><td>High CPU temperature</td><td>≥ 90 °C warning, ≥ 97 °C critical</td></tr>
+            <tr><td>High GPU temperature</td><td>≥ 88 °C warning, ≥ 95 °C critical</td></tr>
+            <tr><td>Low disk</td><td>System disk ≥ 92 % full</td></tr>
+            <tr><td>Hardware changed</td><td>CPU, GPU, RAM, board, disk or network card differ from what was recorded (useful against part swaps)</td></tr>
+            <tr><td>Peripheral missing</td><td>The mouse, keyboard or headset was unplugged</td></tr>
+            <tr><td>Network degraded</td><td>Internet unreachable, or ≥ 20 % packet loss, or ping ≥ 150 ms</td></tr>
+            <tr><td>Client offline</td><td>Disconnected for more than 2 minutes</td></tr>
+          </table></div>
+          <p><b>Safe mode</b> (the installer's "Test mode") simulates restart, shutdown, lock and app launch, so you can try the agent on an office PC. Messages and Wake-on-LAN are real. <b>Retire</b> a PC in Computers to cut it off immediately.</p>
+        </section>
+
+        <!-- 7 -->
+        <section id="pricing">
+          <h2>7. Pricing</h2>
+          <p>A <b>rate</b> (pricing plan) belongs to the organization, a branch or a zone, and applies to a station class (PC, console, VR, simulator). When time is sold, the server picks the rate like this:</p>
+          <ol>
+            <li>The most specific wins: <b>zone</b> before <b>branch</b> before <b>organization</b>.</li>
+            <li>It must match the station class, the customer's membership tier and the <b>day and time window</b>, in the branch's own timezone (so happy hours work).</li>
+            <li>On a tie, the higher priority wins, then the cheaper one.</li>
+          </ol>
+          <div class="tw"><table class="t">
+            <tr><th>Way to sell</th><th>Example</th><th>How it's charged</th></tr>
+            <tr><td>Minutes</td><td>AED 15 / hour, minimum 15 min, rounded to 5 min</td><td>Rate × time, paid up front</td></tr>
+            <tr><td>Package</td><td>3 hours for AED 40 + 30 bonus minutes</td><td>Fixed price and duration</td></tr>
+            <tr><td>Pass</td><td>Night pass 00:00–06:00</td><td>Ends at the window's end</td></tr>
+            <tr><td>Open (postpaid)</td><td>"Pay when you leave"</td><td>Charged on the time actually used, with grace and rounding</td></tr>
+          </table></div>
+          <ul>
+            <li><b>Membership discount</b> (for example Gold −20 %) applies automatically. A <b>staff discount</b> needs the <code>pos.discount</code> permission.</li>
+            <li><b>Consoles:</b> a rate includes N players (for example 2), and each extra controller adds a set price.</li>
+            <li><b>Promotions</b> (happy hour, bonus minutes, codes) are added on top. See <a href="#promotions" style="color:var(--cyan)">Promotions</a>.</li>
+            <li>The price is <b>locked in when the session starts</b>. Editing a rate later never changes a running session.</li>
+            <li>All money is stored in whole minor units (fils, cents), so there are no rounding surprises.</li>
+          </ul>
+        </section>
+
+        <!-- 8 -->
+        <section id="sessions">
+          <h2>8. Sessions, from start to finish</h2>
+          <h3>Three ways a session starts</h3>
+          <div class="cards">
+            <div class="mini"><h4>At the desk</h4><p>Cashier opens the station on the Live Floor, picks the customer (or walk-in guest), a duration or package, and payment: cash, card, wallet, prepaid time or pay later.</p></div>
+            <div class="mini"><h4>At the PC</h4><p>A customer with <b>prepaid time</b> signs in on the Shell's lock screen with username + password or PIN. The session runs for their whole balance.</p></div>
+            <div class="mini"><h4>From a booking</h4><p>Check-in (from 15 minutes before the start) starts a session on every booked station until the booking's end.</p></div>
+          </div>
+          <div class="diagram">
+            <svg viewBox="0 0 900 150" role="img" aria-label="Session timeline: start, warnings at 30, 15, 10, 5 and 1 minutes, ending soon from 5 minutes, then expiry and lock.">
+              <g font-family="Inter, sans-serif" font-size="12.5" fill="#e8edf7">
+                <line x1="40" y1="70" x2="860" y2="70" stroke="#2f3a50" stroke-width="6" stroke-linecap="round" />
+                <line x1="40" y1="70" x2="690" y2="70" stroke="#f87171" stroke-width="6" stroke-linecap="round" />
+                <line x1="690" y1="70" x2="820" y2="70" stroke="#fb923c" stroke-width="6" />
+                <circle cx="40" cy="70" r="9" fill="#34d399" /><text x="40" y="40" text-anchor="middle" font-weight="600">Start</text><text x="40" y="100" text-anchor="middle" fill="#a9b3c8">paid · PC unlocks</text>
+                <g fill="#facc15"><circle cx="430" cy="70" r="6" /><circle cx="560" cy="70" r="6" /><circle cx="620" cy="70" r="6" /><circle cx="690" cy="70" r="6" /><circle cx="790" cy="70" r="6" /></g>
+                <text x="430" y="45" text-anchor="middle">30</text><text x="560" y="45" text-anchor="middle">15</text><text x="620" y="45" text-anchor="middle">10</text><text x="690" y="45" text-anchor="middle">5</text><text x="790" y="45" text-anchor="middle">1 min</text>
+                <text x="560" y="100" text-anchor="middle" fill="#a9b3c8">warnings on the Shell</text>
+                <text x="755" y="120" text-anchor="middle" fill="#fb923c">"Ending soon" on the Live Floor</text>
+                <circle cx="820" cy="70" r="9" fill="#a78bfa" /><text x="838" y="40" text-anchor="middle" font-weight="600">End</text><text x="850" y="100" text-anchor="middle" fill="#a9b3c8">bill closed · PC locks</text>
+              </g>
+            </svg>
+            <div class="cap">The server checks every timer every 2 seconds. Expiry is accurate to within about 2 seconds, even across restarts.</div>
+          </div>
+          <h3>During the session</h3>
+          <ul>
+            <li><b>Extend:</b> from the desk, or from the seat ("+ Add time", paid from the wallet). The end time moves and the PC is told.</li>
+            <li><b>Move:</b> the customer changes PC. The old PC locks and the new one starts with the <b>same end time</b> and the same bill.</li>
+            <li><b>Food and prints</b> ordered from the seat go on the same session bill. Everything is paid in one go.</li>
+            <li>The database refuses two live sessions on one PC, and every start, extend or sale is safe to retry: a double click never charges twice.</li>
+          </ul>
+          <h3>When it ends</h3>
+          <ul>
+            <li><b>Time runs out:</b> the bill is finalised and the PC locks. For "pay later", the used time is charged now.</li>
+            <li><b>Customer logs out early:</b> unused <b>prepaid minutes go back</b> to their time balance.</li>
+            <li><b>Staff end it:</b> the same, from the drawer.</li>
+            <li><b>After the session</b> the PC can lock, return to the lock screen, log out Windows, restart, shut down, or restore-reboot (set per branch). Games and launchers are closed so the next player never inherits someone's Steam login.</li>
+            <li>Loyalty points for the time and money are added when the bill settles.</li>
+          </ul>
+        </section>
+
+        <!-- 9 -->
+        <section id="shell">
+          <h2>9. The Gaming Shell (what players see)</h2>
+          <p>When a <b>standard</b> Windows user signs in to a gaming PC, the agent starts the Shell full-screen. If it's closed or crashes, it's back within about 3 seconds. <b>Administrator</b> accounts get the normal desktop, which is how staff do maintenance. In safe mode the Shell doesn't start automatically.</p>
+          <div class="cards">
+            <div class="mini"><h4>🔒 Lock screen</h4><p>Venue name, clock, station name, sign-in (username + PIN or password), English/Arabic, rates. Sign-in attempts are rate-limited.</p></div>
+            <div class="mini"><h4>⏱ Countdown</h4><p>Ring and top-bar timer, warnings at 30/15/10/5/1 minutes, a pulsing last minute, a "Time's up" overlay, staff messages.</p></div>
+            <div class="mini"><h4>🎮 Games &amp; apps</h4><p>Search and categories, one tap to play, age ratings enforced. There are also approved apps (Discord, browser …) and platform launchers.</p></div>
+            <div class="mini"><h4>🍔 Order food</h4><p>The menu, sent to the kitchen, paid on the session bill or from the wallet. Toasts show "preparing" and "ready".</p></div>
+            <div class="mini"><h4>🛠 Help &amp; self-fix</h4><p>"Call staff" by topic, plus safe fixes: flush DNS, restart audio, restart Shell. It also shows live ping, peripherals and mouse speed.</p></div>
+            <div class="mini"><h4>🖨 Printing</h4><p>Each print job shows its price and waits for "Add to my bill" or "Pay from wallet" before it prints.</p></div>
+          </div>
+          <h3>Why the Shell is safe</h3>
+          <ul>
+            <li>The Shell <b>can't decide anything</b>. It can only ask: "sign me in", "log me out", "launch game #12". The unlock only happens when a signed command from the server arrives.</li>
+            <li>It talks to the agent over a locked-down local pipe, and checks that the pipe really belongs to the Windows service.</li>
+            <li>The Shell page has no network access and can't navigate anywhere else. Pop-ups and downloads are blocked.</li>
+            <li>Games launch only if a session is running, the game is in the <b>signed</b> library, the customer is old enough and it's installed. Command prompts, PowerShell and similar tools never run.</li>
+          </ul>
+        </section>
+
+        <!-- 10 -->
+        <section id="games">
+          <h2>10. Games, launchers &amp; updates</h2>
+          <ul>
+            <li><b>Detection:</b> each PC scans Steam, Epic and known install paths (Riot, Battle.net …) when it connects, every 30 minutes, and on demand. Admin → Games shows how many PCs have each title and how many need an update.</li>
+            <li><b>Library control:</b> enable or disable titles, feature them on the home screen, limit them to zones (for example VIP-only), or add custom games. The list travels to PCs <b>signed</b> and is cached, so the library works offline.</li>
+            <li><b>Branch-wide updates:</b> click Update and the server updates only PCs that need it, <b>never one with a player on it</b> (it waits until the session ends), a few at a time. PCs that were offline are retried when they come back.</li>
+            <li><b>Launch:</b> Steam titles start with <code>-applaunch &lt;id&gt;</code>, and Epic through its launcher. The server never sends raw command lines.</li>
+            <li><b>Diskless:</b> the agent detects diskless boot (iSCSI, CCBoot, ggRock …) and shows it on the drawer. Provider integration is on the Enterprise plan.</li>
+          </ul>
+        </section>
+
+        <!-- 11 -->
+        <section id="consoles">
+          <h2>11. Consoles, VR, simulators &amp; TV displays</h2>
+          <p>Consoles, VR headsets and racing rigs run no ArenaOS software. <b>The server's timer is the only clock.</b> Otherwise they're sold exactly like PCs: same rates, packages, bookings, bills and wallet.</p>
+          <ul>
+            <li><b>Players:</b> a PS5 rate might include 2 players, with each extra controller adding a set amount per hour.</li>
+            <li><b>Minimum age:</b> VR (13+) or a motion sim can refuse under-age customers. For guests, staff confirm the age.</li>
+            <li><b>Cleaning:</b> VR stations go to <i>Cleaning</i> after each session and can't be sold until someone taps <b>Mark cleaned</b>.</li>
+            <li><b>Gear checks:</b> controllers, headsets, wheels and pedals are tracked. A missing or faulty item raises an alert.</li>
+          </ul>
+          <h3>How the player knows time is up</h3>
+          <ol>
+            <li><b>TV station display:</b> open <code>/display.html</code> of the customer app on the TV's browser and pair it once with an 8-character code from Admin → Consoles &amp; VR. It shows the player's first name, a countdown, warnings at 5 and 1 minutes, then "Time's up — hand back the controllers".</li>
+            <li><b>Smart plug</b> (optional, Shelly or Tasmota): one PC per branch acts as the <b>bridge</b>. It switches the console's power on when a session starts and off a moment after it ends. It will only ever talk to addresses on your local network.</li>
+          </ol>
+        </section>
+
+        <!-- 12 -->
+        <section id="printing">
+          <h2>12. Internet-café printing</h2>
+          <div class="flowline"><span>Customer prints</span><i>→</i><span>Agent pauses the job</span><i>→</i><span>Server prices it (B/W or colour, per page)</span><i>→</i><span>Shell asks: bill or wallet?</span><i>→</i><span>Server charges &amp; signs "release"</span><i>→</i><span>It prints</span></div>
+          <ul>
+            <li><b>Nothing prints unpaid.</b> A job un-paused by hand in Windows is paused again.</li>
+            <li>Optional <b>staff approval</b> per branch: the job waits in Admin → Printing until released. There's also a maximum page count.</li>
+            <li>Jobs not confirmed within 3 minutes, or not released within 15, are cancelled automatically. A failed print raises an alert so staff can refund.</li>
+            <li>Print control is off in safe mode.</li>
+          </ul>
+        </section>
+
+        <!-- 13 -->
+        <section id="customers">
+          <span class="part">Customers</span>
+          <h2>13. Customers &amp; the wallet</h2>
+          <p>A customer account works at <b>every PC and every branch</b> of the organization. It can be created at the desk or by the customer in the app (username, password, optional phone and date of birth). The date of birth drives game age ratings.</p>
+          <div class="tw"><table class="t">
+            <tr><th>Wallet bucket</th><th>Filled by</th><th>Used for</th></tr>
+            <tr><td><b>Cash</b></td><td>Top-ups at the counter (cash/card)</td><td>Sessions, time, food, memberships, entry fees</td></tr>
+            <tr><td><b>Bonus</b></td><td>Top-up bonuses, rewards, adjustments. Expires (90 days by default).</td><td>Spent <b>before</b> cash</td></tr>
+            <tr><td><b>Time</b></td><td>Time packages, membership bonus minutes, free-minute rewards</td><td>Signing in at a PC</td></tr>
+          </table></div>
+          <ul>
+            <li>Every movement is a permanent ledger line; nothing is edited or deleted. The database makes a <b>negative balance impossible</b>, even with two tills at once.</li>
+            <li>Top-ups are safe to retry (no double credit). Not enough balance means "insufficient funds" and nothing is taken.</li>
+            <li>Staff adjustments (± cash, bonus, minutes) and freezing a wallet need a reason and are audited.</li>
+            <li><b>Restrictions:</b> staff can block or freeze an account. A blocked customer can't sign in at a PC.</li>
+          </ul>
+        </section>
+
+        <!-- 14 -->
+        <section id="memberships">
+          <h2>14. Memberships</h2>
+          <p>Tiers are sold (for example Silver AED 99 / 30 days, Gold AED 199) or earned (for example Legend). A tier sets:</p>
+          <ul>
+            <li>discounts on gaming, restaurant and tournaments;</li>
+            <li>bonus minutes (added to the time balance on purchase);</li>
+            <li>how far ahead the customer can book, and priority booking;</li>
+            <li>a loyalty points multiplier.</li>
+          </ul>
+          <p>Renewing the same tier adds the period on top. Switching tier ends the old one now. When a membership expires, the customer drops to their next active tier, or none. This is checked every minute.</p>
+        </section>
+
+        <!-- 15 -->
+        <section id="bookings">
+          <h2>15. Bookings</h2>
+          <ul>
+            <li>Book <b>by zone</b> (the first N free stations for N players) or pick specific stations. Duration 30 min to 12 h, up to 20 players.</li>
+            <li>Customers can book as far ahead as their tier allows (7 days by default); staff up to 60 days. The price is estimated from the rate that applies at the start time.</li>
+            <li><b>No double booking, ever</b>: the database itself refuses overlapping bookings, even when requests arrive at the same instant. A walk-in session can't be sold into an upcoming booking, and staff see how many minutes are still free.</li>
+            <li><b>Check-in</b> opens 15 minutes before the start, and payment can be cash, card, wallet, prepaid time or pay later.</li>
+            <li><b>Automatic:</b> 15 minutes late marks it a <b>no-show</b> and releases the stations. Customers can cancel in the app up to 60 minutes before; staff can cancel any time, with a reason.</li>
+          </ul>
+        </section>
+
+        <!-- 16 -->
+        <section id="app">
+          <h2>16. The customer app</h2>
+          <p>A phone web app at <code>https://api.yourvenue.com/&lt;your-slug&gt;</code>. It can be added to the home screen, with no app store needed.</p>
+          <div class="cards">
+            <div class="mini"><h4>Home</h4><p>Wallet, prepaid time, membership, "playing now", next booking, unread inbox.</p></div>
+            <div class="mini"><h4>Book</h4><p>Zone → day → PCs → length → time. It shows which times each PC is taken (never by whom).</p></div>
+            <div class="mini"><h4>Shop</h4><p>Time packages and memberships paid from the wallet, with promo codes.</p></div>
+            <div class="mini"><h4>Rewards</h4><p>Points, what expires soon, rewards to redeem, invite code, history.</p></div>
+            <div class="mini"><h4>Tournaments</h4><p>List, brackets and standings, join with a team, entry fee from the wallet.</p></div>
+            <div class="mini"><h4>Inbox</h4><p>Offers and messages from campaigns, each with a personal code.</p></div>
+          </div>
+          <div class="note warn"><b>Payments:</b> customers top up at the counter today. "Pay now" by card in the app is a demo only until a payment gateway is connected. It's switched off in production.</div>
+        </section>
+
+        <!-- 17 -->
+        <section id="pos">
+          <span class="part">Selling</span>
+          <h2>17. POS &amp; payments</h2>
+          <p>The POS sells everything: gaming time, packages, food, drinks, top-ups, memberships and tournament entries. The <b>server</b> sets every price from the menu; the till never sends one.</p>
+          <div class="tw"><table class="t">
+            <tr><th>Order type</th><th>Goes on</th><th>Delivered to</th></tr>
+            <tr><td>Counter / takeaway</td><td>A new bill, paid now or later</td><td>Counter</td></tr>
+            <tr><td>To a PC (in-seat)</td><td>That PC's live session bill</td><td>"PC-07 · VIP"</td></tr>
+            <tr><td>Dine-in</td><td>The table's open bill</td><td>"Table T3"</td></tr>
+          </table></div>
+          <ul>
+            <li><b>Payment:</b> cash, card or wallet, split across up to 4 tenders, with change calculated. Retries never charge twice.</li>
+            <li><b>Tax:</b> the branch's tax profile (for example 5 % VAT included), rounded per line so receipts add up.</li>
+            <li><b>Discounts</b> need <code>pos.discount</code>. <b>Promo codes</b> are entered on the POS or Live Floor.</li>
+            <li><b>Voids:</b> free before the kitchen starts. After that it's a manager action with a reason.</li>
+            <li><b>Refunds</b> (manager, with a reason): back to the original method, as cash from the drawer, or as wallet credit. Partial refunds are allowed, and loyalty points earned on the refund are reversed.</li>
+            <li>Out-of-stock ready items (cans, snacks) show <b>sold out</b> on the POS and on the PCs.</li>
+          </ul>
+        </section>
+
+        <!-- 18 -->
+        <section id="shifts">
+          <h2>18. Shifts &amp; the cash drawer</h2>
+          <ol>
+            <li><b>Open a shift</b> on a drawer with the opening float. There's one open shift per drawer and one per cashier per branch. Cash can't be taken without an open shift; card and wallet can.</li>
+            <li>During the shift, record <b>pay-ins, pay-outs and safe drops</b> (with reasons). Cash sales, change and cash refunds are recorded automatically.</li>
+            <li>The <b>X-report</b> (any time) shows sales by method, refunds, movements and expected cash.</li>
+            <li><b>Close:</b> count the cash and enter it. The difference is stored. Above the branch threshold (default 5.00) the shift goes to <b>Pending approval</b>, and another manager must approve it.</li>
+            <li>The <b>Z-report</b> totals are frozen on the closed shift.</li>
+          </ol>
+        </section>
+
+        <!-- 19 -->
+        <section id="kitchen">
+          <h2>19. Restaurant, tables &amp; kitchen display</h2>
+          <ul>
+            <li><b>Menu:</b> categories, products, option groups (extras, size, milk …), per-branch prices, and sold out / "86". Each product has a kitchen station (Kitchen, Bar …).</li>
+            <li><b>Tables:</b> ordering at a table marks it Occupied. Settling its bill sets it to Cleaning, and staff mark it free.</li>
+            <li><b>Kitchen display:</b> each order makes one ticket per station. Tickets go through columns <b>New → Cooking → Ready → Served</b>, with timers, and turn red after 12 minutes. New tickets chime, and the screen updates live.</li>
+            <li><b>In-seat orders:</b> when the kitchen starts or finishes an order from a PC, that player's Shell shows "preparing" and "ready".</li>
+          </ul>
+          <div class="flowline"><span>Player orders a burger on PC-07</span><i>→</i><span>Priced by server, added to session bill</span><i>→</i><span>Ticket on Kitchen display</span><i>→</i><span>Stock deducted by recipe</span><i>→</i><span>Bump "Ready"</span><i>→</i><span>Toast on PC-07</span></div>
+        </section>
+
+        <!-- 20 -->
+        <section id="inventory">
+          <h2>20. Inventory &amp; purchasing</h2>
+          <ul>
+            <li><b>Warehouses</b> per branch (main store, kitchen, bar, tech store), plus an optional central warehouse. Items are counted in a base unit (pcs, g, ml) and bought in cases.</li>
+            <li><b>Sales deduct stock automatically:</b> a can deducts 1 can; a burger deducts its <b>recipe</b> (bun, patty, sauce + planned waste %); an "extra patty" option deducts its ingredient. Bar items come from the bar store, kitchen items from the kitchen store.</li>
+            <li>A miscount never blocks the till: stock may go negative and raises an alert. Manual moves (waste, issue to a PC, transfers) can't go below zero.</li>
+            <li><b>Batches &amp; expiry</b> (used earliest-expiry first) and <b>serial numbers</b> for headsets, controllers and PC parts.</li>
+            <li><b>Cost:</b> a moving average updated on each delivery. The menu shows the food-cost % and margin per item.</li>
+            <li><b>Counts, waste and transfers</b> with reasons, all audited.</li>
+          </ul>
+          <h3>Purchasing</h3>
+          <div class="flowline"><span>Draft PO</span><i>→</i><span>Submit</span><i>→</i><span>Approve (if over the limit, by someone else)</span><i>→</i><span>Ordered</span><i>→</i><span>Receive (partial or full)</span><i>→</i><span>Supplier invoice matched</span></div>
+          <p><b>Reorder</b> suggests what to buy for each store (items at or under their minimum, minus what's already on order) and drafts one PO per supplier in one click. You can never receive more than ordered, and invoice payments can never exceed the invoice.</p>
+        </section>
+
+        <!-- 21 -->
+        <section id="loyalty">
+          <span class="part">Growth</span>
+          <h2>21. Loyalty points &amp; rewards</h2>
+          <div class="tw"><table class="t">
+            <tr><th>Earned for</th><th>Example</th><th>When</th></tr>
+            <tr><td>Gaming spend</td><td>1 pt per AED</td><td>The bill settles (or per minute played, if you prefer)</td></tr>
+            <tr><td>Food &amp; drink spend</td><td>1 pt per AED</td><td>The bill settles</td></tr>
+            <tr><td>Booking kept</td><td>20 pts</td><td>Checked in</td></tr>
+            <tr><td>Tournament played</td><td>50 pts</td><td>The tournament finishes</td></tr>
+            <tr><td>Referral</td><td>200 pts</td><td>The friend's first paid bill</td></tr>
+            <tr><td>Birthday</td><td>100 pts</td><td>Once a year</td></tr>
+          </table></div>
+          <ul>
+            <li>The membership tier <b>multiplies</b> points. Points expire after 365 days by default (oldest first), and customers see what's expiring.</li>
+            <li>Refunds take back the points earned on them. Manual adjustments need a reason.</li>
+            <li><b>Rewards catalog:</b> free minutes, wallet credit, or a personal one-use code for a discount or a free product (valid 90 days).</li>
+          </ul>
+        </section>
+
+        <!-- 22 -->
+        <section id="promotions">
+          <h2>22. Promotions</h2>
+          <p>A promotion is <b>conditions → effects</b>, with limits.</p>
+          <div class="cards">
+            <div class="mini"><h4>Conditions</h4><ul><li>Days and hours (happy hour)</li><li>Branches and zones</li><li>Tiers and segments</li><li>Minimum spend, product categories</li><li>First visit, birthday week</li></ul></div>
+            <div class="mini"><h4>Effects</h4><ul><li>% or amount off time, food or everything</li><li>Bonus minutes</li><li>A free product</li></ul></div>
+            <div class="mini"><h4>Limits</h4><ul><li>Total uses and budget</li><li>Uses per customer</li><li>Valid from / to</li><li>Shared codes or one-per-customer codes</li></ul></div>
+          </div>
+          <p><b>How the discount is chosen:</b> take every automatic promotion that applies plus the entered code. Keep the single <b>best non-stackable</b> one, add every <b>stackable</b> one, and cap the total at the price. Budgets and limits hold even when two tills redeem at the same moment.</p>
+        </section>
+
+        <!-- 23 -->
+        <section id="tournaments">
+          <h2>23. Tournaments</h2>
+          <ol>
+            <li><b>Create:</b> the game and a format. Formats are single elimination, double elimination (with grand final), round robin, league and Swiss. Also set team size, entry fee and prizes.</li>
+            <li><b>Registration:</b> teams join at the desk or in the app. A player can't be in two teams. The entry fee goes through the POS or the wallet.</li>
+            <li><b>Start:</b> close entries, check in, seed (byes go to top seeds) and build matches. Stations can be assigned to matches.</li>
+            <li><b>Play:</b> staff report scores and winners advance automatically. Swiss rounds pair themselves from the standings.</li>
+            <li><b>Finish:</b> placements are computed, prizes can be paid to the captain's wallet, and every player earns points. Withdrawing or cancelling refunds entry fees.</li>
+          </ol>
+        </section>
+
+        <!-- 24 -->
+        <section id="crm">
+          <h2>24. CRM &amp; campaigns</h2>
+          <ul>
+            <li><b>Segments:</b> built-in (New, Regular, VIP, Inactive, High spender, Competitive, Restaurant-heavy, Gaming-heavy), custom rules (visits, minutes, spend, recency, age, tier), or hand-picked lists.</li>
+            <li><b>Campaigns:</b> one segment and one channel: <b>in-app inbox</b>, a <b>Shell message</b> at the customer's next session, or SMS / email / WhatsApp. Messages can include <code>{{firstName}}</code>, <code>{{points}}</code> and <code>{{code}}</code>, and each recipient can get <b>their own promo code</b>.</li>
+            <li><b>Consent only:</b> only customers who opted in receive campaigns. Sending again only reaches new members of the segment.</li>
+            <li><b>Results:</b> delivered, read, and converted (codes redeemed).</li>
+          </ul>
+          <div class="note info">SMS, email and WhatsApp messages wait in an outbox until a provider is connected. The in-app inbox and Shell messages work now.</div>
+        </section>
+
+        <!-- 25 -->
+        <section id="security">
+          <span class="part">Running it</span>
+          <h2>25. Security &amp; your data</h2>
+          <div class="cards">
+            <div class="mini"><h4>Tenants kept apart</h4><p>Three independent layers keep one organization's data from another's: database row-level security, a tenant-scoped data layer, and permission checks on every request. Each layer is tested.</p></div>
+            <div class="mini"><h4>Signed commands</h4><p>Each branch has its own signing key. PCs only hold the public half, so a hacked PC can't forge "unlock". Old commands can't be replayed, and each is bound to one PC.</p></div>
+            <div class="mini"><h4>PC identity</h4><p>Each PC's key is encrypted to that machine. Connecting requires fresh proof it holds the key. Retiring a PC cuts it off instantly.</p></div>
+            <div class="mini"><h4>Staff logins</h4><p>Short-lived tokens kept in secure cookies (never visible to page scripts), refresh rotation with theft detection, two-step sign-in, lockout.</p></div>
+            <div class="mini"><h4>Money ledgers</h4><p>Wallet, points and stock movements can only be added, never edited. Balances can't go negative. Every write is safe to retry.</p></div>
+            <div class="mini"><h4>Audit trail</h4><p>Every sensitive action and every denied attempt is logged with who, what and why, in a hash chain that exposes tampering.</p></div>
+          </div>
+          <p><b>Your job as the host:</b> use strong passwords, keep the database private, back up the database and the <code>.env</code> file (it holds the signing keys), and keep the server updated.</p>
+        </section>
+
+        <!-- 26 -->
+        <section id="day">
+          <h2>26. A day at the venue</h2>
+          <div class="day">
+            <div class="mini"><h4>🌅 Opening</h4><ul>
+              <li>Cashier signs in and <b>opens a shift</b> with the float.</li>
+              <li>Check the Live Floor: all green? Wake any offline PCs.</li>
+              <li>Clear overnight alerts (temperatures, missing peripherals).</li>
+              <li>Look at today's bookings and tournaments.</li>
+              <li>Kitchen: open the Kitchen display; check sold-out items.</li></ul></div>
+            <div class="mini"><h4>🎮 During the day</h4><ul>
+              <li>Sell time at the desk, or players sign in with prepaid time.</li>
+              <li>Watch <b>orange</b> tiles (ending soon) and offer extensions.</li>
+              <li>Answer 🔔 help requests; run repairs from the drawer.</li>
+              <li>Check in bookings from 15 minutes before; no-shows release automatically.</li>
+              <li>Kitchen bumps tickets; players get "ready" on their PC.</li>
+              <li>Run game updates. They wait for idle PCs by themselves.</li></ul></div>
+            <div class="mini"><h4>🌙 Closing</h4><ul>
+              <li>End remaining sessions (prepaid time is refunded automatically).</li>
+              <li>Settle open bills and tables.</li>
+              <li>Print the <b>X-report</b>, count cash, <b>close the shift</b>. A manager approves any variance.</li>
+              <li>Record waste; run <b>Reorder</b> for tomorrow's purchase orders.</li>
+              <li>Shut down the zone with a mass action. Wake-on-LAN brings the PCs back tomorrow.</li></ul></div>
+          </div>
+        </section>
+
+        <!-- 27 -->
+        <section id="limits">
+          <h2>27. Not built yet</h2>
+          <p>Phases 1–10 are done. Here's what's still on the roadmap, so you can plan around it:</p>
+          <div class="tw"><table class="t">
+            <tr><th>Missing today</th><th>Until then</th><th>Phase</th></tr>
+            <tr><td>Reports, accounting (general ledger), analytics dashboards</td><td>Use the X/Z reports, shift history, stock overview and campaign results</td><td>11</td></tr>
+            <tr><td>Self-serve sign-up, SaaS billing, full Super Admin console</td><td>Organizations and owners are created by the setup (seed) script</td><td>12</td></tr>
+            <tr><td>Branch edge server (full offline mode with sync), monitoring, backups tooling</td><td>PCs lock safely offline; the server is in the cloud; back up the database yourself</td><td>13</td></tr>
+            <tr><td>Online card payments in the app; SMS/email/WhatsApp providers</td><td>Top up at the counter; the in-app inbox and Shell messages work</td><td>—</td></tr>
+            <tr><td>Deeper Shell lockdown (Explorer replacement, key filtering)</td><td>Use a standard Windows account with group-policy restrictions</td><td>13</td></tr>
+          </table></div>
+        </section>
+
+        <!-- 28 -->
+        <section id="glossary" style="border:0">
+          <h2>28. Glossary</h2>
+          <div class="tw"><table class="t">
+            <tr><td><b>Agent</b></td><td>The ArenaOS Windows service on each gaming PC.</td></tr>
+            <tr><td><b>Agentless station</b></td><td>A console, VR or sim that runs no ArenaOS software; timed by the server only.</td></tr>
+            <tr><td><b>Bridge PC</b></td><td>A gaming PC that switches smart plugs and sends Wake-on-LAN for its branch.</td></tr>
+            <tr><td><b>Enrolment code</b></td><td>A one-time code (ARENA-…) that lets PCs join a zone. Shown once.</td></tr>
+            <tr><td><b>Gaming Shell</b></td><td>The full-screen player interface that replaces the Windows desktop.</td></tr>
+            <tr><td><b>KDS</b></td><td>Kitchen display system: the screen with food tickets.</td></tr>
+            <tr><td><b>Live Floor</b></td><td>The real-time map of every station in a branch.</td></tr>
+            <tr><td><b>Postpaid / open session</b></td><td>"Pay when you leave". Charged on actual time used.</td></tr>
+            <tr><td><b>Prepaid time</b></td><td>Minutes in the customer's time balance, used by signing in at a PC.</td></tr>
+            <tr><td><b>Safe mode / test mode</b></td><td>Agent mode that simulates restart, shutdown and lock, for trying things out.</td></tr>
+            <tr><td><b>Scope</b></td><td>Where a role applies: organization, brand or branch.</td></tr>
+            <tr><td><b>Sensitive action</b></td><td>One of 33 actions that need a written reason and are audited.</td></tr>
+            <tr><td><b>Signed command</b></td><td>An instruction to a PC that carries the branch's digital signature, so it can't be forged.</td></tr>
+            <tr><td><b>X / Z report</b></td><td>Mid-shift cash summary / final frozen totals at shift close.</td></tr>
+          </table></div>
+          <p style="margin-top:24px">Next: <a href="install.html" style="color:var(--cyan)">install it</a>, or <a href="demos.html" style="color:var(--cyan)">click through the demos</a> first.</p>
+        </section>
+      </div>
+    </div>
+  </main>
+  <footer id="footer"></footer>
+  <script src="assets/site.js"></script>
+  <script>
+    // Highlight the section being read in the table of contents.
+    const links = [...document.querySelectorAll("#toc a")];
+    const byId = new Map(links.map((a) => [a.getAttribute("href").slice(1), a]));
+    if ("IntersectionObserver" in window) {
+      const seen = new IntersectionObserver((entries) => {
+        entries.forEach((e) => {
+          if (!e.isIntersecting) return;
+          links.forEach((a) => a.classList.remove("on"));
+          const a = byId.get(e.target.id);
+          if (a) { a.classList.add("on"); const toc = a.parentElement; if (a.offsetTop < toc.scrollTop || a.offsetTop > toc.scrollTop + toc.clientHeight - 40) toc.scrollTop = a.offsetTop - toc.clientHeight / 2; }
+        });
+      }, { rootMargin: "-20% 0px -70% 0px" });
+      document.querySelectorAll(".doc section[id]").forEach((s) => seen.observe(s));
+    }
+  </script>
+</body>
+</html>

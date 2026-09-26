@@ -47,6 +47,7 @@
     ["features.html", "Features", "features"],
     ["pricing.html", "Pricing", "pricing"],
     ["demos.html", "Live demos", "demos"],
+    ["guide.html", "Guide", "guide"],
     ["install.html", "Install", "install"],
     ["contact.html", "Contact", "contact"],
   ];
@@ -70,11 +71,24 @@
           <p>The operating system for gaming cafés, esports arenas, internet cafés, console &amp; VR centres and gaming restaurants.</p></div>
         <div><h4>Product</h4><a href="${base}features.html#stations">Stations &amp; Live Floor</a><a href="${base}features.html#sessions">Sessions &amp; Shell</a><a href="${base}features.html#pos">POS &amp; restaurant</a><a href="${base}features.html#engage">Loyalty &amp; tournaments</a></div>
         <div><h4>Demos</h4><a href="${base}demo/superadmin.html">Super Admin</a><a href="${base}demo/admin.html">Venue admin</a><a href="${base}demo/shell.html">Gaming Shell</a><a href="${base}demo/customer.html">Customer app</a></div>
-        <div><h4>Company</h4><a href="${base}pricing.html">Pricing</a><a href="${base}contact.html">Contact sales</a><a href="${base}install.html">Install guide</a><a href="${base}pricing.html#faq">FAQ</a></div>
+        <div><h4>Company</h4><a href="${base}pricing.html">Pricing</a><a href="${base}contact.html">Contact sales</a><a href="${base}guide.html">How it works</a><a href="${base}install.html">Install guide</a><a href="${base}pricing.html#faq">FAQ</a></div>
       </div>
       <div class="copy"><span>© ${new Date().getFullYear()} ArenaOS. All rights reserved.</span><span>Built for venues that never close.</span></div>
     </div>`;
   }
+
+  // Copy buttons on documentation code blocks (trailing "# comments" are dropped).
+  document.querySelectorAll(".doc pre").forEach((pre) => {
+    const b = document.createElement("button");
+    b.className = "copy-btn";
+    b.textContent = "Copy";
+    b.onclick = async () => {
+      const text = pre.querySelector("code").innerText.split("\n").map((l) => l.replace(/\s+#.*$/, "")).join("\n").trim();
+      try { await navigator.clipboard.writeText(text); b.textContent = "Copied"; } catch { b.textContent = "Select & copy"; }
+      setTimeout(() => (b.textContent = "Copy"), 1500);
+    };
+    pre.appendChild(b);
+  });
 
   const io = "IntersectionObserver" in window ? new IntersectionObserver((es) => es.forEach((e) => e.isIntersecting && (e.target.classList.add("in"), io.unobserve(e.target))), { threshold: 0.12 }) : null;
   document.querySelectorAll(".reveal").forEach((el) => (io ? io.observe(el) : el.classList.add("in")));
