@@ -116,6 +116,10 @@ const CATALOG = {
     view: { description: "View kitchen display" },
     bump: { description: "Accept/prepare/ready/serve tickets" },
   },
+  print: {
+    view: { description: "View the print queue" },
+    release: { description: "Release, cancel and approve customers' print jobs" },
+  },
   inventory: {
     view: { description: "View stock" },
     adjust: { description: "Adjust stock / record waste", sensitive: true },
@@ -228,6 +232,7 @@ export const MODULE_FEATURE: Partial<Record<PermissionModule, FeatureKey>> = {
   restaurant: "RESTAURANT",
   kds: "KDS",
   inventory: "INVENTORY",
+  print: "INTERNET_CAFE",
   purchasing: "PURCHASING",
   tournament: "TOURNAMENTS",
   loyalty: "LOYALTY",

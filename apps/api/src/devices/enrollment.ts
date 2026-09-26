@@ -31,7 +31,7 @@ const Enroll = z
   })
   .strict();
 
-async function maxDevices(tx: TenantTx): Promise<number | null> {
+export async function maxDevices(tx: TenantTx): Promise<number | null> {
   const sub = await tx.subscription.findFirst({
     where: { status: { in: ["TRIALING", "ACTIVE", "PAST_DUE"] } },
     orderBy: { currentPeriodEnd: "desc" },

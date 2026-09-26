@@ -17,7 +17,7 @@ const Discount = z
   .refine((d) => d.percent || d.amountMinor, "percent or amountMinor required");
 const Payment = z.object({ method: z.enum(["CASH", "CARD", "WALLET", "TIME_BALANCE", "PAY_LATER"]), reference: z.string().max(100).nullish() });
 
-const Quote = z.object({ customerId: z.uuid().nullish(), planId: z.uuid().nullish(), request: Request.optional(), discount: Discount.nullish() }).strict();
+const Quote = z.object({ customerId: z.uuid().nullish(), planId: z.uuid().nullish(), request: Request.optional(), discount: Discount.nullish(), players: z.number().int().min(1).max(16).optional(), promoCode: z.string().regex(/^[A-Za-z0-9-]{3,40}$/).nullish() }).strict();
 const Start = z
   .object({
     customerId: z.uuid().nullish(),
@@ -27,6 +27,9 @@ const Start = z
     discount: Discount.nullish(),
     payment: Payment,
     idempotencyKey: z.string().min(8).max(100),
+    players: z.number().int().min(1).max(16).optional(),
+    ageConfirmed: z.boolean().optional(),
+    promoCode: z.string().regex(/^[A-Za-z0-9-]{3,40}$/).nullish(),
   })
   .strict();
 const Extend = z

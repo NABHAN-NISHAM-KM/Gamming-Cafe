@@ -10,5 +10,6 @@ export default defineConfig({
   server: {
     proxy: { "/v1": { target: process.env["ARENA_API"] ?? "http://localhost:4000", changeOrigin: false } },
   },
-  build: { outDir: "dist", emptyOutDir: true },
+  // Two pages: the customer app, and the TV station display (/display.html).
+  build: { outDir: "dist", emptyOutDir: true, rollupOptions: { input: { main: "index.html", display: "display.html" } } },
 });

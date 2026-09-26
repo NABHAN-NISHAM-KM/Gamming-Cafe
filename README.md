@@ -10,7 +10,7 @@ Multi-tenant SaaS for **gaming cafés, esports arenas, internet cafés, console 
 
 Everything syncs in real time and keeps working at the branch when the internet is down.
 
-> **Status:** Phases 1–7 are complete: database, security and tenancy; API and admin; Windows station agent and Live Floor (verified on real hardware); sessions, pricing and the Gaming Shell; games and station tools; customers, wallet, bookings and the customer app; **POS, restaurant, kitchen display, in-seat ordering and cash shifts**. Phase 8 (inventory and purchasing) is next. See [docs/06-roadmap.md](docs/06-roadmap.md).
+> **Status:** Phases 1–10 are complete: database, security and tenancy; API and admin; Windows station agent and Live Floor (verified on real hardware); sessions, pricing and the Gaming Shell; games and station tools; customers, wallet, bookings and the customer app; POS, restaurant, kitchen display, in-seat ordering and cash shifts; inventory, recipes, purchasing and suppliers; consoles, VR, simulators, TV station displays and internet-café printing; **loyalty, promotions, tournaments and CRM**. Phase 11 (reports, accounting, analytics) is next. See [docs/06-roadmap.md](docs/06-roadmap.md).
 
 ## Documentation
 
@@ -28,6 +28,9 @@ Everything syncs in real time and keeps working at the branch when the internet 
 | [10 · Games & station tools](docs/10-games-and-station-tools.md) | Signed game library, detection, updates, peripherals, connectivity, repairs, diskless |
 | [11 · Customers, wallet & bookings](docs/11-customers-wallet-bookings.md) | Wallet ledger, memberships, bookings, customer app (PWA) |
 | [12 · POS, restaurant & kitchen](docs/12-pos-restaurant-kitchen.md) | Orders, bills, split payment, refunds, KDS, tables, in-seat ordering, shifts |
+| [13 · Inventory & purchasing](docs/13-inventory-purchasing.md) | Stock ledger, recipes, waste, transfers, counts, purchase orders, receiving, supplier invoices |
+| [14 · Consoles, VR & printing](docs/14-consoles-vr-printing.md) | Agentless stations, player pricing, TV station displays, smart-plug bridge, print control |
+| [15 · Loyalty, promotions, tournaments & CRM](docs/15-loyalty-promotions-tournaments-crm.md) | Points ledger and rewards, promotions engine and codes, brackets and prizes, segments and campaigns |
 
 ## Repository
 

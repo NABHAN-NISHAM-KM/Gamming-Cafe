@@ -22,6 +22,8 @@ const PlanBody = z
     zoneId: z.uuid().nullish(),
     membershipTierId: z.uuid().nullish(),
     minMinutes: z.number().int().min(0).max(1440).default(0),
+    includedPlayers: z.number().int().min(1).max(16).default(1),
+    extraPlayerRate: money.nullish(),
     roundingMinutes: z.number().int().min(1).max(120).default(1),
     graceMinutes: z.number().int().min(0).max(60).default(0),
     schedule: z.array(Window).max(20).default([]),

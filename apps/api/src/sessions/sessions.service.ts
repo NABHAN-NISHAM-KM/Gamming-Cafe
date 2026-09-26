@@ -5,7 +5,11 @@ import { auditAs } from "../common/audit.service.js";
 import { CommandsService } from "../devices/commands.service.js";
 import { DEVICE_FIELDS, DeviceRuntimeService } from "../devices/device-runtime.service.js";
 import { DeviceHub, LiveBus } from "../devices/live.js";
-import { PricingError, postpaidCharge, quote, selectPlans, type Discount, type PlanDef, type Quote, type QuoteRequest, type StationClass } from "./pricing.js";
+import { PricingError, extensionQuote, postpaidCharge, quote, selectPlans, type Discount, type PlanDef, type Quote, type QuoteRequest, type StationClass } from "./pricing.js";
+import { StationControlService } from "../devices/station-control.service.js";
+import { earnForSession } from "../loyalty/points.js";
+import { PromotionsService, type Evaluation } from "../promotions/promotions.service.js";
+import { CrmService } from "../crm/crm.service.js";
 import { recomputeBill, recordPayment } from "../pos/bills.js";
 import { adjustTime, timeBalance } from "./time-balance.js";
 
@@ -30,6 +34,11 @@ export interface StartInput {
   idempotencyKey: string;
   /** Set when a booking is checked in: that booking's own reservation doesn't block the session. */
   bookingId?: string | null;
+  /** Consoles: how many play (extra players may cost more). */
+  players?: number;
+  /** Stations with a minimum age: staff confirm it for a guest (or a customer with no birth date). */
+  ageConfirmed?: boolean;
+  promoCode?: string | null;
 }
 
 // ── helpers ─────────────────────────────────────────────────────────────────
@@ -85,6 +94,8 @@ export function toPlanDef(p: PlanRow, unit: number): PlanDef {
     validTo: p.validTo,
     isActive: p.isActive,
     packages: p.pricingPackages.map((k) => ({ id: k.id, name: k.name, durationMinutes: k.durationMinutes, priceMinor: toMinor(k.price, unit), bonusMinutes: k.bonusMinutes, isActive: k.isActive })),
+    includedPlayers: p.includedPlayers,
+    extraPlayerRateMinor: p.extraPlayerRate != null ? toMinor(p.extraPlayerRate, unit) : null,
   };
 }
 
@@ -95,6 +106,9 @@ export class SessionsService {
     @Inject(DeviceRuntimeService) private readonly runtime: DeviceRuntimeService,
     @Inject(DeviceHub) private readonly hub: DeviceHub,
     @Inject(LiveBus) private readonly bus: LiveBus,
+    @Inject(StationControlService) private readonly control: StationControlService,
+    @Inject(PromotionsService) private readonly promotions: PromotionsService,
+    @Inject(CrmService) private readonly crm: CrmService,
   ) {}
 
   private async minorUnit(t: TenantTx, currency: string) {
@@ -130,8 +144,26 @@ export class SessionsService {
     return { device, customer, unit, ctx, plans: selectPlans(plans.map((p) => toPlanDef(p, unit)), ctx) };
   }
 
+  /** Automatic promotions and a promo code, applied to a prepaid quote (discount and bonus minutes). */
+  private async withPromotions(t: TenantTx, q: Quote, c: { branchId: string; zoneId: string; stationClass: string; customerId: string | null }, code: string | null | undefined) {
+    if (q.paymentTiming !== "PREPAID" || q.minutes === null) {
+      if (code) throw new ConflictException({ error: "promo_not_applicable", hint: "Promo codes apply to prepaid time." });
+      return { q, ev: null };
+    }
+    const ev = await this.promotions.evaluate(t, { branchId: c.branchId, zoneId: c.zoneId, stationClass: c.stationClass, customerId: c.customerId, gaming: { amountMinor: q.totalMinor, minutes: q.minutes } }, code ?? null);
+    if (!ev.applied.length) return { q, ev: null };
+    const minutes = q.minutes + ev.bonusMinutes;
+    return {
+      q: {
+        ...q, manualDiscountMinor: q.manualDiscountMinor + ev.discountMinor, totalMinor: q.totalMinor - ev.discountMinor, minutes,
+        expiresAt: q.expiresAt ? new Date(q.expiresAt.getTime() + ev.bonusMinutes * 60_000) : q.expiresAt, lines: [...q.lines, ...ev.applied.flatMap((a) => a.lines)],
+      },
+      ev,
+    };
+  }
+
   /** Price preview for the staff "start session" form. */
-  async quote(t: TenantTx, deviceId: string, input: { customerId?: string | null; planId?: string | null; request?: QuoteRequest; discount?: Discount | null }) {
+  async quote(t: TenantTx, deviceId: string, input: { customerId?: string | null; planId?: string | null; request?: QuoteRequest; discount?: Discount | null; players?: number; promoCode?: string | null }) {
     const c = await this.context(t, deviceId, input.customerId);
     const balance = c.customer ? await timeBalance(t, c.customer.id) : 0;
     const plan = input.planId ? c.plans.find((p) => p.id === input.planId) : c.plans[0];
@@ -139,18 +171,21 @@ export class SessionsService {
     let error: string | null = null;
     if (plan && input.request) {
       try {
-        q = quote(plan, input.request, c.ctx, { membershipDiscountPct: c.customer?.discountPct, discount: input.discount ?? undefined });
+        q = quote(plan, input.request, c.ctx, { membershipDiscountPct: c.customer?.discountPct, discount: input.discount ?? undefined, players: input.players });
+        q = (await this.withPromotions(t, q, { branchId: c.ctx.branchId, zoneId: c.ctx.zoneId, stationClass: c.ctx.stationClass, customerId: c.customer?.id ?? null }, input.promoCode)).q;
       } catch (e) {
-        if (!(e instanceof PricingError)) throw e;
-        error = e.message;
+        if (e instanceof ConflictException) error = ((e.getResponse() as { hint?: string; error?: string }).hint ?? (e.getResponse() as { error?: string }).error) ?? "promo_error";
+        else if (!(e instanceof PricingError)) throw e;
+        else error = e.message;
       }
     }
     return {
       currency: c.device.branch.currency,
       minorUnit: c.unit,
       stationClass: c.ctx.stationClass,
+      station: { agentless: c.device.agentless, minAge: c.device.minAge, controllerCount: c.device.controllerCount, kind: c.device.kind },
       customer: c.customer ? { ...c.customer, timeBalanceMinutes: balance } : null,
-      plans: c.plans.map((p) => ({ id: p.id, name: p.name, billingMode: p.billingMode, paymentTiming: p.paymentTiming, rateMinor: p.rateMinor, minMinutes: p.minMinutes, passEndTime: p.passEndTime, packages: p.packages.filter((k) => k.isActive) })),
+      plans: c.plans.map((p) => ({ id: p.id, name: p.name, billingMode: p.billingMode, paymentTiming: p.paymentTiming, rateMinor: p.rateMinor, minMinutes: p.minMinutes, passEndTime: p.passEndTime, includedPlayers: p.includedPlayers ?? 1, extraPlayerRateMinor: p.extraPlayerRateMinor ?? null, packages: p.packages.filter((k) => k.isActive) })),
       quote: q ? serializeQuote(q) : null,
       error,
     };
@@ -162,13 +197,22 @@ export class SessionsService {
 
     const c = await this.context(t, input.deviceId, input.customerId);
     const { device, customer, unit, ctx } = c;
-    if (!this.hub.isOnline(device.id)) throw new ConflictException({ error: "device_offline", hint: "The station must be switched on and connected" });
+    // Consoles, VR headsets and sim rigs have no agent: the server's timer is the only clock.
+    if (!device.agentless && !this.hub.isOnline(device.id)) throw new ConflictException({ error: "device_offline", hint: "The station must be switched on and connected" });
     if (!["AVAILABLE", "RESERVED"].includes(device.status)) throw new ConflictException({ error: "device_not_available", status: device.status });
+    if (device.minAge) {
+      if (customer?.age != null && customer.age < device.minAge) throw new ForbiddenException({ error: "age_restricted", minAge: device.minAge, age: customer.age });
+      if ((customer?.age == null) && !input.ageConfirmed) throw new ConflictException({ error: "age_confirmation_required", minAge: device.minAge, hint: `Confirm the player is at least ${device.minAge}` });
+    }
+    const players = input.players ?? 1;
+    const maxPlayers = Math.max(1, device.controllerCount ?? 1);
+    if (!Number.isInteger(players) || players < 1 || players > maxPlayers) throw new ConflictException({ error: "too_many_players", max: maxPlayers });
     if (input.payment.method === "TIME_BALANCE" && !customer) throw new ConflictException({ error: "time_balance_needs_customer" });
     if (input.payment.method === "WALLET" && !customer) throw new ConflictException({ error: "wallet_needs_customer" });
 
     // ── price ──
     let q: Quote;
+    let promo: Evaluation | null = null;
     let plan: PlanDef | undefined;
     if (input.payment.method === "TIME_BALANCE") {
       const balance = await timeBalance(t, customer!.id);
@@ -185,12 +229,13 @@ export class SessionsService {
       plan = input.planId ? c.plans.find((p) => p.id === input.planId) : c.plans[0];
       if (!plan) throw new ConflictException({ error: "no_rate_available", hint: "No active rate card applies to this station right now" });
       try {
-        q = quote(plan, input.request, ctx, { membershipDiscountPct: customer?.discountPct, discount: input.discount ?? undefined });
+        q = quote(plan, input.request, ctx, { membershipDiscountPct: customer?.discountPct, discount: input.discount ?? undefined, players });
       } catch (e) {
         if (e instanceof PricingError) throw new HttpException({ error: e.code, message: e.message }, 400);
         throw e;
       }
       if (q.paymentTiming === "POSTPAID" && input.payment.method !== "PAY_LATER") throw new ConflictException({ error: "open_session_is_pay_later" });
+      ({ q, ev: promo } = await this.withPromotions(t, q, { branchId: ctx.branchId, zoneId: ctx.zoneId, stationClass: ctx.stationClass, customerId: customer?.id ?? null }, input.promoCode));
     }
 
     // ── someone else's booking on this PC? Don't sell time that runs into it ──
@@ -227,7 +272,8 @@ export class SessionsService {
           pricingPackageId: q.packageId,
           billingMode: q.billingMode,
           paymentTiming: q.paymentTiming,
-          rateSnapshot: { plan: plan ?? null, quote: { ...q, expiresAt: q.expiresAt?.toISOString() ?? null }, fundedBy: input.payment.method, minorUnit: unit } as object,
+          rateSnapshot: { plan: plan ?? null, quote: { ...q, expiresAt: q.expiresAt?.toISOString() ?? null }, fundedBy: input.payment.method, minorUnit: unit, players } as object,
+          players,
           allocatedMinutes: q.minutes,
           startedAt: now,
           expiresAt: q.expiresAt,
@@ -245,6 +291,7 @@ export class SessionsService {
       throw e;
     }
 
+    if (promo) await this.promotions.redeem(t, promo, { customerId: customer?.id ?? null, gamingSessionId: session.id });
     await this.addCharge(t, {
       session, bill, unit, deviceName: device.name, amountMinor: q.totalMinor, discountMinor: q.membershipDiscountMinor + q.manualDiscountMinor,
       description: `Gaming — ${q.planName} (${q.minutes ?? "open"} min) · ${device.name}`, minutes: q.minutes ?? 0, paymentState: input.payment.method === "PAY_LATER" ? "ON_BILL" : "PAID",
@@ -264,12 +311,18 @@ export class SessionsService {
     await this.recomputeBill(t, bill.id);
 
     await t.device.update({ where: { id: device.id }, data: { status: "OCCUPIED" } });
-    await this.commands.issue(t, {
-      deviceId: device.id,
-      type: "START_SESSION",
-      payload: this.startPayload(session, customer?.displayName ?? session.guestLabel ?? "Guest", customer?.tierName ?? null, customer?.age ?? null),
-      requestedBy: actor.type === "EMPLOYEE" ? { type: "EMPLOYEE", id: actor.id } : { type: "SYSTEM", id: null },
-    });
+    if (device.agentless) {
+      await this.control.sessionStarted(t, device.id, actor);
+    } else {
+      await this.commands.issue(t, {
+        deviceId: device.id,
+        type: "START_SESSION",
+        payload: this.startPayload(session, customer?.displayName ?? session.guestLabel ?? "Guest", customer?.tierName ?? null, customer?.age ?? null),
+        requestedBy: actor.type === "EMPLOYEE" ? { type: "EMPLOYEE", id: actor.id } : { type: "SYSTEM", id: null },
+      });
+      // Campaign messages waiting for this customer pop up on the PC now.
+      if (customer) await this.crm.deliverShell(t, customer.id, device.id);
+    }
     await auditAs(t, actor, { action: "session.start", entityType: "GamingSession", entityId: session.id, branchId: device.branchId, after: { device: device.name, quote: q, payment: input.payment.method, customerId: customer?.id } });
     await this.publishDevice(t, device.id);
     return this.view(t, session.id);
@@ -279,7 +332,7 @@ export class SessionsService {
     const dup = await t.sessionExtension.findFirst({ where: { idempotencyKey: input.idempotencyKey } });
     if (dup) return this.view(t, sessionId);
 
-    const s = await t.gamingSession.findUnique({ where: { id: sessionId }, include: { device: { select: { name: true, branch: { select: { currency: true } } } }, bill: true } });
+    const s = await t.gamingSession.findUnique({ where: { id: sessionId }, include: { device: { select: { name: true, agentless: true, branch: { select: { currency: true } } } }, bill: true } });
     if (!s) throw new NotFoundException({ error: "not_found" });
     if (!["ACTIVE", "ENDING"].includes(s.status) || !s.expiresAt) throw new ConflictException({ error: "session_not_extendable", status: s.status });
     const snap = s.rateSnapshot as { plan: PlanDef | null; minorUnit: number };
@@ -300,7 +353,7 @@ export class SessionsService {
       minutes = input.minutes ?? 0;
       if (!Number.isInteger(minutes) || minutes < 1 || minutes > 720) throw new HttpException({ error: "bad_minutes" }, 400);
       if (!snap.plan || !["PER_MINUTE", "PER_HOUR"].includes(snap.plan.billingMode)) throw new ConflictException({ error: "extend_with_package", hint: "This rate is sold in packages — extend with a package" });
-      amountMinor = snap.plan.billingMode === "PER_MINUTE" ? snap.plan.rateMinor * minutes : Math.round((snap.plan.rateMinor * minutes) / 60);
+      amountMinor = extensionQuote(snap.plan, minutes, s.players);
     }
 
     // Extend from the later of now and the current expiry (never "give back" lost time).
@@ -335,7 +388,7 @@ export class SessionsService {
     }
 
     await t.device.update({ where: { id: s.deviceId }, data: { status: "OCCUPIED" } });
-    await this.commands.issue(t, {
+    if (!s.device.agentless) await this.commands.issue(t, {
       deviceId: s.deviceId,
       type: "EXTEND_SESSION",
       payload: { sessionId: s.id, expiresAt: expiresAt.toISOString(), serverTime: new Date().toISOString(), addedMinutes: minutes },
@@ -352,7 +405,7 @@ export class SessionsService {
    * accounts, free the station and tell the PC to lock.
    */
   async end(t: TenantTx, sessionId: string, reason: "EXPIRED" | "STAFF_ENDED" | "CUSTOMER_LOGOUT" | "DEVICE_FAILURE" | "ADMIN_FORCE", actor: Actor) {
-    const s = await t.gamingSession.findUnique({ where: { id: sessionId }, include: { device: { select: { name: true, cleaningRequired: true, postSessionAction: true } }, bill: true } });
+    const s = await t.gamingSession.findUnique({ where: { id: sessionId }, include: { device: { select: { name: true, cleaningRequired: true, postSessionAction: true, agentless: true } }, bill: true } });
     if (!s) throw new NotFoundException({ error: "not_found" });
     if (!(LIVE_STATUSES as readonly string[]).includes(s.status)) return this.view(t, s.id); // already ended — idempotent
 
@@ -370,7 +423,7 @@ export class SessionsService {
 
     // Postpaid: charge the time actually used.
     if (s.paymentTiming === "POSTPAID" && snap.plan && s.bill) {
-      const c = postpaidCharge(snap.plan, usedSeconds);
+      const c = postpaidCharge(snap.plan, usedSeconds, 0, s.players);
       await t.gamingSession.update({ where: { id: s.id }, data: { amountDue: fromMinor(c.totalMinor, unit) } });
       if (c.totalMinor > 0) {
         await this.addCharge(t, { session: s, bill: s.bill, unit, deviceName: s.device.name, amountMinor: c.totalMinor, discountMinor: 0, description: `Gaming — ${c.minutes} min used · ${s.device.name}`, minutes: c.minutes, paymentState: "ON_BILL", employeeId: null });
@@ -389,12 +442,17 @@ export class SessionsService {
     await t.gameLicense.updateMany({ where: { assignedSessionId: s.id }, data: { status: "AVAILABLE", assignedSessionId: null, assignedDeviceId: null, releasedAt: endedAt } });
     await t.customerSession.updateMany({ where: { gamingSessionId: s.id, endedAt: null }, data: { endedAt } });
     await t.device.update({ where: { id: s.deviceId }, data: { status: s.device.cleaningRequired ? "CLEANING" : "AVAILABLE" } });
-    await this.commands.issue(t, {
-      deviceId: s.deviceId,
-      type: "END_SESSION",
-      payload: { sessionId: s.id, reason, postSessionAction: s.device.postSessionAction, serverTime: endedAt.toISOString() },
-      requestedBy: actor.type === "EMPLOYEE" ? { type: "EMPLOYEE", id: actor.id } : { type: "SYSTEM", id: null },
-    });
+    if (s.device.agentless) {
+      await this.control.sessionEnded(t, s.deviceId, actor);
+    } else {
+      await this.commands.issue(t, {
+        deviceId: s.deviceId,
+        type: "END_SESSION",
+        payload: { sessionId: s.id, reason, postSessionAction: s.device.postSessionAction, serverTime: endedAt.toISOString() },
+        requestedBy: actor.type === "EMPLOYEE" ? { type: "EMPLOYEE", id: actor.id } : { type: "SYSTEM", id: null },
+      });
+    }
+    await earnForSession(t, s.id); // points per minute played (spend points come when the bill settles)
     await auditAs(t, actor, { action: `session.end.${reason.toLowerCase()}`, entityType: "GamingSession", entityId: s.id, branchId: s.branchId, after: { usedSeconds, device: s.device.name } });
     await this.publishDevice(t, s.deviceId);
     return this.view(t, s.id);
@@ -405,9 +463,10 @@ export class SessionsService {
     const s = await t.gamingSession.findUnique({ where: { id: sessionId }, include: { customer: { select: { displayName: true, dateOfBirth: true, membershipTier: { select: { name: true } } } } } });
     if (!s || !["ACTIVE", "ENDING"].includes(s.status)) throw new ConflictException({ error: "session_not_movable" });
     if (s.deviceId === toDeviceId) throw new ConflictException({ error: "same_station" });
-    const target = await t.device.findUnique({ where: { id: toDeviceId }, select: { id: true, branchId: true, zoneId: true, status: true, isEnabled: true, name: true } });
+    const target = await t.device.findUnique({ where: { id: toDeviceId }, select: { id: true, branchId: true, zoneId: true, status: true, isEnabled: true, name: true, agentless: true } });
     if (!target || !target.isEnabled || target.branchId !== s.branchId) throw new NotFoundException({ error: "target_not_found" });
-    if (target.status !== "AVAILABLE" || !this.hub.isOnline(target.id)) throw new ConflictException({ error: "target_not_available" });
+    if (target.status !== "AVAILABLE" || (!target.agentless && !this.hub.isOnline(target.id))) throw new ConflictException({ error: "target_not_available" });
+    const source = await t.device.findUniqueOrThrow({ where: { id: s.deviceId }, select: { agentless: true, cleaningRequired: true } });
 
     const from = s.deviceId;
     try {
@@ -417,12 +476,14 @@ export class SessionsService {
       throw e;
     }
     await t.sessionTransfer.create({ data: { organizationId: s.organizationId, sessionId: s.id, fromDeviceId: from, toDeviceId: target.id, employeeId: actor.type === "EMPLOYEE" ? actor.id : null, reason } });
-    await t.device.update({ where: { id: from }, data: { status: "AVAILABLE" } });
+    await t.device.update({ where: { id: from }, data: { status: source.cleaningRequired ? "CLEANING" : "AVAILABLE" } });
     await t.device.update({ where: { id: target.id }, data: { status: "OCCUPIED" } });
     const by = actor.type === "EMPLOYEE" ? { type: "EMPLOYEE" as const, id: actor.id } : { type: "SYSTEM" as const, id: null };
-    await this.commands.issue(t, { deviceId: from, type: "END_SESSION", payload: { sessionId: s.id, reason: "MOVED", postSessionAction: "LOCK", serverTime: new Date().toISOString() }, requestedBy: by });
+    if (source.agentless) await this.control.sessionEnded(t, from, actor);
+    else await this.commands.issue(t, { deviceId: from, type: "END_SESSION", payload: { sessionId: s.id, reason: "MOVED", postSessionAction: "LOCK", serverTime: new Date().toISOString() }, requestedBy: by });
     const moved = await t.gamingSession.findUniqueOrThrow({ where: { id: s.id } });
-    await this.commands.issue(t, { deviceId: target.id, type: "START_SESSION", payload: this.startPayload(moved, s.customer?.displayName ?? s.guestLabel ?? "Guest", s.customer?.membershipTier?.name ?? null, ageOn(s.customer?.dateOfBirth)), requestedBy: by });
+    if (target.agentless) await this.control.sessionStarted(t, target.id, actor);
+    else await this.commands.issue(t, { deviceId: target.id, type: "START_SESSION", payload: this.startPayload(moved, s.customer?.displayName ?? s.guestLabel ?? "Guest", s.customer?.membershipTier?.name ?? null, ageOn(s.customer?.dateOfBirth)), requestedBy: by });
     await auditAs(t, actor, { action: "session.move", entityType: "GamingSession", entityId: s.id, branchId: s.branchId, after: { from, to: target.id, reason } });
     await this.publishDevice(t, from);
     await this.publishDevice(t, target.id);

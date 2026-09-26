@@ -223,6 +223,9 @@ describe.skipIf(!HAS_DB)("Customers, wallet, memberships & bookings (e2e)", () =
       expect(ci.status, JSON.stringify(ci.body)).toBe(200);
       expect(ci.body).toMatchObject({ status: "CHECKED_IN" });
       expect(ci.body.sessionIds).toHaveLength(2);
+      // Keeping a booking earns the BOOKING points (seeded rule: 20).
+      const pts = await owner.query(`SELECT points FROM "LoyaltyTransaction" WHERE "customerId" = $1 AND source = 'BOOKING' AND "referenceId" = $2`, [c.id, bk.id]);
+      expect(pts.rows.map((r: { points: number }) => r.points)).toEqual([20]);
       await until(() => a.activeSession !== null && b.activeSession !== null);
       const s = (await call(ownerT, "GET", `/sessions/${ci.body.sessionIds[0]}`)).body;
       expect(new Date(s.expiresAt).getTime()).toBeLessThanOrEqual(new Date(bk.endsAt).getTime() + 1000);

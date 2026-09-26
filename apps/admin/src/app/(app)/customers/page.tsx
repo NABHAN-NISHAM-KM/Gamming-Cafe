@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Clock, Crown, KeyRound, Plus, UserPlus, Users } from "lucide-react";
-import { MembershipPanel, TiersModal, WalletPanel } from "./account-panels";
+import { LoyaltyPanel, MembershipPanel, TiersModal, WalletPanel } from "./account-panels";
 import { api } from "@/lib/client/api";
 import { useAction, useApi } from "@/lib/client/hooks";
 import { useCan } from "@/lib/client/me";
@@ -205,6 +205,7 @@ function CustomerDetail({ id, onChanged }: { id: string; onChanged: () => void }
       <div className="grid gap-5 border-t border-line pt-5">
         <MembershipPanel customerId={d.id} onChanged={() => { void c.reload(); onChanged(); }} />
         <WalletPanel key={d.timeBalanceMinutes} customerId={d.id} onChanged={() => { void c.reload(); onChanged(); }} />
+        <LoyaltyPanel customerId={d.id} onChanged={() => { void c.reload(); onChanged(); }} />
       </div>
       <div>
         <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-3">Recent sessions</h3>

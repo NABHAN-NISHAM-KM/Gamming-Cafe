@@ -38,6 +38,9 @@ model PricingPlan {
   rate             Decimal          @db.Decimal(19, 4) // per unit (minute/hour) or flat for pass
   currency         String           @db.Char(3)
   minMinutes       Int              @default(0)
+  /// Consoles: players included in the rate; each extra player adds extraPlayerRate (same unit as rate).
+  includedPlayers  Int              @default(1)
+  extraPlayerRate  Decimal?         @db.Decimal(19, 4)
   roundingMinutes  Int              @default(1) // bill in N-minute increments
   graceMinutes     Int              @default(0)
   // Time windows: [{days:["mon",..], from:"00:00", to:"06:00"}] in branch tz
@@ -121,6 +124,8 @@ model GamingSession {
   paymentTiming        PaymentTiming
   rateSnapshot         Json // frozen pricing inputs for auditability
   allocatedMinutes     Int? // null for open-ended postpaid
+  /// Console seats: how many play (drives the extra-player charge).
+  players              Int                   @default(1)
   startedAt            DateTime?             @db.Timestamptz(3)
   expiresAt            DateTime?             @db.Timestamptz(3)
   pausedAt             DateTime?             @db.Timestamptz(3)
@@ -238,6 +243,14 @@ model PrintJob {
   total          Decimal        @db.Decimal(19, 4)
   status         PrintJobStatus @default(QUEUED)
   orderItemId    String?        @db.Uuid
+  /// The station's own id for the spooled job (spooler job id + submit time); unique per station.
+  jobKey         String
+  printerName    String?
+  /// BILL | WALLET, chosen by the customer on the Shell.
+  payWith        String?
+  /// A job nobody confirms (or releases) by then is cancelled.
+  expiresAt      DateTime?      @db.Timestamptz(3)
+  failureReason  String?
   createdAt      DateTime       @default(now()) @db.Timestamptz(3)
   updatedAt      DateTime       @updatedAt @db.Timestamptz(3)
   branch         Branch         @relation(fields: [branchId, organizationId], references: [id, organizationId])
@@ -246,5 +259,7 @@ model PrintJob {
   customer       Customer?      @relation(fields: [customerId, organizationId], references: [id, organizationId], onDelete: Restrict)
   session        GamingSession? @relation(fields: [sessionId, organizationId], references: [id, organizationId], onDelete: Restrict)
 
+  @@unique([deviceId, jobKey])
   @@index([organizationId, branchId, createdAt])
+  @@index([status, expiresAt])
 }

@@ -9,10 +9,10 @@
 | 5 | Games, launchers, update orchestration, peripheral center, connectivity, repair tools, diskless adapters | ✅ **Done** |
 | 6 | Customers, wallet, membership, bookings, customer PWA (first cut) | ✅ **Done** |
 | 7 | POS, restaurant, KDS, tables, in-seat ordering, payments, shifts | ✅ **Done** |
-| 8 | Inventory, purchasing, suppliers | Next |
-| 9 | Console / VR / simulator management, internet-café printing | |
-| 10 | Tournaments, loyalty, promotions engine, CRM | |
-| 11 | Reports, accounting, analytics | |
+| 8 | Inventory, purchasing, suppliers | ✅ **Done** |
+| 9 | Console / VR / simulator management, internet-café printing | ✅ **Done** |
+| 10 | Tournaments, loyalty, promotions engine, CRM | ✅ **Done** |
+| 11 | Reports, accounting, analytics | Next |
 | 12 | Super Admin, subscriptions, SaaS billing, organization management | |
 | 13 | Offline branch edge + sync, hardening, monitoring, backups, DR, load and chaos tests | |
 
@@ -97,6 +97,76 @@ Details are in [09-sessions-and-shell](09-sessions-and-shell.md).
 - **Admin:** Start/extend/move/end on the Live Floor with live quotes and countdowns; Sessions, Customers and Rates pages.
 - **Migration:** `0009_session_timers`.
 - **Tests:** JavaScript suites all pass (including 19 session e2e + 17 pricing), and 34 .NET tests.
+
+## Phase 10 summary
+
+Details are in [15-loyalty-promotions-tournaments-crm](15-loyalty-promotions-tournaments-crm.md).
+
+- **Loyalty:**
+  - Append-only points ledger; points for gaming and food spend, minutes played, bookings kept, tournaments, referrals and birthdays.
+  - Tier multipliers; FIFO expiry; refunds reverse the points they earned.
+  - A rewards catalog: free minutes, wallet credit, or personal one-use discount and product codes.
+- **Promotions engine:**
+  - Pure and deterministic: conditions, effects, the best non-stackable promotion plus stackables, capped.
+  - Happy hours, weekend bonus minutes, birthday and first-visit offers, shared and personal codes.
+  - Uses, budgets and per-customer limits are enforced by conditional UPDATEs under a per-customer lock.
+  - Applied to POS orders and prepaid session sales.
+- **Tournaments:**
+  - Single and double elimination, round robin, league and Swiss; seeding with byes.
+  - Entry fees through the POS (the wallet in the app); refunds on withdraw or cancel.
+  - Score reporting; automatic advancement and Swiss pairing; placements, wallet prizes and points.
+- **CRM:**
+  - Built-in and custom segments, plus static lists.
+  - Consent-only campaigns (in-app inbox, Shell message at the next session, or the outbox for SMS, email and WhatsApp) with personal codes.
+  - Idempotent sends; conversion tracking.
+- **Customer app:** Rewards tab, tournaments (bracket, standings, entry), inbox, invite code at sign-up.
+- **Admin:** Tournaments and Marketing pages; loyalty panel on customers; promo codes on the POS and Live Floor.
+- **Migration:** `0014_loyalty_promotions_tournaments`.
+- **Tests:** 414 JavaScript (18 engagement e2e + 15 brackets + 10 promotions + 3 segments) and 74 .NET.
+
+## Phase 9 summary
+
+Details are in [14-consoles-vr-printing](14-consoles-vr-printing.md).
+
+- **Agentless stations** (consoles, VR, sim rigs): sold like PCs with the server's timer as the only clock.
+  - Per-player console pricing; minimum age with a guest age check.
+  - VR cleaning between players; gear checks with floor alerts.
+- **TV station displays:**
+  - Paired once with a one-time code; show first names, countdowns, warnings and "time's up".
+  - Token hashed and revocable.
+- **Smart-plug power:** through one branch bridge PC via signed POWER commands, delayed off after time's up, LAN-only (checked on the server and on the agent).
+- **Internet-café printing:**
+  - The agent holds every spooler job until the customer approves the price on the Shell (bill or wallet), or staff release it.
+  - Signed release/cancel; retry-safe; timeouts; failure alerts.
+- **Admin:** Consoles & VR and Printing pages; players and age on the Live Floor; player pricing on rates.
+- **Migration:** `0013_stations_printing`.
+- **Tests:** 368 JavaScript (15 stations/printing e2e + 6 pricing) and 74 .NET.
+
+## Phase 8 summary
+
+Details are in [13-inventory-purchasing](13-inventory-purchasing.md).
+
+- **Stock ledger:**
+  - Append-only movements, with levels updated under optimistic locking.
+  - Moving-average cost; batches and expiry used earliest-expiry first; serial numbers for gear.
+  - Idempotent everywhere.
+- **Sales use stock:** POS, table and in-seat orders take out stock items, recipe ingredients (with planned waste) and option ingredients from the right store.
+  - A void before cooking puts them back.
+  - Ready items show sold out at zero.
+- **Operations:**
+  - Waste, corrections and issuing gear to a PC (sensitive, with a reason).
+  - All-or-nothing transfers between stores.
+  - Stock counts with variance value.
+  - Overview: value, low stock and expiring batches.
+- **Purchasing:**
+  - Suppliers, and POs with an approval limit (never approved by their creator).
+  - Partial receipts; over-receipt refused at the API and in the database.
+  - Reorder suggestions net of what's on order → one draft PO per supplier.
+  - Supplier invoices matched to what was received, paid in parts.
+- **Menu costing:** recipe editor and food-cost % per item (price without VAT).
+- **Admin:** Inventory and Purchasing pages; recipes and food cost in Restaurant → Menu.
+- **Migration:** `0012_inventory_purchasing` (database guards).
+- **Tests:** 347 JavaScript (21 inventory e2e + 8 costing unit) and 51 .NET.
 
 ## Phase 7 summary
 

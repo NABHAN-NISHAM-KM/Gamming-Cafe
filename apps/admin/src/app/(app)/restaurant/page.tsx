@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Ban, CheckCircle2, Pencil, Plus, Send, UtensilsCrossed } from "lucide-react";
+import { Ban, CheckCircle2, ChefHat, Pencil, Plus, Send, Trash2, UtensilsCrossed } from "lucide-react";
 import { api } from "@/lib/client/api";
 import { useBranch } from "@/lib/client/branch";
 import { useAction, useApi } from "@/lib/client/hooks";
@@ -189,6 +189,8 @@ function MenuAdmin({ branchId }: { branchId: string }) {
   const [editing, setEditing] = useState<ManagedProduct | "new" | null>(null);
   const [addingCat, setAddingCat] = useState(false);
   const [addingGroup, setAddingGroup] = useState(false);
+  const [recipeFor, setRecipeFor] = useState<ManagedProduct | null>(null);
+  const [costView, setCostView] = useState(false);
   const toggle = useAction(async (p: ManagedProduct, isAvailable: boolean) => {
     await api(`/products/${p.id}/branches/${branchId}`, { method: "PUT", body: { isAvailable } });
     await m.reload();
@@ -205,6 +207,7 @@ function MenuAdmin({ branchId }: { branchId: string }) {
           <button key={c.id} onClick={() => setCat(c.id)} className={cx("rounded-full border px-3 py-1 text-sm", cat === c.id ? "border-accent bg-accent-soft text-accent" : "border-line text-ink-2")}>{c.name}</button>
         ))}
         <div className="ml-auto flex gap-2">
+          <Button size="sm" variant={costView ? "primary" : "ghost"} onClick={() => setCostView(!costView)}><ChefHat className="size-4" /> Food cost</Button>
           <Button size="sm" variant="ghost" onClick={() => setAddingCat(true)}><Plus className="size-4" /> Category</Button>
           <Button size="sm" variant="ghost" onClick={() => setAddingGroup(true)}><Plus className="size-4" /> Options group</Button>
           <Button size="sm" variant="primary" onClick={() => setEditing("new")}><Plus className="size-4" /> Product</Button>
@@ -228,7 +231,10 @@ function MenuAdmin({ branchId }: { branchId: string }) {
                     {available ? <Badge tone="ok">in stock</Badge> : <Badge tone="danger"><Ban className="size-3" /> sold out</Badge>}
                   </button>
                 </td>
-                <td className="px-4 py-2 text-right"><Button size="sm" variant="ghost" onClick={() => setEditing(p)} aria-label={`Edit ${p.name}`}><Pencil className="size-3.5" /></Button></td>
+                <td className="whitespace-nowrap px-4 py-2 text-right">
+                  {["RECIPE_ITEM", "STOCK_ITEM", "COMBO"].includes(p.type) && <Button size="sm" variant="ghost" onClick={() => setRecipeFor(p)} aria-label={`Recipe for ${p.name}`} title={p.type === "STOCK_ITEM" ? "Stock item" : "Recipe"}><ChefHat className="size-3.5" /></Button>}
+                  <Button size="sm" variant="ghost" onClick={() => setEditing(p)} aria-label={`Edit ${p.name}`}><Pencil className="size-3.5" /></Button>
+                </td>
               </tr>
             );
           })}
@@ -238,6 +244,12 @@ function MenuAdmin({ branchId }: { branchId: string }) {
 
       <Modal open={!!editing} onClose={() => setEditing(null)} title={editing === "new" ? "New product" : editing ? `Edit ${editing.name}` : ""} wide>
         {editing && <ProductForm m={m.data} branchId={branchId} p={editing === "new" ? null : editing} defaultCategory={cat === "all" ? m.data.categories[0]?.id : cat} onDone={() => { setEditing(null); void m.reload(); }} />}
+      </Modal>
+      <Modal open={!!recipeFor} onClose={() => setRecipeFor(null)} title={recipeFor ? `${recipeFor.type === "STOCK_ITEM" ? "Stock item" : "Recipe"} · ${recipeFor.name}` : ""} wide>
+        {recipeFor && <RecipeEditor productId={recipeFor.id} stockItem={recipeFor.type === "STOCK_ITEM"} onDone={() => setRecipeFor(null)} />}
+      </Modal>
+      <Modal open={costView} onClose={() => setCostView(false)} title="Food cost" wide>
+        {costView && <FoodCost branchId={branchId} />}
       </Modal>
       <Modal open={addingCat} onClose={() => setAddingCat(false)} title="New category">
         {addingCat && <CategoryForm onDone={() => { setAddingCat(false); void m.reload(); }} />}
@@ -360,5 +372,102 @@ function GroupForm({ onDone }: { onDone: () => void }) {
       <ErrorNote>{save.error}</ErrorNote>
       <div className="flex justify-end"><Button type="submit" variant="primary" pending={save.pending} disabled={!filled.length || Number(f.minSelect) > filled.length}>Add group</Button></div>
     </form>
+  );
+}
+
+// ── recipes & food cost (Phase 8) ───────────────────────────────────────────
+
+interface RecipeView {
+  productId: string;
+  name: string;
+  type: string;
+  price: string;
+  stockItem: { id: string; name: string; baseUnit: string } | null;
+  lines: Array<{ inventoryItemId: string; name: string; baseUnit: string; quantity: string; wastePct: string; cost: string }>;
+  cost: string;
+}
+type StockItemLite = { id: string; name: string; sku: string; baseUnit: string; averageCost: string; isActive: boolean };
+
+/** What one unit of a menu item takes out of stock — drives stock use and food cost. */
+function RecipeEditor({ productId, stockItem, onDone }: { productId: string; stockItem: boolean; onDone: () => void }) {
+  const recipe = useApi<RecipeView>(`/products/${productId}/recipe`);
+  const items = useApi<StockItemLite[]>("/inventory/items");
+  const [lines, setLines] = useState<Array<{ inventoryItemId: string; quantity: string; wastePct: string }> | null>(null);
+  const [link, setLink] = useState<string | null>(null);
+  const cur = lines ?? recipe.data?.lines.map((l) => ({ inventoryItemId: l.inventoryItemId, quantity: String(Number(l.quantity)), wastePct: String(Number(l.wastePct)) })) ?? [];
+  const linked = link ?? recipe.data?.stockItem?.id ?? "";
+  const byId = new Map((items.data ?? []).map((i) => [i.id, i]));
+  const cost = stockItem ? Number(byId.get(linked)?.averageCost ?? 0) : cur.reduce((a, l) => a + (Number(l.quantity) || 0) * (1 + (Number(l.wastePct) || 0) / 100) * Number(byId.get(l.inventoryItemId)?.averageCost ?? 0), 0);
+  const save = useAction(async () => {
+    await api(`/products/${productId}/recipe`, { method: "PUT", body: stockItem ? { inventoryItemId: linked || null, lines: [] } : { lines: cur.filter((l) => Number(l.quantity) > 0).map((l) => ({ ...l, wastePct: l.wastePct || "0" })) } });
+    onDone();
+  });
+  if (!recipe.data || !items.data) return recipe.error ?? items.error ? <ErrorNote>{(recipe.error ?? items.error)!.message}</ErrorNote> : <Spinner />;
+  const set = (i: number, patch: Partial<(typeof cur)[number]>) => setLines(cur.map((l, j) => (j === i ? { ...l, ...patch } : l)));
+  const price = Number(recipe.data.price);
+  return (
+    <div className="grid gap-4 text-sm">
+      {stockItem ? (
+        <Field label="Sold straight from stock item" hint="Each one sold takes one unit out of the bar/branch store, and shows sold out when it runs out">
+          <Select value={linked} onChange={(e) => setLink(e.target.value)}>
+            <option value="">Not tracked</option>
+            {items.data.filter((i) => i.isActive).map((i) => <option key={i.id} value={i.id}>{i.name} ({i.sku})</option>)}
+          </Select>
+        </Field>
+      ) : (
+        <>
+          <p className="text-ink-3">Ingredients for one portion, in each item's own unit. Waste % covers trimming and spillage.</p>
+          <div className="rounded-lg border border-line">
+            <div className="grid grid-cols-[1fr_100px_80px_80px_32px] gap-2 border-b border-line px-3 py-1.5 text-xs text-ink-3"><span>Ingredient</span><span>Quantity</span><span>Waste %</span><span className="text-right">Cost</span><span /></div>
+            {cur.map((l, i) => {
+              const it = byId.get(l.inventoryItemId);
+              return (
+                <div key={l.inventoryItemId} className="grid grid-cols-[1fr_100px_80px_80px_32px] items-center gap-2 border-b border-line/60 px-3 py-1.5">
+                  <span>{it?.name ?? "?"} <span className="text-ink-3">({it?.baseUnit})</span></span>
+                  <Input inputMode="decimal" value={l.quantity} onChange={(e) => set(i, { quantity: e.target.value })} aria-label="Quantity" />
+                  <Input inputMode="decimal" value={l.wastePct} onChange={(e) => set(i, { wastePct: e.target.value })} aria-label="Waste %" />
+                  <span className="text-right tabular-nums">{((Number(l.quantity) || 0) * (1 + (Number(l.wastePct) || 0) / 100) * Number(it?.averageCost ?? 0)).toFixed(2)}</span>
+                  <button type="button" onClick={() => setLines(cur.filter((_, j) => j !== i))} className="text-ink-3 hover:text-danger" aria-label="Remove ingredient"><Trash2 className="size-4" /></button>
+                </div>
+              );
+            })}
+            <div className="px-3 py-2">
+              <Select value="" onChange={(e) => e.target.value && setLines([...cur, { inventoryItemId: e.target.value, quantity: "1", wastePct: "0" }])} aria-label="Add ingredient">
+                <option value="">+ Add an ingredient…</option>
+                {items.data.filter((i) => i.isActive && !cur.some((l) => l.inventoryItemId === i.id)).map((i) => <option key={i.id} value={i.id}>{i.name} ({i.baseUnit})</option>)}
+              </Select>
+            </div>
+          </div>
+        </>
+      )}
+      <p className="text-right">Cost per portion <strong className="tabular-nums">{cost.toFixed(2)}</strong> of price {price.toFixed(2)}{price > 0 && cost > 0 && <span className="text-ink-3"> · {((cost / price) * 100).toFixed(1)}% (incl. VAT)</span>}</p>
+      <ErrorNote>{save.error}</ErrorNote>
+      <div className="flex justify-end"><Button variant="primary" pending={save.pending} onClick={() => void save.run()}>Save</Button></div>
+    </div>
+  );
+}
+
+interface CostRow { productId: string; name: string; category: string; type: string; price: string; netPrice: string; cost: string; costed: boolean; foodCostPct: string | null; margin: string | null }
+
+function FoodCost({ branchId }: { branchId: string }) {
+  const rows = useApi<CostRow[]>(`/menu/costing?branchId=${branchId}`);
+  if (!rows.data) return rows.error ? <ErrorNote>{rows.error.message}</ErrorNote> : <Spinner />;
+  const tone = (pct: number) => (pct > 40 ? "text-danger" : pct > 30 ? "text-reserved" : "text-ok");
+  return (
+    <div className="grid gap-3 text-sm">
+      <p className="text-ink-3">Ingredient cost at today's average cost, against the price without VAT. A common target is 25–35 %.</p>
+      <Table head={["Item", "Category", "Price (net)", "Cost", "Food cost", "Margin"]}>
+        {rows.data.map((r) => (
+          <tr key={r.productId} className="border-t border-line">
+            <td className="px-4 py-2">{r.name}</td>
+            <td className="px-4 py-2 text-ink-2">{r.category}</td>
+            <td className="px-4 py-2 tabular-nums">{r.netPrice}</td>
+            <td className="px-4 py-2 tabular-nums">{r.costed ? r.cost : "—"}</td>
+            <td className={cx("px-4 py-2 font-medium tabular-nums", r.foodCostPct && tone(Number(r.foodCostPct)))}>{r.foodCostPct ? `${r.foodCostPct}%` : <span className="font-normal text-ink-3">no recipe</span>}</td>
+            <td className="px-4 py-2 tabular-nums">{r.margin ?? "—"}</td>
+          </tr>
+        ))}
+      </Table>
+    </div>
   );
 }

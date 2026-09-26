@@ -72,6 +72,7 @@ function Sell({ branchId, shiftOpen }: { branchId: string; shiftOpen: boolean })
   const [customer, setCustomer] = useState<PickedCustomer | null>(null);
   const [discount, setDiscount] = useState({ kind: "PERCENT" as "PERCENT" | "AMOUNT", value: "" });
   const [notes, setNotes] = useState("");
+  const [promoCode, setPromoCode] = useState("");
   const [paying, setPaying] = useState(false);
   const [key, setKey] = useState(idem);
   const [done, setDone] = useState<{ number: string; total: string; change: string | null; onBill: boolean } | null>(null);
@@ -97,7 +98,7 @@ function Sell({ branchId, shiftOpen }: { branchId: string; shiftOpen: boolean })
           type, lines: toOrderLines(lines), customerId: customer?.id ?? null,
           deviceId: type === "GAMING_SEAT" ? target : null, tableId: type === "DINE_IN" ? target : null,
           discount: disc > 0 && can("pos.discount", branchId) ? (discount.kind === "PERCENT" ? { kind: "PERCENT", value: disc } : { kind: "AMOUNT", value: disc.toFixed(2) }) : null,
-          notes: notes.trim() || null, ...(payments ? { payments } : {}), idempotencyKey: key,
+          notes: notes.trim() || null, promoCode: promoCode.trim() || null, ...(payments ? { payments } : {}), idempotencyKey: key,
         },
       });
       // Change comes from the server's record of the payment, not from our estimate.
@@ -112,6 +113,7 @@ function Sell({ branchId, shiftOpen }: { branchId: string; shiftOpen: boolean })
       setCustomer(null);
       setDiscount({ kind: "PERCENT", value: "" });
       setNotes("");
+      setPromoCode("");
       setPaying(false);
       setKey(idem());
       void menu.reload();
@@ -162,8 +164,9 @@ function Sell({ branchId, shiftOpen }: { branchId: string; shiftOpen: boolean })
               </div>
             )}
             <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Order note (optional)" maxLength={300} />
+            <Input value={promoCode} onChange={(e) => setPromoCode(e.target.value.toUpperCase())} placeholder="Promo code (optional)" maxLength={40} aria-label="Promo code" />
             <p className="flex items-baseline justify-between border-t border-line pt-3">
-              <span className="text-sm text-ink-3">Total <span className="text-xs">(incl. VAT)</span></span>
+              <span className="text-sm text-ink-3">Total <span className="text-xs">(incl. VAT{promoCode ? ", before promotions" : ""})</span></span>
               <span className="text-xl font-semibold tabular-nums">{money(estimate, menu.data.currency)}</span>
             </p>
           </>

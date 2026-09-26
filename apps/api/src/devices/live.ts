@@ -17,7 +17,8 @@ export type FloorEvent =
   | { type: "network"; deviceId: string; network: NetworkProbe & { at: string } }
   | { type: "game_update"; job: Record<string, unknown> }
   | { type: "booking"; booking: { id: string; status: string; deviceIds?: string[] } }
-  | { type: "kitchen"; ticket: { id: string; stationId: string; status: string; orderId: string } };
+  | { type: "kitchen"; ticket: { id: string; stationId: string; status: string; orderId: string } }
+  | { type: "print"; jobId: string };
 
 @Injectable()
 export class LiveBus {

@@ -43,7 +43,7 @@ const DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 function NewPlan({ onDone }: { onDone: () => void }) {
   const me = useMe();
   const branches = useApi<Branch[]>("/branches");
-  const [f, setF] = useState({ name: "", stationClass: "PC", billingMode: "PER_HOUR", paymentTiming: "PREPAID", rate: "", branchId: "", priority: 0, passStart: "00:00", passEnd: "06:00", happy: false, days: ["mon", "tue", "wed", "thu"], from: "14:00", to: "18:00" });
+  const [f, setF] = useState({ name: "", stationClass: "PC", billingMode: "PER_HOUR", paymentTiming: "PREPAID", rate: "", branchId: "", priority: 0, passStart: "00:00", passEnd: "06:00", happy: false, days: ["mon", "tue", "wed", "thu"], from: "14:00", to: "18:00", includedPlayers: "2", extraPlayerRate: "" });
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF((x) => ({ ...x, [k]: e.target.value }));
   const isPass = f.billingMode === "NIGHT_PASS" || f.billingMode === "DAY_PASS";
   const save = useAction(async () => {
@@ -56,6 +56,7 @@ function NewPlan({ onDone }: { onDone: () => void }) {
         ...(isPass ? { passStartTime: f.passStart, passEndTime: f.passEnd } : {}),
         schedule: f.happy ? [{ days: f.days, from: f.from, to: f.to }] : [],
         ...(f.paymentTiming === "POSTPAID" ? { roundingMinutes: 15, graceMinutes: 3 } : {}),
+        ...(f.stationClass === "CONSOLE" && f.extraPlayerRate ? { includedPlayers: Number(f.includedPlayers) || 1, extraPlayerRate: f.extraPlayerRate } : {}),
       },
     });
     onDone();
@@ -88,6 +89,16 @@ function NewPlan({ onDone }: { onDone: () => void }) {
             <option value="POSTPAID">At the end (open session)</option>
           </Select>
         </Field>
+      )}
+      {f.stationClass === "CONSOLE" && !isPass && (
+        <>
+          <Field label="Players included" hint="Controllers the price covers">
+            <Input type="number" min={1} max={16} value={f.includedPlayers} onChange={set("includedPlayers")} />
+          </Field>
+          <Field label={`Each extra player (${me.organization.defaultCurrency})`} hint={`${f.billingMode === "PER_MINUTE" ? "Per minute" : "Per hour"} · blank = no charge`}>
+            <Input inputMode="decimal" value={f.extraPlayerRate} onChange={set("extraPlayerRate")} placeholder="5" />
+          </Field>
+        </>
       )}
       <Field label="Applies to">
         <Select value={f.branchId} onChange={set("branchId")}>

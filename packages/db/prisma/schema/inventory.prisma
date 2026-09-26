@@ -149,6 +149,7 @@ model StockMovement {
   @@unique([organizationId, idempotencyKey])
   @@index([organizationId, itemId, createdAt])
   @@index([organizationId, warehouseId, createdAt])
+  @@index([organizationId, referenceType, referenceId], map: "stock_movement_reference")
 }
 
 model Supplier {

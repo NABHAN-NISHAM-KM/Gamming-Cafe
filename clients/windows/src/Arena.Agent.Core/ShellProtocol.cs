@@ -24,6 +24,8 @@ public abstract record ShellRequest
     public sealed record Repair(string RequestId, string Action) : ShellRequest;
     public sealed record MenuRequest(string RequestId) : ShellRequest;
     public sealed record PlaceOrder(string RequestId, OrderLine[] Lines, string? Notes, string PayWith) : ShellRequest;
+    public sealed record PrintConfirm(string JobKey, string PayWith) : ShellRequest;
+    public sealed record PrintCancel(string JobKey) : ShellRequest;
 }
 
 public sealed record OrderLine(string ProductId, int Quantity, string[] ModifierIds);
@@ -38,6 +40,9 @@ public static partial class ShellProtocol
 
     [GeneratedRegex("^[0-9a-fA-F-]{36}$")]
     private static partial Regex UuidPattern();
+
+    [GeneratedRegex("^[A-Za-z0-9_:.-]{3,80}$")]
+    private static partial Regex JobKeyPattern();
 
     private static readonly string[] HelpTopics = ["general", "game", "peripheral", "network", "payment"];
 
@@ -110,6 +115,18 @@ public static partial class ShellProtocol
                         lines.Add(new OrderLine(pid, qty, mods.ToArray()));
                     }
                     return new ShellRequest.PlaceOrder(rid, lines.ToArray(), string.IsNullOrWhiteSpace(notes) ? null : notes.Trim(), payWith);
+                }
+                case "print_confirm":
+                {
+                    var key = Str(root, "jobKey");
+                    var payWith = Str(root, "payWith");
+                    if (key is null || !JobKeyPattern().IsMatch(key) || payWith is not ("BILL" or "WALLET")) return null;
+                    return new ShellRequest.PrintConfirm(key, payWith);
+                }
+                case "print_cancel":
+                {
+                    var key = Str(root, "jobKey");
+                    return key is not null && JobKeyPattern().IsMatch(key) ? new ShellRequest.PrintCancel(key) : null;
                 }
                 case "login":
                     var requestId = Str(root, "requestId");

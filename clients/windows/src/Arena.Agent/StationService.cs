@@ -217,6 +217,13 @@ public sealed class StationService(
                 if (!await server.TrySendAsync(Outgoing.PlaceOrder(o.RequestId, o.Lines, o.Notes, o.PayWith)))
                     shell.Broadcast(ShellProtocol.Result("order_result", o.RequestId, false, "offline", "The venue is offline — please order at the counter."));
                 return;
+            case ShellRequest.PrintConfirm pc:
+                if (!await server.TrySendAsync(Outgoing.PrintConfirm(pc.JobKey, pc.PayWith)))
+                    shell.Broadcast(JsonSerializer.Serialize(new { type = "print_status", jobKey = pc.JobKey, status = "CANCELLED", message = "The venue is offline — your print is on hold. Please ask staff." }, Json.Options));
+                return;
+            case ShellRequest.PrintCancel px:
+                await server.TrySendAsync(Outgoing.PrintCancel(px.JobKey));
+                return;
             case ShellRequest.Repair r:
             {
                 var result = await repairs.RunAsync(r.Action, _safeMode, CloseGames, ReloadShell, CancellationToken.None);

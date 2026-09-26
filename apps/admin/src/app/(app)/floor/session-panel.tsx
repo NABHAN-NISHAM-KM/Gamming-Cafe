@@ -33,13 +33,16 @@ function StartForm({ device, onStarted }: { device: FloorDevice; onStarted: () =
   const [method, setMethod] = useState<Method>("CASH");
   const [key] = useState(idem);
   const [quote, setQuote] = useState<QuoteResponse | null>(null);
+  const [players, setPlayers] = useState(1);
+  const [promoCode, setPromoCode] = useState("");
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
   const search = useApi<Array<{ id: string; displayName: string; username: string; timeBalanceMinutes: number }>>(q.trim().length >= 2 ? `/customers?q=${encodeURIComponent(q.trim())}` : null);
 
   // Live quote from the server (the only source of prices).
   useEffect(() => {
     let alive = true;
     const t = setTimeout(async () => {
-      const r = await api<QuoteResponse>(`/devices/${device.id}/sessions/quote`, { method: "POST", body: { customerId: customer?.id ?? null, planId, request: method === "TIME_BALANCE" ? undefined : req } }).catch(() => null);
+      const r = await api<QuoteResponse>(`/devices/${device.id}/sessions/quote`, { method: "POST", body: { customerId: customer?.id ?? null, planId, request: method === "TIME_BALANCE" ? undefined : req, players, promoCode: promoCode.trim() || null } }).catch(() => null);
       if (alive && r) {
         setQuote(r);
         if (!planId && r.plans[0]) setPlanId(r.plans[0].id);
@@ -49,7 +52,7 @@ function StartForm({ device, onStarted }: { device: FloorDevice; onStarted: () =
       alive = false;
       clearTimeout(t);
     };
-  }, [device.id, customer?.id, planId, req, method]);
+  }, [device.id, customer?.id, planId, req, method, players, promoCode]);
 
   const plan = quote?.plans.find((p) => p.id === planId) ?? quote?.plans[0];
   const unit = quote?.minorUnit ?? 2;
@@ -74,14 +77,23 @@ function StartForm({ device, onStarted }: { device: FloorDevice; onStarted: () =
     await api(`/devices/${device.id}/sessions`, {
       method: "POST",
       action: "Start session",
-      body: { customerId: customer?.id ?? null, planId: plan?.id ?? null, request: method === "TIME_BALANCE" ? { kind: "minutes", minutes: req.kind === "minutes" ? req.minutes : 1440 } : req, payment: { method }, idempotencyKey: key },
+      body: {
+        customerId: customer?.id ?? null, planId: plan?.id ?? null, request: method === "TIME_BALANCE" ? { kind: "minutes", minutes: req.kind === "minutes" ? req.minutes : 1440 } : req, payment: { method }, idempotencyKey: key,
+        players, ...(needsAgeCheck ? { ageConfirmed } : {}), promoCode: promoCode.trim() || null,
+      },
     });
     onStarted();
   });
 
   const total = method === "TIME_BALANCE" ? 0 : (quote?.quote?.totalMinor ?? 0);
   const minutes = method === "TIME_BALANCE" ? Math.min(balance, req.kind === "minutes" ? req.minutes : balance) : quote?.quote?.minutes;
-  const canStart = device.isOnline && (method === "TIME_BALANCE" ? balance > 0 : !!quote?.quote);
+  // Consoles: how many play (extra controllers may cost more). Stations with a minimum age: check it.
+  const maxPlayers = Math.max(1, quote?.station?.controllerCount ?? 1);
+  const minAge = quote?.station?.minAge ?? null;
+  const customerAge = quote?.customer?.age ?? null;
+  const tooYoung = !!minAge && customerAge !== null && customerAge < minAge;
+  const needsAgeCheck = !!minAge && customerAge === null;
+  const canStart = device.isOnline && !tooYoung && (!needsAgeCheck || ageConfirmed) && (method === "TIME_BALANCE" ? balance > 0 : !!quote?.quote);
 
   return (
     <div className="grid gap-4">
@@ -146,6 +158,30 @@ function StartForm({ device, onStarted }: { device: FloorDevice; onStarted: () =
                 </Chip>
               ))}
           </div>
+        </Field>
+      )}
+
+      {maxPlayers > 1 && (
+        <Field label="Players" hint={plan?.extraPlayerRateMinor && (plan.includedPlayers ?? 1) < maxPlayers ? `${plan.includedPlayers ?? 1} included · each extra ${money(plan.extraPlayerRateMinor, unit, cur)}/${plan.billingMode === "PER_MINUTE" ? "min" : "h"}` : undefined}>
+          <div className="flex flex-wrap gap-1.5">
+            {Array.from({ length: maxPlayers }, (_, i) => i + 1).map((n) => (
+              <Chip key={n} active={players === n} onClick={() => setPlayers(n)}>
+                {n}
+              </Chip>
+            ))}
+          </div>
+        </Field>
+      )}
+      {tooYoung && <p className="rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">{customer?.displayName} is {customerAge} — this station is {minAge}+.</p>}
+      {needsAgeCheck && (
+        <label className="flex items-center gap-2 rounded-lg border border-reserved/40 bg-reserved/10 px-3 py-2 text-sm text-reserved">
+          <input type="checkbox" checked={ageConfirmed} onChange={(e) => setAgeConfirmed(e.target.checked)} /> I&apos;ve checked the player is {minAge} or older
+        </label>
+      )}
+
+      {method !== "TIME_BALANCE" && plan?.paymentTiming !== "POSTPAID" && (
+        <Field label="Promo code (optional)">
+          <Input value={promoCode} onChange={(e) => setPromoCode(e.target.value.toUpperCase())} placeholder="Automatic offers apply by themselves" maxLength={40} />
         </Field>
       )}
 
@@ -292,6 +328,22 @@ export function SessionPanel({ device, allDevices, onChange }: { device: FloorDe
   const available = useMemo(() => allDevices.filter((d) => d.id !== device.id && d.isOnline && d.status === "AVAILABLE"), [allDevices, device.id]);
   if (device.session) return <RunningSession device={device} session={device.session} available={available} onChange={onChange} />;
   if (!can("station.start_session", device.branchId)) return <p className="text-sm text-ink-3">Available.</p>;
+  if (device.status === "CLEANING") return <MarkCleaned device={device} onDone={onChange} />;
   if (device.status !== "AVAILABLE" && device.status !== "RESERVED") return <p className="text-sm text-ink-3">This station is {device.status.toLowerCase().replace("_", " ")}.</p>;
   return <StartForm device={device} onStarted={onChange} />;
+}
+
+/** VR headsets and shared gear are wiped down between players before the next session. */
+function MarkCleaned({ device, onDone }: { device: FloorDevice; onDone: () => void }) {
+  const done = useAction(async () => {
+    await api(`/devices/${device.id}/cleaned`, { method: "POST" });
+    onDone();
+  });
+  return (
+    <div className="grid gap-3">
+      <p className="rounded-lg border border-reserved/40 bg-reserved/10 px-3 py-2 text-sm text-reserved">Needs cleaning before the next player — wipe the headset and controllers.</p>
+      <ErrorNote>{done.error}</ErrorNote>
+      <Button variant="primary" pending={done.pending} onClick={() => void done.run()}>Mark cleaned</Button>
+    </div>
+  );
 }

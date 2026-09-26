@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { CalendarClock, Check, ChevronRight, Clock, Crown, Gamepad2, Home, Loader2, LogOut, ShoppingBag, Sparkles, User, Users, Wallet, X } from "lucide-react";
+import { CalendarClock, Check, ChevronRight, Clock, Crown, Gamepad2, Gift, Home, Inbox, Loader2, LogOut, ShoppingBag, Sparkles, Trophy, User, Users, Wallet, X } from "lucide-react";
 import { api, ApiError, key, setToken, signedIn, venueSlug, whenSignedOut, type Booking, type LedgerRow, type Me, type Venue } from "./api";
 import { BookScreen } from "./book";
+import { InboxScreen, RewardsScreen, TournamentsScreen } from "./engage";
 
 const cx = (...c: Array<string | false | null | undefined>) => c.filter(Boolean).join(" ");
 const hours = (min: number) => (min >= 60 ? `${Math.floor(min / 60)} h${min % 60 ? ` ${min % 60} min` : ""}` : `${min} min`);
@@ -47,7 +48,7 @@ function Toast({ text, tone, onDone }: { text: string; tone: "good" | "bad"; onD
 
 function Auth({ venue, onIn }: { venue: Venue | undefined; onIn: () => void }) {
   const [mode, setMode] = useState<"in" | "up">("in");
-  const [f, setF] = useState({ username: "", password: "", displayName: "", phone: "", dateOfBirth: "", marketingConsent: false });
+  const [f, setF] = useState({ username: "", password: "", displayName: "", phone: "", dateOfBirth: "", marketingConsent: false, referralCode: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF((x) => ({ ...x, [k]: e.target.value }));
@@ -63,7 +64,7 @@ function Auth({ venue, onIn }: { venue: Venue | undefined; onIn: () => void }) {
           : await api<{ accessToken: string }>(`/${slug}/register`, {
               method: "POST",
               auth: false,
-              body: { username: f.username, password: f.password, displayName: f.displayName || f.username, phone: f.phone || null, dateOfBirth: f.dateOfBirth || null, marketingConsent: f.marketingConsent },
+              body: { username: f.username, password: f.password, displayName: f.displayName || f.username, phone: f.phone || null, dateOfBirth: f.dateOfBirth || null, marketingConsent: f.marketingConsent, referralCode: f.referralCode.trim() || null },
             });
       setToken(r.accessToken);
       onIn();
@@ -96,6 +97,7 @@ function Auth({ venue, onIn }: { venue: Venue | undefined; onIn: () => void }) {
         {mode === "up" && (
           <>
             <input className="field" type="tel" placeholder="Phone (optional)" value={f.phone} onChange={set("phone")} autoComplete="tel" />
+            <input className="field uppercase placeholder:normal-case" placeholder="Friend's invite code (optional)" value={f.referralCode} onChange={set("referralCode")} maxLength={16} />
             <label className="grid gap-1.5 text-sm text-dim">
               Date of birth (optional — for age-rated games)
               <input className="field" type="date" value={f.dateOfBirth} onChange={set("dateOfBirth")} max={new Date().toISOString().slice(0, 10)} />
@@ -120,7 +122,7 @@ function Auth({ venue, onIn }: { venue: Venue | undefined; onIn: () => void }) {
 
 // ── home ────────────────────────────────────────────────────────────────────
 
-function HomeScreen({ me, bookings, go }: { me: Me; bookings: Booking[]; go: (t: Tab) => void }) {
+function HomeScreen({ me, bookings, go, unread }: { me: Me; bookings: Booking[]; go: (t: Tab) => void; unread: number }) {
   const next = bookings.filter((b) => ["CONFIRMED", "CHECKED_IN"].includes(b.status) && new Date(b.endsAt) > new Date()).sort((a, b) => a.startsAt.localeCompare(b.startsAt))[0];
   const tier = me.membershipTier;
   return (
@@ -169,6 +171,11 @@ function HomeScreen({ me, bookings, go }: { me: Me; bookings: Booking[]; go: (t:
         <ChevronRight className="size-5 text-mute" />
       </button>
 
+      <div className="mt-4 grid grid-cols-3 gap-3">
+        <button onClick={() => go("events")} className="card flex flex-col items-center gap-1.5 p-4 text-sm"><Trophy className="size-6 text-warn" /> Tournaments</button>
+        <button onClick={() => go("inbox")} className="card relative flex flex-col items-center gap-1.5 p-4 text-sm"><Inbox className="size-6 text-glow" /> Inbox{unread > 0 && <span className="absolute right-3 top-3 grid size-5 place-items-center rounded-full bg-alarm text-[11px] font-bold text-white">{unread}</span>}</button>
+        <button onClick={() => go("wallet")} className="card flex flex-col items-center gap-1.5 p-4 text-sm"><Wallet className="size-6 text-glow-2" /> Wallet</button>
+      </div>
       <div className="mt-6 grid grid-cols-2 gap-3">
         <button onClick={() => go("book")} className="btn btn-primary py-5"><CalendarClock className="size-5" /> Book</button>
         <button onClick={() => go("shop")} className="btn btn-ghost py-5"><ShoppingBag className="size-5" /> Buy time</button>
@@ -367,12 +374,12 @@ function MeScreen({ me, venue, onOut }: { me: Me; venue: Venue; onOut: () => voi
 
 // ── root ────────────────────────────────────────────────────────────────────
 
-type Tab = "home" | "book" | "bookings" | "shop" | "wallet" | "me";
+type Tab = "home" | "book" | "bookings" | "shop" | "wallet" | "me" | "rewards" | "events" | "inbox";
 const NAV: Array<{ id: Tab; label: string; icon: typeof Home }> = [
   { id: "home", label: "Home", icon: Home },
   { id: "book", label: "Book", icon: CalendarClock },
   { id: "shop", label: "Shop", icon: ShoppingBag },
-  { id: "wallet", label: "Wallet", icon: Wallet },
+  { id: "rewards", label: "Rewards", icon: Gift },
   { id: "me", label: "Me", icon: User },
 ];
 
@@ -384,6 +391,12 @@ export function App() {
   const venue = useLoad(() => api<Venue>(`/${venueSlug()}/venue`, { auth: false }));
   const [me, setMe] = useState<Me | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [unread, setUnread] = useState(0);
+  const refreshUnread = useCallback(async () => {
+    if (!signedIn()) return;
+    const inbox = await api<Array<{ readAt: string | null }>>("/inbox").catch(() => []);
+    setUnread(inbox.filter((m) => !m.readAt).length);
+  }, []);
 
   useEffect(() => whenSignedOut(() => { setAuthed(false); setMe(null); }), []);
   const refresh = useCallback(async () => {
@@ -397,8 +410,11 @@ export function App() {
     }
   }, []);
   useEffect(() => {
-    if (authed) void refresh();
-  }, [authed, refresh]);
+    if (authed) {
+      void refresh();
+      void refreshUnread();
+    }
+  }, [authed, refresh, refreshUnread]);
   useEffect(() => {
     const onFocus = () => void refresh();
     addEventListener("focus", onFocus);
@@ -419,12 +435,15 @@ export function App() {
   return (
     <div className="min-h-dvh">
       {toast && <Toast text={toast.text} tone={toast.tone} onDone={() => setToastState(null)} />}
-      {tab === "home" && <HomeScreen me={me} bookings={bookings} go={setTab} />}
+      {tab === "home" && <HomeScreen me={me} bookings={bookings} go={setTab} unread={unread} />}
       {tab === "book" && <BookScreen venue={venue.data} me={me} toast={showToast} onBooked={() => { void refresh(); setTab("bookings"); }} />}
       {tab === "bookings" && <BookingsScreen bookings={bookings} reload={() => void refresh()} toast={showToast} />}
       {tab === "shop" && <ShopScreen venue={venue.data} me={me} toast={showToast} onBought={() => void refresh()} />}
       {tab === "wallet" && <WalletScreen me={me} />}
       {tab === "me" && <MeScreen me={me} venue={venue.data} onOut={() => void signOut()} />}
+      {tab === "rewards" && <RewardsScreen toast={showToast} onChanged={() => void refresh()} />}
+      {tab === "events" && <TournamentsScreen toast={showToast} onChanged={() => void refresh()} />}
+      {tab === "inbox" && <InboxScreen back={() => setTab("home")} onRead={() => void refreshUnread()} />}
       <nav className="safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-rim bg-deck/95 backdrop-blur" aria-label="Main">
         <div className="mx-auto flex max-w-lg justify-around pt-2">
           {NAV.map((n) => {

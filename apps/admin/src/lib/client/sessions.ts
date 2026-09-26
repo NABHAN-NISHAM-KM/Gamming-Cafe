@@ -29,7 +29,8 @@ export interface QuoteResponse {
   currency: string;
   minorUnit: number;
   stationClass: string;
-  customer: { id: string; displayName: string; timeBalanceMinutes: number; tierName: string | null } | null;
+  station?: { agentless: boolean; minAge: number | null; controllerCount: number | null; kind: string };
+  customer: { id: string; displayName: string; timeBalanceMinutes: number; tierName: string | null; age?: number | null } | null;
   plans: Array<{
     id: string;
     name: string;
@@ -38,6 +39,8 @@ export interface QuoteResponse {
     rateMinor: number;
     minMinutes: number;
     passEndTime: string | null;
+    includedPlayers?: number;
+    extraPlayerRateMinor?: number | null;
     packages: Array<{ id: string; name: string; durationMinutes: number; priceMinor: number; bonusMinutes: number }>;
   }>;
   quote: { totalMinor: number; grossMinor: number; membershipDiscountMinor: number; manualDiscountMinor: number; minutes: number | null; expiresAt: string | null; lines: string[]; planName: string } | null;

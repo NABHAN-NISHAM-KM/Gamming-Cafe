@@ -3,9 +3,11 @@
 // Runs as the migration/platform role (DATABASE_URL), which bypasses RLS.
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
-import { createPlatformClient, type PlatformClient } from "@arena/db";
+import { createPlatformClient, type PlatformClient, type TenantTx } from "@arena/db";
+import { moveStock } from "../src/inventory/stock.js";
 import { FEATURES, type FeatureKey } from "@arena/contracts";
 import { PERMISSIONS, ROLE_TEMPLATES, templatePermissions } from "@arena/rbac";
+import { randomBytes } from "node:crypto";
 import { hashSecret } from "../src/auth/crypto.js";
 
 const envFile = resolve(import.meta.dirname, "../../../.env");
@@ -196,6 +198,287 @@ async function seedRestaurant(db: PlatformClient, organizationId: string, branch
   }
 }
 
+/**
+ * Stores, suppliers, stock items, recipes and opening stock for DXB1 (AUH1
+ * doesn't track stock, so its menu is never limited). Opening stock arrives
+ * through real received purchase orders, so average costs are genuine; a few
+ * items are left low and one milk batch close to expiry, to show the alerts.
+ * Idempotent.
+ */
+async function seedInventory(db: PlatformClient, organizationId: string, branchIds: Record<string, string>) {
+  const dxb = branchIds["DXB1"];
+  if (!dxb || (await db.inventoryItem.findFirst({ where: { organizationId, sku: "INV-BUN" } }))) return;
+  const t = db as unknown as TenantTx;
+  const owner = await db.employee.findFirstOrThrow({ where: { organizationId, employeeCode: "E001" } });
+  const invMgr = (await db.employee.findFirst({ where: { organizationId, employeeCode: "E007" } })) ?? owner;
+
+  const wh = async (name: string, type: "CENTRAL" | "BRANCH_STORE" | "KITCHEN" | "BAR" | "TECH_STORE", branchId: string | null) =>
+    (await db.warehouse.findFirst({ where: { organizationId, branchId, name } })) ?? (await db.warehouse.create({ data: { organizationId, branchId, name, type } }));
+  const central = await wh("Central warehouse", "CENTRAL", null);
+  await wh("Main store", "BRANCH_STORE", dxb);
+  const kitchen = await wh("Kitchen store", "KITCHEN", dxb);
+  const bar = await wh("Bar store", "BAR", dxb);
+  const tech = await wh("Tech store", "TECH_STORE", dxb);
+
+  const sup = async (name: string, contactName: string, email: string, phone: string, terms: number) =>
+    (await db.supplier.findFirst({ where: { organizationId, name } })) ?? (await db.supplier.create({ data: { organizationId, name, contactName, email, phone, paymentTermsDays: terms, currency: "AED" } }));
+  const fresh = await sup("Gulf Fresh Foods", "Rania", "orders@gulffresh.example", "+971 4 555 0101", 30);
+  const bev = await sup("Emirates Beverages", "Sami", "sales@emiratesbev.example", "+971 4 555 0202", 15);
+  const gear = await sup("PixelGear Trading", "Omar", "b2b@pixelgear.example", "+971 4 555 0303", 45);
+
+  // sku, name, category, base unit, purchase unit, pack, min, reorder, cost per base unit, expiry, serial, supplier, store, opening qty
+  type Row = [string, string, string, string, string, number, number, number | null, number, boolean, boolean, string, string, number];
+  const K = kitchen.id, B = bar.id, T = tech.id;
+  const rows: Row[] = [
+    ["INV-BUN", "Burger bun", "INGREDIENT", "pcs", "bag", 12, 24, null, 0.8, true, false, fresh.id, K, 96],
+    ["INV-PATTY", "Beef patty 120 g", "INGREDIENT", "pcs", "box", 20, 20, null, 4.5, true, false, fresh.id, K, 120],
+    ["INV-CHKFIL", "Chicken fillet", "INGREDIENT", "pcs", "box", 20, 15, null, 3.8, true, false, fresh.id, K, 60],
+    ["INV-HALLOUMI", "Halloumi", "INGREDIENT", "g", "block", 1000, 1000, null, 0.045, true, false, fresh.id, K, 4000],
+    ["INV-CHEDDAR", "Cheddar slice", "INGREDIENT", "pcs", "pack", 50, 50, null, 0.35, false, false, fresh.id, K, 300],
+    ["INV-BACON", "Beef bacon", "INGREDIENT", "g", "pack", 500, 500, null, 0.06, true, false, fresh.id, K, 2000],
+    ["INV-JALAP", "Jalapeños", "INGREDIENT", "g", "jar", 500, 200, null, 0.03, false, false, fresh.id, K, 1500],
+    ["INV-MAYO", "Garlic mayo", "INGREDIENT", "ml", "jar", 1000, 500, null, 0.015, false, false, fresh.id, K, 3000],
+    ["INV-FRIES", "Frozen fries", "INGREDIENT", "g", "bag", 2500, 5000, null, 0.012, false, false, fresh.id, K, 25000],
+    ["INV-WINGS", "Chicken wings", "INGREDIENT", "pcs", "box", 40, 40, null, 1.1, true, false, fresh.id, K, 240],
+    ["INV-NACHO", "Tortilla chips", "INGREDIENT", "g", "bag", 1000, 1000, null, 0.02, false, false, fresh.id, K, 5000],
+    ["INV-DOUGH", "Pizza dough ball", "INGREDIENT", "pcs", "box", 24, 12, null, 2, true, false, fresh.id, K, 48],
+    ["INV-MOZZ", "Mozzarella", "INGREDIENT", "g", "block", 2000, 2000, null, 0.035, true, false, fresh.id, K, 8000],
+    ["INV-PEPP", "Pepperoni", "INGREDIENT", "g", "pack", 1000, 500, null, 0.07, true, false, fresh.id, K, 3000],
+    ["INV-TOMSAUCE", "Tomato sauce", "INGREDIENT", "ml", "tin", 3000, 1500, null, 0.008, false, false, fresh.id, K, 9000],
+    ["INV-COLA", "Cola can 330 ml", "DRINK", "pcs", "case", 24, 48, 48, 2.2, false, false, bev.id, B, 144],
+    ["INV-ENERGY", "Energy drink can", "DRINK", "pcs", "case", 24, 24, 48, 5.5, false, false, bev.id, B, 12],
+    ["INV-WATER", "Water 500 ml", "DRINK", "pcs", "case", 24, 48, null, 0.9, false, false, bev.id, B, 96],
+    ["INV-ICECREAM", "Vanilla ice cream", "INGREDIENT", "ml", "tub", 5000, 2000, null, 0.01, true, false, bev.id, B, 15000],
+    ["INV-OREO", "Cookie crumbs", "INGREDIENT", "g", "pack", 500, 300, null, 0.04, false, false, bev.id, B, 2000],
+    ["INV-MILK", "Fresh milk", "INGREDIENT", "ml", "carton", 1000, 4000, 8000, 0.006, true, false, bev.id, B, 3000],
+    ["INV-OATMILK", "Oat milk", "INGREDIENT", "ml", "carton", 1000, 2000, null, 0.012, true, false, bev.id, B, 6000],
+    ["INV-BEANS", "Coffee beans", "INGREDIENT", "g", "bag", 1000, 1000, null, 0.09, false, false, bev.id, B, 5000],
+    ["INV-CUP", "Takeaway cup", "PACKAGING", "pcs", "sleeve", 50, 100, null, 0.3, false, false, bev.id, B, 400],
+    ["INV-HEADSET", "Gaming headset (spare)", "HEADSET", "pcs", "box", 1, 4, 6, 180, false, true, gear.id, T, 3],
+    ["INV-MOUSE", "Gaming mouse (spare)", "GAMING_ACCESSORY", "pcs", "box", 1, 4, null, 95, false, true, gear.id, T, 6],
+  ];
+  const item: Record<string, string> = {};
+  for (const [sku, name, category, baseUnit, purchaseUnit, pack, min, reorder, , trackExpiry, trackSerial, supplierId] of rows) {
+    const i = await db.inventoryItem.create({ data: { organizationId, sku, name, category: category as any, baseUnit, purchaseUnit, purchaseUnitQty: pack, minStock: min, reorderQty: reorder, trackExpiry, trackSerial, defaultSupplierId: supplierId } });
+    item[sku] = i.id;
+  }
+
+  // Opening stock: one received PO per supplier and store.
+  const soon = new Date(Date.now() + 3 * 86_400_000); // one milk batch about to expire
+  const later = new Date(Date.now() + 21 * 86_400_000);
+  const groups = new Map<string, Row[]>();
+  for (const r of rows) groups.set(`${r[11]}|${r[12]}`, [...(groups.get(`${r[11]}|${r[12]}`) ?? []), r]);
+  let n = 0;
+  for (const [k, list] of groups) {
+    const [supplierId, warehouseId] = k.split("|") as [string, string];
+    const total = list.reduce((a, r) => a + r[13] * r[8], 0);
+    const po = await db.purchaseOrder.create({
+      data: {
+        organizationId, branchId: dxb, warehouseId, supplierId, number: `PO-OPEN-${String(++n).padStart(3, "0")}`, status: "RECEIVED", currency: "AED",
+        subtotal: total.toFixed(2), total: total.toFixed(2), orderedAt: new Date(), approvedAt: new Date(), createdById: invMgr.id, approvedById: owner.id, notes: "Opening stock",
+        purchaseOrderLines: { create: list.map((r) => ({ itemId: item[r[0]]!, quantityOrdered: r[13], quantityReceived: r[13], unitCost: r[8], lineTotal: (r[13] * r[8]).toFixed(2) })) },
+      },
+      include: { purchaseOrderLines: true },
+    });
+    for (const r of list) {
+      const line = po.purchaseOrderLines.find((l) => l.itemId === item[r[0]])!;
+      const serial = r[10];
+      const count = serial ? r[13] : 1;
+      for (let s = 0; s < count; s++) {
+        await moveStock(t, {
+          itemId: item[r[0]]!, warehouseId, type: "PURCHASE_RECEIPT", delta: serial ? 1 : r[13], unitCost: r[8],
+          lot: { lotCode: r[9] ? "OPEN-1" : null, serialNumber: serial ? `${r[0].slice(4)}-${1001 + s}` : null, expiresAt: r[9] ? (r[0] === "INV-MILK" ? soon : later) : null },
+          referenceType: "PO_LINE", referenceId: line.id, employeeId: invMgr.id, reason: "Opening stock", idempotencyKey: `seed:${organizationId}:open:${r[0]}:${s}`,
+        });
+      }
+    }
+  }
+  // Something in the central warehouse too (the source for restocking transfers).
+  await moveStock(t, { itemId: item["INV-COLA"]!, warehouseId: central.id, type: "PURCHASE_RECEIPT", delta: 240, unitCost: 2.1, referenceType: "SEED", employeeId: invMgr.id, reason: "Opening stock", idempotencyKey: `seed:${organizationId}:open:central-cola` });
+
+  // Recipes (per unit sold; the third number is planned waste %) and stock links.
+  const recipes: Record<string, Array<[string, number, number?]>> = {
+    "BRG-CLASSIC": [["INV-BUN", 1], ["INV-PATTY", 2], ["INV-CHEDDAR", 1]],
+    "BRG-CHICKEN": [["INV-BUN", 1], ["INV-CHKFIL", 1], ["INV-MAYO", 20]],
+    "BRG-VEG": [["INV-BUN", 1], ["INV-HALLOUMI", 120]],
+    "SNK-FRIES": [["INV-FRIES", 200, 5]],
+    "SNK-WINGS": [["INV-WINGS", 8]],
+    "SNK-NACHOS": [["INV-NACHO", 150], ["INV-CHEDDAR", 2], ["INV-JALAP", 20]],
+    "PZA-MARG": [["INV-DOUGH", 1], ["INV-MOZZ", 150], ["INV-TOMSAUCE", 80]],
+    "PZA-PEPP": [["INV-DOUGH", 1], ["INV-MOZZ", 150], ["INV-TOMSAUCE", 80], ["INV-PEPP", 60]],
+    "DRK-MILKSHAKE": [["INV-ICECREAM", 200], ["INV-MILK", 150], ["INV-OREO", 40], ["INV-CUP", 1]],
+    "COF-LATTE": [["INV-BEANS", 18], ["INV-CUP", 1]],
+    "COF-AMER": [["INV-BEANS", 18], ["INV-CUP", 1]],
+  };
+  for (const [sku, lines] of Object.entries(recipes)) {
+    const p = await db.product.findFirst({ where: { organizationId, sku } });
+    if (!p) continue;
+    for (const [isku, quantity, waste] of lines) await db.recipeLine.create({ data: { organizationId, productId: p.id, inventoryItemId: item[isku]!, quantity, wastePct: waste ?? 0 } });
+  }
+  for (const [sku, isku] of [["DRK-COLA", "INV-COLA"], ["DRK-ENERGY", "INV-ENERGY"], ["DRK-WATER", "INV-WATER"]] as const) {
+    await db.product.updateMany({ where: { organizationId, sku }, data: { inventoryItemId: item[isku]! } });
+  }
+  // What options take out of stock.
+  const modStock: Array<[string, string, number]> = [["Cheese", "INV-CHEDDAR", 1], ["Bacon", "INV-BACON", 40], ["Jalapeños", "INV-JALAP", 20], ["Extra patty", "INV-PATTY", 1], ["Garlic mayo", "INV-MAYO", 30], ["Regular milk", "INV-MILK", 200], ["Oat milk", "INV-OATMILK", 200]];
+  for (const [name, isku, qty] of modStock) await db.modifier.updateMany({ where: { organizationId, name }, data: { inventoryItemId: item[isku]!, inventoryQty: qty } });
+
+  // Work in progress: an order on its way and one waiting for approval.
+  const mk = async (number: string, status: "ORDERED" | "PENDING_APPROVAL", supplierId: string, warehouseId: string, lines: Array<[string, number, number]>) => {
+    const sub = lines.reduce((a, [, q, c]) => a + q * c, 0);
+    await db.purchaseOrder.create({
+      data: {
+        organizationId, branchId: dxb, warehouseId, supplierId, number, status, currency: "AED", subtotal: sub.toFixed(2), total: sub.toFixed(2), createdById: invMgr.id,
+        expectedAt: new Date(Date.now() + 2 * 86_400_000), orderedAt: status === "ORDERED" ? new Date() : null, approvedAt: status === "ORDERED" ? new Date() : null,
+        purchaseOrderLines: { create: lines.map(([isku, q, c]) => ({ itemId: item[isku]!, quantityOrdered: q, unitCost: c, lineTotal: (q * c).toFixed(2) })) },
+      },
+    });
+  };
+  await mk("PO-OPEN-101", "ORDERED", bev.id, bar.id, [["INV-ENERGY", 48, 5.4], ["INV-MILK", 12000, 0.006]]);
+  await mk("PO-OPEN-102", "PENDING_APPROVAL", gear.id, tech.id, [["INV-HEADSET", 12, 175], ["INV-MOUSE", 6, 92]]);
+  await db.supplierInvoice.create({
+    data: { organizationId, supplierId: fresh.id, invoiceNumber: "GFF-88121", invoiceDate: new Date(Date.now() - 10 * 86_400_000), dueDate: new Date(Date.now() + 20 * 86_400_000), amount: 1500, taxAmount: 75, currency: "AED" },
+  });
+}
+
+/**
+ * Consoles, VR headsets and a racing sim at DXB1 — agentless stations with
+ * TV displays, controllers and smart plugs (the plug addresses are examples;
+ * a bridge PC is picked in the admin) — console pricing per player, and
+ * per-page print prices. Idempotent.
+ */
+async function seedStationsAndPrinting(db: PlatformClient, organizationId: string, branchIds: Record<string, string>) {
+  const dxb = branchIds["DXB1"];
+  if (!dxb) return;
+  const zone = async (name: string) => (await db.zone.findFirst({ where: { branchId: dxb, name }, select: { id: true } }))?.id;
+  const [ps, vr, sims] = [await zone("PS5 Lounge"), await zone("VR Zone"), await zone("Racing Sims")];
+  const station = async (d: { name: string; zoneId: string; kind: "CONSOLE" | "VR_HEADSET" | "SIMULATOR" | "SMART_TV"; platform: string; controllerCount?: number | null; cleaningRequired?: boolean; minAge?: number | null; linkedDisplayId?: string | null; powerPlug?: object | null; mapX: number; mapY: number; accessories?: Array<[string, string]> }) => {
+    const found = await db.device.findFirst({ where: { branchId: dxb, name: d.name }, select: { id: true } });
+    if (found) return found.id;
+    const created = await db.device.create({
+      data: {
+        organizationId, branchId: dxb, zoneId: d.zoneId, name: d.name, kind: d.kind, platform: d.platform as any, agentless: true, status: "AVAILABLE", isOnline: true,
+        controllerCount: d.controllerCount ?? null, cleaningRequired: d.cleaningRequired ?? false, minAge: d.minAge ?? null, linkedDisplayId: d.linkedDisplayId ?? null,
+        powerPlug: (d.powerPlug ?? undefined) as any, mapX: d.mapX, mapY: d.mapY,
+      },
+    });
+    for (const [type, label] of d.accessories ?? []) await db.deviceAccessory.create({ data: { organizationId, deviceId: created.id, type: type as any, label } });
+    return created.id;
+  };
+  const pads = (n: number): Array<[string, string]> => Array.from({ length: n }, (_, i) => ["CONTROLLER", `Controller ${i + 1}`]);
+  if (ps) {
+    for (let i = 1; i <= 3; i++) {
+      const tv = await station({ name: `TV-0${i}`, zoneId: ps, kind: "SMART_TV", platform: "OTHER", mapX: i * 3 - 3, mapY: 0 });
+      await station({
+        name: `PS5-0${i}`, zoneId: ps, kind: "CONSOLE", platform: "PS5", controllerCount: 4, linkedDisplayId: tv,
+        powerPlug: { kind: "SHELLY", host: `192.168.1.${60 + i}`, channel: 0, offDelaySeconds: 60 }, mapX: i * 3 - 3, mapY: 1, accessories: [...pads(4), ["HEADSET", "Headset"]],
+      });
+    }
+  }
+  if (vr) {
+    const tv = await station({ name: "TV-VR", zoneId: vr, kind: "SMART_TV", platform: "OTHER", mapX: 0, mapY: 0 });
+    for (let i = 1; i <= 2; i++) {
+      await station({
+        name: `VR-0${i}`, zoneId: vr, kind: "VR_HEADSET", platform: "META_QUEST", controllerCount: 1, cleaningRequired: true, minAge: 13, linkedDisplayId: tv, mapX: i * 2, mapY: 1,
+        accessories: [["VR_CONTROLLER", "Left controller"], ["VR_CONTROLLER", "Right controller"]],
+      });
+    }
+  }
+  if (sims) {
+    await station({
+      name: "SIM-01", zoneId: sims, kind: "SIMULATOR", platform: "RACING_RIG", controllerCount: 1, minAge: 10, mapX: 0, mapY: 0,
+      powerPlug: { kind: "TASMOTA", host: "192.168.1.70", channel: 0, offDelaySeconds: 30 }, accessories: [["STEERING_WHEEL", "Wheel"], ["PEDALS", "Pedals"], ["SHIFTER", "Shifter"]],
+    });
+  }
+
+  // Consoles: 2 players included, AED 5/h for each extra controller. A racing-sim rate.
+  await db.pricingPlan.updateMany({ where: { organizationId, name: "PS5 / Xbox" }, data: { includedPlayers: 2, extraPlayerRate: 5 } });
+  if (!(await db.pricingPlan.findFirst({ where: { organizationId, name: "Racing sim" } }))) {
+    const plan = await db.pricingPlan.create({ data: { organizationId, name: "Racing sim", stationClass: "SIMULATOR", billingMode: "PER_HOUR", rate: 60, currency: "AED", minMinutes: 15, roundingMinutes: 5 } });
+    await db.pricingPackage.create({ data: { organizationId, pricingPlanId: plan.id, name: "15-minute race", durationMinutes: 15, price: 18, sortOrder: 0 } });
+  }
+
+  // Printing: per-page products (hidden from the Shell menu; charged by the print service).
+  if (!(await db.product.findFirst({ where: { organizationId, sku: "PRINT-BW" } }))) {
+    const cat = (await db.productCategory.findFirst({ where: { organizationId, name: "Services" } })) ?? (await db.productCategory.create({ data: { organizationId, name: "Services", sortOrder: 90, showInShell: false } }));
+    for (const [sku, name, price] of [["PRINT-BW", "Printing — black & white (per page)", 0.5], ["PRINT-COLOR", "Printing — colour (per page)", 2]] as const) {
+      await db.product.create({ data: { organizationId, categoryId: cat.id, sku, name, type: "SERVICE", price, currency: "AED", taxAppliesTo: "SERVICE", availableInShell: false, availableOnline: false } });
+    }
+  }
+}
+
+/**
+ * Loyalty rules and rewards, promotions (happy hour, weekend bonus, birthday,
+ * first visit, a WELCOME10 code), five demo players, a FIFA 1v1 tournament
+ * open for registration, and a draft campaign. Idempotent.
+ */
+async function seedEngagement(db: PlatformClient, organizationId: string, branchIds: Record<string, string>) {
+  const dxb = branchIds["DXB1"];
+  if (!dxb || (await db.loyaltyRule.findFirst({ where: { organizationId } }))) return;
+  const owner = await db.employee.findFirstOrThrow({ where: { organizationId, employeeCode: "E001" } });
+
+  // Loyalty: 1 point per AED on gaming and food, fixed points for events.
+  const rules: Array<[string, string, number]> = [["GAMING", "CURRENCY", 1], ["RESTAURANT", "CURRENCY", 1], ["BOOKING", "EVENT", 20], ["TOURNAMENT", "EVENT", 50], ["REFERRAL", "EVENT", 200], ["BIRTHDAY", "EVENT", 100]];
+  for (const [source, unit, pointsPerUnit] of rules) await db.loyaltyRule.create({ data: { organizationId, source: source as any, unit, pointsPerUnit } });
+  const cola = await db.product.findFirst({ where: { organizationId, sku: "DRK-COLA" }, select: { id: true } });
+  const rewards: Array<[string, string, number, string, object]> = [
+    ["1 hour of gaming", "An hour on any PC, added to your time.", 150, "FREE_MINUTES", { minutes: 60 }],
+    ["AED 10 wallet credit", "Bonus credit for anything in the venue.", 200, "WALLET_CREDIT", { amount: 10 }],
+    ["20% off food & drinks", "One order, any time in the next 90 days.", 120, "DISCOUNT_PERCENT", { percent: 20, target: "ORDER" }],
+    ...(cola ? ([["Free cola", "One can on us.", 60, "PRODUCT", { productId: cola.id }]] as Array<[string, string, number, string, object]>) : []),
+  ];
+  for (const [name, description, costPoints, rewardType, value] of rewards) await db.loyaltyReward.create({ data: { organizationId, name, description, costPoints, rewardType: rewardType as any, value: value as any } });
+
+  // Promotions.
+  const promos: Array<{ name: string; type: string; conditions: object; effects: object[]; isStackable?: boolean; perCustomerLimit?: number; requiresCode?: boolean; priority?: number }> = [
+    { name: "Happy hour", type: "HAPPY_HOUR", conditions: { all: [{ dayOfWeekIn: ["mon", "tue", "wed", "thu"] }, { timeBetween: ["14:00", "18:00"] }, { stationClassIn: ["PC"] }] }, effects: [{ type: "PERCENT_OFF", target: "GAMING_TIME", value: 20 }], priority: 10 },
+    { name: "Weekend bonus", type: "WEEKEND", conditions: { all: [{ dayOfWeekIn: ["fri", "sat"] }, { minSpend: 30 }] }, effects: [{ type: "BONUS_MINUTES", minutes: 30 }], isStackable: true },
+    { name: "Birthday treat", type: "BIRTHDAY", conditions: { all: [{ birthday: true }] }, effects: [{ type: "PERCENT_OFF", target: "GAMING_TIME", value: 50, maxAmount: 50 }], perCustomerLimit: 1 },
+    { name: "First visit", type: "FIRST_VISIT", conditions: { all: [{ firstVisit: true }] }, effects: [{ type: "PERCENT_OFF", target: "GAMING_TIME", value: 15 }], perCustomerLimit: 1 },
+    { name: "Welcome 10% off food", type: "PROMO_CODE", conditions: {}, effects: [{ type: "PERCENT_OFF", target: "ORDER", value: 10 }], requiresCode: true, perCustomerLimit: 1 },
+  ];
+  for (const p of promos) {
+    // Paused in the test database: automatic promotions would change prices in every other test suite.
+    const row = await db.promotion.create({ data: { organizationId, name: p.name, type: p.type as any, status: process.env["NODE_ENV"] === "test" ? "PAUSED" : "ACTIVE", conditions: p.conditions as any, effects: p.effects as any, isStackable: p.isStackable ?? false, perCustomerLimit: p.perCustomerLimit ?? null, requiresCode: p.requiresCode ?? false, priority: p.priority ?? 0, createdById: owner.id } });
+    if (p.requiresCode) await db.promoCode.create({ data: { organizationId, promotionId: row.id, code: "WELCOME10", maxUses: 500 } });
+  }
+
+  // Demo players (password: player1234) for the tournament.
+  const players: string[] = [];
+  for (const [username, displayName] of [["omar", "Omar"], ["layla", "Layla"], ["khalid", "Khalid"], ["noor", "Noor"], ["yusuf", "Yusuf"]] as const) {
+    const c = (await db.customer.findFirst({ where: { organizationId, username } })) ??
+      (await db.customer.create({ data: { organizationId, username, displayName, passwordHash: await hashSecret("player1234"), marketingConsent: true, referralCode: randomBytes(4).toString("hex").toUpperCase() } }));
+    players.push(c.id);
+  }
+  const ahmed = await db.customer.findFirst({ where: { organizationId, username: "ahmed" } });
+  if (ahmed) {
+    await db.customer.update({ where: { id: ahmed.id }, data: { marketingConsent: true } });
+    if (!(await db.loyaltyTransaction.findFirst({ where: { organizationId, idempotencyKey: "seed:ahmed:points" } }))) {
+      await db.customer.update({ where: { id: ahmed.id }, data: { loyaltyPoints: { increment: 250 } } });
+      const after = (await db.customer.findUniqueOrThrow({ where: { id: ahmed.id }, select: { loyaltyPoints: true } })).loyaltyPoints;
+      await db.loyaltyTransaction.create({ data: { organizationId, customerId: ahmed.id, type: "ADJUST", source: "MANUAL", points: 250, balanceAfter: after, reason: "Welcome points", idempotencyKey: "seed:ahmed:points", expiresAt: new Date(Date.now() + 365 * 86_400_000) } });
+    }
+  }
+
+  // FIFA 1v1, single elimination, registration open; five players already in.
+  const fifa = await db.game.findFirst({ where: { title: { contains: "FC 25" } }, select: { id: true } });
+  const startsAt = new Date(Date.now() + 3 * 86_400_000);
+  const cat = (await db.productCategory.findFirst({ where: { organizationId, name: "Services" } })) ?? (await db.productCategory.create({ data: { organizationId, name: "Services", sortOrder: 90, showInShell: false } }));
+  const fee = await db.product.create({ data: { organizationId, categoryId: cat.id, sku: "TRN-FIFA01", name: "Tournament entry — FIFA Friday", type: "SERVICE", price: 20, currency: "AED", taxAppliesTo: "SERVICE", availableInShell: false, availableOnline: false } });
+  const tr = await db.tournament.create({
+    data: {
+      organizationId, branchId: dxb, gameId: fifa?.id ?? null, customGameName: fifa ? null : "EA SPORTS FC 25", name: "FIFA Friday 1v1", slug: "fifa-friday-1v1", description: "Weekly 1v1 knockout on PS5. Best of one, final best of three.",
+      format: "SINGLE_ELIMINATION", teamSize: 1, maxTeams: 8, minTeams: 4, entryFee: 20, entryFeeProductId: fee.id, prizePool: 200, prizeDistribution: [{ place: 1, amount: 120 }, { place: 2, amount: 60 }, { place: 3, amount: 20 }],
+      currency: "AED", status: "REGISTRATION_OPEN", startsAt, registrationClosesAt: new Date(startsAt.getTime() - 3_600_000), createdById: owner.id, rules: "Standard settings, 6-minute halves. Arrive 15 minutes early to check in.",
+    },
+  });
+  for (const [i, id] of players.entries()) {
+    const c = await db.customer.findUniqueOrThrow({ where: { id }, select: { displayName: true } });
+    await db.team.create({ data: { organizationId, tournamentId: tr.id, name: c.displayName, captainId: id, status: "CONFIRMED", tournamentPlayers: { create: [{ tournamentId: tr.id, customerId: id }] }, seed: i < 2 ? i + 1 : null } });
+  }
+
+  await db.campaign.create({ data: { organizationId, name: "FIFA Friday is back", channel: "IN_APP", subject: "FIFA Friday 1v1 — AED 200 prize pool", body: "Hi {{firstName}}! FIFA Friday is on this week at {{venue}}. Three places left — enter in the app. You have {{points}} points.", createdById: owner.id } });
+}
+
 /** Demo tiers (two sold, one earned) and some wallet credit for Ahmed. Idempotent. */
 async function seedMembershipAndWallet(db: PlatformClient, organizationId: string) {
   const tiers: Array<Record<string, unknown> & { code: string }> = [
@@ -302,6 +585,9 @@ async function seedOrg(db: PlatformClient, spec: DemoOrg) {
   await seedGamesForOrg(db, organizationId);
   await seedMembershipAndWallet(db, organizationId);
   await seedRestaurant(db, organizationId, branchIds);
+  await seedInventory(db, organizationId, branchIds);
+  await seedStationsAndPrinting(db, organizationId, branchIds);
+  await seedEngagement(db, organizationId, branchIds);
   console.log(`org ${spec.slug}: ${spec.branches.length} branches, ${spec.staff.length} staff`);
 }
 
@@ -357,7 +643,7 @@ export async function seed(url = process.env["DATABASE_URL"]) {
       name: "Demo Arena",
       plan: "PRO",
       branches: [
-        { code: "DXB1", name: "Dubai Marina", zones: [["Regular PCs", "PC_STANDARD"], ["VIP", "PC_VIP"], ["PS5 Lounge", "CONSOLE"], ["VR Zone", "VR"], ["Restaurant", "RESTAURANT"]] },
+        { code: "DXB1", name: "Dubai Marina", zones: [["Regular PCs", "PC_STANDARD"], ["VIP", "PC_VIP"], ["PS5 Lounge", "CONSOLE"], ["VR Zone", "VR"], ["Restaurant", "RESTAURANT"], ["Racing Sims", "SIMULATOR"]] },
         { code: "AUH1", name: "Abu Dhabi Yas", zones: [["Regular PCs", "PC_STANDARD"], ["Bootcamp", "BOOTCAMP"]] },
       ],
       staff: [
@@ -367,6 +653,7 @@ export async function seed(url = process.env["DATABASE_URL"]) {
         { email: "tech@demo.test", name: "Tariq Tech", code: "E004", role: "technician", branch: "DXB1" },
         { email: "waiter@demo.test", name: "Wafa Waiter", code: "E005", role: "waiter", branch: "DXB1" },
         { email: "kitchen@demo.test", name: "Karim Kitchen", code: "E006", role: "kitchen_staff", branch: "DXB1" },
+        { email: "inventory@demo.test", name: "Ines Inventory", code: "E007", role: "inventory_manager" },
       ],
     });
     await seedOrg(db, {
@@ -383,6 +670,6 @@ export async function seed(url = process.env["DATABASE_URL"]) {
 
 if (process.argv[1]?.replace(/\\/g, "/").endsWith("scripts/seed.ts")) {
   await seed();
-  console.log(`\nDemo logins (password: ${DEMO_PASSWORD}): owner@demo.test · manager@demo.test · cashier@demo.test · tech@demo.test · waiter@demo.test · kitchen@demo.test · owner@rival.test`);
+  console.log(`\nDemo logins (password: ${DEMO_PASSWORD}): owner@demo.test · manager@demo.test · cashier@demo.test · tech@demo.test · waiter@demo.test · kitchen@demo.test · inventory@demo.test · owner@rival.test`);
   console.log("Demo customers (Gaming Shell & app): ahmed / ahmed123 (PIN 1234, 2h prepaid, AED 150 + 20 bonus in wallet) · sara / sara1234 (no time, age 13)");
 }

@@ -76,6 +76,13 @@ describe.skipIf(!HAS_DB)("POS, kitchen, tables, in-seat ordering & shifts (e2e)"
     dxb1 = ((await call(ownerT, "GET", "/branches")).body as any[]).find((b) => b.code === "DXB1").id;
     regularZone = ((await call(ownerT, "GET", `/branches/${dxb1}/zones`)).body as any[]).find((z) => z.type === "PC_STANDARD").id;
     regularPlan = ((await call(ownerT, "GET", "/pricing-plans")).body as any[]).find((p) => p.name === "Regular PC").id;
+    // Canned drinks are stock-tracked since Phase 8: count the bar back up so repeated runs never sell out.
+    const bar = ((await call(ownerT, "GET", `/warehouses?branchId=${dxb1}`)).body as any[]).find((w) => w.name === "Bar store");
+    if (bar) {
+      const items = (await call(ownerT, "GET", "/inventory/items")).body as any[];
+      const lines = ["INV-COLA", "INV-ENERGY", "INV-WATER"].map((sku) => items.find((i) => i.sku === sku)).filter(Boolean).map((i) => ({ itemId: i.id, counted: "500" }));
+      if (lines.length) await call(ownerT, "POST", `/warehouses/${bar.id}/counts`, { lines, note: "test restock", idempotencyKey: key() });
+    }
     const menu = (await call(cashierT, "GET", `/branches/${dxb1}/menu`)).body;
     for (const c of menu.categories) for (const p of c.products) P[p.sku] = p;
     tables = (await call(waiterT, "GET", `/branches/${dxb1}/tables`)).body;

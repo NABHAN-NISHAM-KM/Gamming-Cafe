@@ -62,10 +62,23 @@ const MESSAGES: Record<string, string> = {
   online_payment_unavailable: "Online payment isn't available — choose pay at the venue.",
   session_ended: "Please sign in again.",
   invalid_token: "Please sign in again.",
+  referral_code_invalid: "That invite code doesn't exist — check it with your friend.",
+  not_enough_points: "You don't have enough points for that yet.",
+  reward_out_of_stock: "That reward just ran out.",
+  reward_not_found: "That reward isn't available any more.",
+  already_redeemed: "Already redeemed.",
+  registration_closed: "Entries for this tournament are closed.",
+  tournament_full: "This tournament is full.",
+  wrong_team_size: "Wrong number of players for this tournament.",
+  team_name_taken: "That team name is taken in this tournament.",
+  player_not_found: "We couldn't find one of those usernames.",
+  tournament_not_found: "That tournament isn't available.",
 };
 
 function explain(status: number, body: any) {
   const code = body?.error as string | undefined;
+  if (code === "already_registered" && body?.player) return `${body.player} is already entered in this tournament.`;
+  if (code === "player_not_found" && body?.usernames) return `We couldn't find: ${body.usernames.join(", ")}.`;
   if (code === "too_far_ahead" && body?.maxDays) return `You can book up to ${body.maxDays} days ahead.`;
   if (code && MESSAGES[code]) return MESSAGES[code]!;
   if (body?.hint) return body.hint;

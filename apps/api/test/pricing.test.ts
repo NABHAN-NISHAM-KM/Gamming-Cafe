@@ -168,3 +168,37 @@ describe("postpaid final charge", () => {
     expect(postpaidCharge(p, 60 * 60)).toEqual({ minutes: 60, totalMinor: 1500 });
   });
 });
+
+describe("console players (phase 9)", () => {
+  const ps5 = plan({ name: "PS5", stationClass: "CONSOLE", rateMinor: 2000, includedPlayers: 2, extraPlayerRateMinor: 500 }); // AED 20/h for 2, +5/h per extra
+  const c = ctx({ stationClass: "CONSOLE" });
+
+  it("players within the rate cost nothing extra", () => {
+    expect(quote(ps5, { kind: "minutes", minutes: 60 }, c, { players: 2 }).totalMinor).toBe(2000);
+    expect(quote(ps5, { kind: "minutes", minutes: 60 }, c).totalMinor).toBe(2000);
+  });
+
+  it("each extra player adds the extra-player rate for the same time", () => {
+    const q = quote(ps5, { kind: "minutes", minutes: 90 }, c, { players: 4 });
+    expect(q.grossMinor).toBe(3000 + 1500); // 1.5 h × 20 + 2 × 1.5 h × 5
+    expect(q.lines.some((l) => l.includes("2 extra players"))).toBe(true);
+  });
+
+  it("applies to packages too (prorated on the package time)", () => {
+    const withPkg = plan({ ...ps5, packages: [{ id: "k", name: "2 hours", durationMinutes: 120, priceMinor: 3500, bonusMinutes: 0, isActive: true }] });
+    expect(quote(withPkg, { kind: "package", packageId: "k" }, c, { players: 3 }).totalMinor).toBe(3500 + 1000);
+  });
+
+  it("postpaid: charged on the time actually used", () => {
+    const open = plan({ ...ps5, paymentTiming: "POSTPAID" });
+    expect(postpaidCharge(open, 30 * 60, 0, 3).totalMinor).toBe(1000 + 250);
+  });
+
+  it("the membership discount applies to the whole amount, extras included", () => {
+    expect(quote(ps5, { kind: "minutes", minutes: 60 }, c, { players: 3, membershipDiscountPct: 10 }).totalMinor).toBe(2250);
+  });
+
+  it("plans without an extra-player rate ignore the player count", () => {
+    expect(quote(plan(), { kind: "minutes", minutes: 60 }, ctx(), { players: 4 }).totalMinor).toBe(1500);
+  });
+});

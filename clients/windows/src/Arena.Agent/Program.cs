@@ -55,6 +55,9 @@ switch (verb)
         builder.Services.AddSingleton<NetworkProber>();
         builder.Services.AddSingleton<RepairRunner>();
         builder.Services.AddSingleton<StationService>();
+        builder.Services.AddSingleton<PrintMonitor>();
+        builder.Services.AddSingleton<PowerBridge>();
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<PrintMonitor>());
         builder.Services.AddHostedService(sp => sp.GetRequiredService<StationService>());
         builder.Services.AddHostedService(sp => sp.GetRequiredService<ShellHub>());
         builder.Services.AddHostedService<SessionWatchdog>();

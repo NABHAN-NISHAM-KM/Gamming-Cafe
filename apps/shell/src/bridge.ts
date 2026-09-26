@@ -90,7 +90,26 @@ export type HostMessage =
   | { type: "pointer"; mouseSpeed: number; enhancePointerPrecision: boolean }
   | { type: "menu"; requestId: string; menu: SeatMenu | null; error?: string }
   | { type: "order_result"; requestId: string; ok: boolean; orderId?: string; number?: string; total?: string; currency?: string; error?: string; message?: string }
-  | { type: "order_status"; orderId: string; number: string; status: "PREPARING" | "READY" | "SERVED"; message: string };
+  | { type: "order_status"; orderId: string; number: string; status: "PREPARING" | "READY" | "SERVED"; message: string }
+  | { type: "print_quote"; quote: PrintQuote }
+  | { type: "print_status"; jobKey: string; status: "WAITING_STAFF" | "PRINTING" | "COMPLETED" | "CANCELLED" | "FAILED"; message: string };
+
+/** A paused print job the customer is asked to approve (priced by the venue). */
+export interface PrintQuote {
+  jobKey: string;
+  jobId: string;
+  document: string | null;
+  pages: number;
+  copies: number;
+  color: boolean;
+  unitPrice: string;
+  total: string;
+  currency: string;
+  canPayWithWallet: boolean;
+  needsStaff: boolean;
+  expiresAt: string;
+  notice?: string | null;
+}
 
 export type HelpTopic = "general" | "game" | "peripheral" | "network" | "payment";
 export type SelfRepair = "FLUSH_DNS" | "RESTART_AUDIO" | "RESTART_SHELL";
@@ -106,7 +125,9 @@ export type ShellMessage =
   | { type: "pointer_get" }
   | { type: "pointer_apply"; mouseSpeed?: number; enhancePointerPrecision?: boolean }
   | { type: "menu_request"; requestId: string }
-  | { type: "place_order"; requestId: string; lines: OrderLine[]; notes?: string; payWith: "BILL" | "WALLET" };
+  | { type: "place_order"; requestId: string; lines: OrderLine[]; notes?: string; payWith: "BILL" | "WALLET" }
+  | { type: "print_confirm"; jobKey: string; payWith: "BILL" | "WALLET" }
+  | { type: "print_cancel"; jobKey: string };
 
 type Listener = (m: HostMessage) => void;
 
@@ -265,6 +286,13 @@ function mockBridge(): Bridge {
       }, new Date(state.session.expiresAt).getTime() - Date.now() + 1500);
   };
   armExpiry();
+  // Preview printing: ?print=1 (or window.arenaMockPrint() in the console) pops a quote as if a job was sent to the printer.
+  const mockPrint = (color = false) => {
+    const pages = 4;
+    emit({ type: "print_quote", quote: { jobKey: `${Math.floor(Math.random() * 1e5)}:${Date.now()}`, jobId: crypto.randomUUID(), document: "Boarding pass.pdf", pages, copies: 1, color, unitPrice: color ? "2.00" : "0.50", total: (pages * (color ? 2 : 0.5)).toFixed(2), currency: "AED", canPayWithWallet: age >= 18, needsStaff: false, expiresAt: new Date(Date.now() + 180_000).toISOString() } });
+  };
+  (window as unknown as { arenaMockPrint: typeof mockPrint }).arenaMockPrint = mockPrint;
+  if (params.get("print")) setTimeout(() => mockPrint(params.get("print") === "color"), 2500);
   return {
     mock: true,
     send(m) {
@@ -325,6 +353,13 @@ function mockBridge(): Bridge {
           setTimeout(() => emit({ type: "order_status", orderId, number, status: "READY", message: "Your order is ready — it's on its way to you" }), 9000);
           break;
         }
+        case "print_confirm":
+          setTimeout(() => emit({ type: "print_status", jobKey: m.jobKey, status: "PRINTING", message: "Printing…" }), 400);
+          setTimeout(() => emit({ type: "print_status", jobKey: m.jobKey, status: "COMPLETED", message: "Your print is ready at the printer." }), 3500);
+          break;
+        case "print_cancel":
+          emit({ type: "print_status", jobKey: m.jobKey, status: "CANCELLED", message: "Print cancelled." });
+          break;
         case "pointer_apply":
           pointer = { mouseSpeed: m.mouseSpeed ?? pointer.mouseSpeed, enhancePointerPrecision: m.enhancePointerPrecision ?? pointer.enhancePointerPrecision };
           emit({ type: "pointer", ...pointer });

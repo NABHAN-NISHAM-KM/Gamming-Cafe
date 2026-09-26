@@ -26,6 +26,7 @@ const Order = z
     discount: z.union([z.object({ kind: z.literal("PERCENT"), value: z.number().min(0).max(100) }), z.object({ kind: z.literal("AMOUNT"), value: money })]).nullish(),
     notes: z.string().max(300).nullish(),
     payments: z.array(Tender).max(4).optional(),
+    promoCode: z.string().regex(/^[A-Za-z0-9-]{3,40}$/).nullish(),
     idempotencyKey: z.string().min(8).max(100),
   })
   .strict();

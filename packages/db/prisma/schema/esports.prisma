@@ -45,6 +45,10 @@ model Tournament {
   startsAt             DateTime           @db.Timestamptz(3)
   endsAt               DateTime?          @db.Timestamptz(3)
   isPublic             Boolean            @default(true)
+  /// Swiss: how many rounds (default ceil(log2(teams))).
+  swissRounds          Int?
+  /// Prize money is paid to the winners' wallets (captain's) when results are final.
+  prizesToWallet       Boolean            @default(true)
   createdById          String             @db.Uuid
   createdAt            DateTime           @default(now()) @db.Timestamptz(3)
   updatedAt            DateTime           @updatedAt @db.Timestamptz(3)
@@ -153,6 +157,12 @@ model Match {
   status           MatchStatus @default(PENDING)
   nextMatchId      String?     @db.Uuid // winner advances to
   loserNextMatchId String?     @db.Uuid // double-elim drop
+  /// Which slot of the next match the winner / loser fills ("A" or "B").
+  nextSlot         String?     @db.Char(1)
+  loserNextSlot    String?     @db.Char(1)
+  /// First-round slots that are byes (no team will ever come).
+  byeA             Boolean     @default(false)
+  byeB             Boolean     @default(false)
   scheduledAt      DateTime?   @db.Timestamptz(3)
   startedAt        DateTime?   @db.Timestamptz(3)
   completedAt      DateTime?   @db.Timestamptz(3)

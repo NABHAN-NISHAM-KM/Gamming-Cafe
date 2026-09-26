@@ -5,6 +5,7 @@ import { strings, type Lang, type Strings } from "./i18n";
 import { AppsScreen, ConnectivityScreen, FeaturedRow, GamesScreen, PeripheralsScreen, SupportScreen, type Notify } from "./screens";
 import { useStation } from "./station";
 import { FoodScreen } from "./food";
+import { PrintApproval } from "./print";
 
 const cx = (...c: Array<string | false | null | undefined>) => c.filter(Boolean).join(" ");
 
@@ -350,6 +351,7 @@ function SessionScreen({ state, t }: { state: ShellState; t: Strings }) {
         </div>
       )}
 
+      <PrintApproval notify={notify} />
       {toast && !timesUp && (
         <div role="status" className={cx("fixed left-1/2 top-24 z-20 -translate-x-1/2 rounded-2xl border px-8 py-4 font-display text-xl shadow-2xl", lastMinute ? "border-alarm bg-alarm/20 text-alarm" : "border-warn/50 bg-deck text-warn")}>
           {toast}

@@ -53,6 +53,12 @@ describe.skipIf(!HAS_DB)("ArenaOS API (e2e)", () => {
 
   beforeAll(async () => {
     await seed(process.env["DATABASE_URL"]);
+    // Staff hired by earlier runs count against the plan's employee limit: retire them first.
+    await owner.query(
+      `UPDATE "Employee" e SET status = 'TERMINATED' FROM "User" u
+        WHERE u.id = e."userId" AND u.email LIKE '%@demo.test' AND e.status IN ('INVITED', 'ACTIVE')
+          AND u.email NOT IN ('owner@demo.test', 'manager@demo.test', 'cashier@demo.test', 'tech@demo.test', 'waiter@demo.test', 'kitchen@demo.test', 'inventory@demo.test')`,
+    );
     app = await createApp(loadConfig({ NODE_ENV: "test" }));
     await app.init();
     http = request(app.getHttpServer());

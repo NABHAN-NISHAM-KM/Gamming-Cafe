@@ -43,7 +43,24 @@ import { CommerceService } from "./customers/commerce.service.js";
 import { MembershipExpiryService } from "./customers/membership-expiry.service.js";
 import { TiersController } from "./customers/tiers.controller.js";
 import { CustomerAppController } from "./customer-app/customer-app.controller.js";
+import { InventoryController } from "./inventory/inventory.controller.js";
+import { StockService } from "./inventory/stock.service.js";
+import { PurchasingController } from "./inventory/purchasing.controller.js";
+import { PurchasingService } from "./inventory/purchasing.service.js";
 import { KitchenService } from "./pos/kitchen.service.js";
+import { CrmController } from "./crm/crm.controller.js";
+import { CrmService } from "./crm/crm.service.js";
+import { LoyaltyController } from "./loyalty/loyalty.controller.js";
+import { LoyaltyService } from "./loyalty/loyalty.service.js";
+import { PromotionsController } from "./promotions/promotions.controller.js";
+import { PromotionsService } from "./promotions/promotions.service.js";
+import { TournamentsController } from "./tournaments/tournaments.controller.js";
+import { TournamentsService } from "./tournaments/tournaments.service.js";
+import { DisplayController } from "./devices/display.controller.js";
+import { StationControlService } from "./devices/station-control.service.js";
+import { StationsController } from "./devices/stations.controller.js";
+import { PrintController } from "./printing/print.controller.js";
+import { PrintService } from "./printing/print.service.js";
 import { OrdersService } from "./pos/orders.service.js";
 import { PosController } from "./pos/pos.controller.js";
 import { SeatOrderingService } from "./pos/seat-ordering.service.js";
@@ -100,6 +117,15 @@ export class AppModule {
         BookingsController,
         CustomerAppController,
         PosController,
+        PromotionsController,
+        LoyaltyController,
+        TournamentsController,
+        CrmController,
+        StationsController,
+        DisplayController,
+        PrintController,
+        InventoryController,
+        PurchasingController,
       ],
       providers: [
         TokensService,
@@ -129,6 +155,14 @@ export class AppModule {
         KitchenService,
         ShiftsService,
         SeatOrderingService,
+        PromotionsService,
+        LoyaltyService,
+        TournamentsService,
+        CrmService,
+        StationControlService,
+        PrintService,
+        StockService,
+        PurchasingService,
         { provide: APP_GUARD, useClass: AuthGuard },
         { provide: APP_INTERCEPTOR, useClass: TenantInterceptor },
         { provide: APP_FILTER, useClass: ErrorsFilter },

@@ -42,7 +42,7 @@ export const ROLE_TEMPLATES: readonly RoleTemplate[] = [
     grants: [
       "branch.view", "zone.*", "station.*", "shell.configure", "diskless.view", "game.*",
       "pricing.*", "customer.*", "wallet.*", "membership.*", "booking.*", "pos.*", "shift.*",
-      "restaurant.*", "kds.*", "inventory.*", "purchasing.*", "employee.view", "employee.manage",
+      "restaurant.*", "kds.*", "inventory.*", "purchasing.*", "print.*", "employee.view", "employee.manage",
       "employee.assign_roles", "tournament.*", "loyalty.*", "promotion.view", "crm.view", "reports.*", "accounting.view",
       "accounting.expense", "audit.view", "support.handle", "settings.manage",
     ],
@@ -57,7 +57,7 @@ export const ROLE_TEMPLATES: readonly RoleTemplate[] = [
       "zone.view", "station.*", "shell.configure", "game.*", "pricing.view", "customer.view",
       "customer.create", "customer.edit", "customer.restrict", "wallet.*", "membership.view",
       "membership.sell", "booking.*", "pos.sell", "pos.discount", "shift.open", "shift.cash_movement",
-      "tournament.*", "reports.operational", "support.handle",
+      "tournament.*", "reports.operational", "support.handle", "print.*",
     ],
     denies: ["station.remote_control"],
   },
@@ -84,7 +84,7 @@ export const ROLE_TEMPLATES: readonly RoleTemplate[] = [
       "wallet.topup", "wallet.view_ledger", "membership.view", "membership.sell", "booking.view",
       "booking.create", "booking.cancel", "pos.sell", "pos.discount", "pos.void_item", "shift.open",
       "shift.cash_movement", "restaurant.order", "kds.view", "loyalty.redeem", "tournament.view",
-      "support.handle",
+      "support.handle", "print.view", "print.release",
     ],
   },
   {

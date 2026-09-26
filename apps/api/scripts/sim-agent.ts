@@ -4,7 +4,7 @@
 import { generateKeyPairSync, randomBytes, randomUUID, createPrivateKey, type KeyObject } from "node:crypto";
 import { SignJWT } from "jose";
 import WebSocket from "ws";
-import { DEVICE_ASSERTION_AUDIENCE, verifyCommand, type CommandAck, type DetectedGame, type DeviceMetrics, type HardwareSnapshot, type ServerToDevice, type StationConfig, type UpdateGamePayload } from "@arena/contracts";
+import { DEVICE_ASSERTION_AUDIENCE, verifyCommand, type CommandAck, type DetectedGame, type DeviceMetrics, type HardwareSnapshot, type PrintQuote, type ServerToDevice, type StationConfig, type UpdateGamePayload } from "@arena/contracts";
 
 export interface Identity {
   deviceId: string;
@@ -45,6 +45,9 @@ export class SimAgent {
   private readonly pendingSeat = new Map<string, (r: any) => void>();
   /** In-seat order updates pushed by the server (what the Shell would show). */
   readonly orderUpdates: Array<{ orderId: string; number: string; status: string; message: string }> = [];
+  /** Print quotes and print status updates pushed by the server (what the Shell would show). */
+  readonly printQuotes: PrintQuote[] = [];
+  readonly printStatuses: Array<{ jobKey: string; status: string; message: string }> = [];
   /** Last verified station config (game library etc.). */
   config: StationConfig | null = null;
   /** Installed games as this PC sees them; UPDATE_GAME flips updateRequired off after a short delay. */
@@ -176,6 +179,25 @@ export class SimAgent {
     return this.seat({ type: "place_order", lines, payWith, notes });
   }
 
+  /** The spooler caught a new job: the agent paused it and reports it. */
+  print(job: { jobKey?: string; printerName?: string; document?: string | null; pages: number; copies?: number; color?: boolean }) {
+    const jobKey = job.jobKey ?? `${Math.floor(Math.random() * 1e6)}:${Date.now()}`;
+    this.send({ type: "print_job", job: { jobKey, printerName: job.printerName ?? "Front desk laser", document: job.document ?? "document.pdf", pages: job.pages, copies: job.copies ?? 1, color: job.color ?? false } });
+    return jobKey;
+  }
+
+  confirmPrint(jobKey: string, payWith: "BILL" | "WALLET" = "BILL") {
+    this.send({ type: "print_confirm", jobKey, payWith });
+  }
+
+  cancelPrint(jobKey: string) {
+    this.send({ type: "print_cancel", jobKey });
+  }
+
+  printDone(jobKey: string, ok = true, detail?: string) {
+    this.send({ type: "print_done", jobKey, ok, detail: detail ?? null });
+  }
+
   /** Customer presses "Call staff" on the Shell. */
   help(topic: "general" | "game" | "peripheral" | "network" | "payment" = "general", note?: string): Promise<any> {
     const requestId = randomUUID();
@@ -214,6 +236,14 @@ export class SimAgent {
     }
     if (msg.type === "order_status") {
       this.orderUpdates.push({ orderId: msg.orderId, number: msg.number, status: msg.status, message: msg.message });
+      return;
+    }
+    if (msg.type === "print_quote") {
+      this.printQuotes.push(msg.quote);
+      return;
+    }
+    if (msg.type === "print_status") {
+      this.printStatuses.push({ jobKey: msg.jobKey, status: msg.status, message: msg.message });
       return;
     }
     if (msg.type === "help_result") {

@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import {
   BarChart3, Boxes, Building2, CalendarClock, ChefHat, Coins, Cpu, Gamepad2, Gauge, Joystick, LayoutGrid, LogOut,
-  Megaphone, Menu, MonitorPlay, Settings, ShieldCheck, ShoppingCart, Tag, Timer, Trophy, UserRound, Users, UtensilsCrossed, X,
+  Megaphone, Menu, MonitorPlay, Printer, Settings, ShieldCheck, ShoppingCart, Tag, Timer, Trophy, Truck, UserRound, Users, UtensilsCrossed, X,
 } from "lucide-react";
 import { session } from "@/lib/client/api";
 import { useApi } from "@/lib/client/hooks";
@@ -26,18 +26,20 @@ const NAV: Array<{ group: string; items: NavItem[] }> = [
     { href: "/sessions", label: "Sessions", icon: Timer },
     { href: "/bookings", label: "Bookings", icon: CalendarClock },
     { href: "/customers", label: "Customers", icon: UserRound },
+    { href: "/printing", label: "Printing", icon: Printer },
   ] },
   { group: "Gaming", items: [
     { href: "/games", label: "Games", icon: Gamepad2 },
     { href: "/computers", label: "Computers", icon: Cpu },
-    { href: "/consoles", label: "Consoles & VR", icon: Joystick, phase: 9 },
-    { href: "/tournaments", label: "Tournaments", icon: Trophy, phase: 10 },
+    { href: "/consoles", label: "Consoles & VR", icon: Joystick },
+    { href: "/tournaments", label: "Tournaments", icon: Trophy },
   ] },
   { group: "Food & sales", items: [
     { href: "/restaurant", label: "Restaurant", icon: UtensilsCrossed },
     { href: "/pos", label: "POS", icon: ShoppingCart },
     { href: "/kitchen", label: "Kitchen", icon: ChefHat },
-    { href: "/inventory", label: "Inventory", icon: Boxes, phase: 8 },
+    { href: "/inventory", label: "Inventory", icon: Boxes },
+    { href: "/purchasing", label: "Purchasing", icon: Truck },
   ] },
   { group: "Business", items: [
     { href: "/branches", label: "Branches & zones", icon: Building2 },
@@ -46,7 +48,7 @@ const NAV: Array<{ group: string; items: NavItem[] }> = [
     { href: "/rates", label: "Rates", icon: Tag },
     { href: "/finance", label: "Finance", icon: Coins, phase: 11 },
     { href: "/reports", label: "Reports", icon: BarChart3, phase: 11 },
-    { href: "/marketing", label: "Marketing", icon: Megaphone, phase: 10 },
+    { href: "/marketing", label: "Marketing", icon: Megaphone },
     { href: "/settings", label: "Settings", icon: Settings },
   ] },
 ];

@@ -73,6 +73,7 @@ model Notification {
   @@unique([organizationId, dedupeKey])
   @@index([organizationId, customerId, createdAt])
   @@index([status, scheduledFor])
+  @@index([organizationId, customerId, channel, status], map: "Notification_customer_channel_status_idx")
 }
 
 model PushSubscription {

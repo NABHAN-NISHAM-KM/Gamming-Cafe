@@ -80,10 +80,25 @@ const Incoming = z.discriminatedUnion("type", [
     notes: z.string().max(300).nullish(),
     payWith: z.enum(["BILL", "WALLET"]),
   }),
+  // Phase 9 — printing
+  z.object({
+    type: z.literal("print_job"),
+    job: z.object({
+      jobKey: z.string().regex(/^[\w:.-]{3,80}$/),
+      printerName: z.string().min(1).max(120),
+      document: z.string().max(200).nullish(),
+      pages: z.number().int().min(1).max(2000),
+      copies: z.number().int().min(1).max(100),
+      color: z.boolean(),
+    }),
+  }),
+  z.object({ type: z.literal("print_confirm"), jobKey: z.string().regex(/^[\w:.-]{3,80}$/), payWith: z.enum(["BILL", "WALLET"]) }),
+  z.object({ type: z.literal("print_cancel"), jobKey: z.string().regex(/^[\w:.-]{3,80}$/) }),
+  z.object({ type: z.literal("print_done"), jobKey: z.string().regex(/^[\w:.-]{3,80}$/), ok: z.boolean(), detail: z.string().max(300).nullish() }),
 ]);
 
 type Incoming = z.infer<typeof Incoming>;
-export type StationMessage = Extract<Incoming, { type: "inventory" | "peripherals" | "network" | "boot" | "game_event" | "help_request" | "self_repair" | "menu_request" | "place_order" }>;
+export type StationMessage = Extract<Incoming, { type: "inventory" | "peripherals" | "network" | "boot" | "game_event" | "help_request" | "self_repair" | "menu_request" | "place_order" | "print_job" | "print_confirm" | "print_cancel" | "print_done" }>;
 
 /**
  * WebSocket endpoint for Windows agents. Each connection authenticates with a
@@ -206,7 +221,8 @@ export class DeviceGateway implements OnModuleDestroy {
         windowStart = conn.lastMessageAt;
         count = 0;
       }
-      if (++count > 30) return ws.close(1008, "rate limit");
+      // A burst of prints is ~6 messages per job (report, confirm, three acks, done): allow that, still cap abuse.
+      if (++count > 60) return ws.close(1008, "rate limit");
 
       let msg: Incoming;
       try {
@@ -248,6 +264,10 @@ export class DeviceGateway implements OnModuleDestroy {
             case "boot":
             case "game_event":
             case "self_repair":
+            case "print_job":
+            case "print_confirm":
+            case "print_cancel":
+            case "print_done":
               return this.stationHandlers.get(msg.type)?.(conn, msg);
             case "shell_login":
             case "shell_logout": {

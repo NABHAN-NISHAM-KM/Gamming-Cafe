@@ -3,6 +3,9 @@ import { randomBytes } from "node:crypto";
 import { Prisma, type TenantTx } from "@arena/db";
 import { auditAs } from "../common/audit.service.js";
 import { LiveBus } from "../devices/live.js";
+import { consumeOrder, returnOrderItems, stockForProducts } from "../inventory/stock.js";
+import { reverseForRefund } from "../loyalty/points.js";
+import { PromotionsService } from "../promotions/promotions.service.js";
 import { moveMoney } from "../wallet/wallet.js";
 import { fromMinor, minorUnit, openShiftOf, recomputeBill, recordPayment, toMinor } from "./bills.js";
 import { cashChange, OrderPricingError, priceOrder, validateModifiers, type OrderDiscount, type TaxClass, type TaxProfileDef } from "./order-pricing.js";
@@ -24,6 +27,9 @@ export interface PlaceOrder {
   /** Pay straight away (counter sales). Without it the order goes on the bill (table / PC seat). */
   payments?: PayInput[];
   idempotencyKey: string;
+  /** Server-generated charges (e.g. printing) may use products hidden from the Shell menu. */
+  internal?: boolean;
+  promoCode?: string | null;
 }
 
 const LIVE_SESSION = ["PENDING", "ACTIVE", "PAUSED", "ENDING"] as const;
@@ -38,7 +44,10 @@ const stamp = () => `${new Date().toISOString().slice(2, 10).replace(/-/g, "")}-
  */
 @Injectable()
 export class OrdersService {
-  constructor(@Inject(LiveBus) private readonly bus: LiveBus) {}
+  constructor(
+    @Inject(LiveBus) private readonly bus: LiveBus,
+    @Inject(PromotionsService) private readonly promotions: PromotionsService,
+  ) {}
 
   // ── menu ─────────────────────────────────────────────────────────────────
 
@@ -55,7 +64,7 @@ export class OrdersService {
           where: { isActive: true, type: { in: [...FOOD_TYPES] }, ...(opts.shellOnly ? { availableInShell: true } : {}) },
           orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
           select: {
-            id: true, name: true, description: true, imageUrl: true, price: true, currency: true, type: true, sku: true, taxAppliesTo: true, prepTimeMinutes: true, requiresAgeCheck: true,
+            id: true, name: true, description: true, imageUrl: true, price: true, currency: true, type: true, sku: true, taxAppliesTo: true, prepTimeMinutes: true, requiresAgeCheck: true, inventoryItemId: true,
             kitchenStation: { select: { id: true, name: true } },
             productBranchPrices: { where: { branchId }, select: { price: true, isAvailable: true } },
             productModifierGroups: {
@@ -66,6 +75,8 @@ export class OrdersService {
         },
       },
     });
+    // Stock items the branch has run out of show as sold out (on the POS and on customers' PCs).
+    const onHand = await stockForProducts(t, branchId, cats.flatMap((c) => c.products.map((p) => ({ id: p.id, type: p.type, inventoryItemId: p.inventoryItemId, stationName: p.kitchenStation?.name ?? null }))));
     return {
       currency: branch.currency,
       categories: cats
@@ -75,7 +86,7 @@ export class OrdersService {
             const bp = p.productBranchPrices[0];
             return {
               id: p.id, name: p.name, description: p.description, imageUrl: p.imageUrl, sku: p.sku, type: p.type, taxClass: p.taxAppliesTo, prepTimeMinutes: p.prepTimeMinutes,
-              price: (bp?.price ?? p.price).toFixed(unit), available: bp ? bp.isAvailable : true, station: p.kitchenStation?.name ?? null,
+              price: (bp?.price ?? p.price).toFixed(unit), available: (bp ? bp.isAvailable : true) && !(onHand.get(p.id)?.lte(0) ?? false), station: p.kitchenStation?.name ?? null,
               modifierGroups: p.productModifierGroups.map(({ modifierGroup: g }) => ({ id: g.id, name: g.name, minSelect: g.minSelect, maxSelect: g.maxSelect, modifiers: g.modifiers.map((m) => ({ id: m.id, name: m.name, priceDelta: m.priceDelta.toFixed(unit) })) })),
             };
           }),
@@ -144,7 +155,7 @@ export class OrdersService {
     const products = await t.product.findMany({
       where: { id: { in: ids } },
       select: {
-        id: true, name: true, type: true, isActive: true, availableInShell: true, price: true, taxAppliesTo: true, kitchenStationId: true, kitchenStation: { select: { name: true, branchId: true } },
+        id: true, name: true, type: true, isActive: true, availableInShell: true, price: true, taxAppliesTo: true, inventoryItemId: true, kitchenStationId: true, categoryId: true, kitchenStation: { select: { name: true, branchId: true } },
         productBranchPrices: { where: { branchId: branch.id }, select: { price: true, isAvailable: true } },
         productModifierGroups: { select: { modifierGroup: { select: { id: true, name: true, minSelect: true, maxSelect: true, modifiers: { where: { isActive: true }, select: { id: true, name: true, priceDelta: true } } } } } },
       },
@@ -155,8 +166,8 @@ export class OrdersService {
       if (!p || !p.isActive || !(FOOD_TYPES as readonly string[]).includes(p.type)) throw new NotFoundException({ error: "product_not_found", productId: l.productId });
       const bp = p.productBranchPrices[0];
       if (bp && !bp.isAvailable) throw new ConflictException({ error: "sold_out", product: p.name });
-      if (i.channel === "SHELL" && !p.availableInShell) throw new ConflictException({ error: "not_orderable_here", product: p.name });
-      if (!Number.isInteger(l.quantity) || l.quantity < 1 || l.quantity > 50) throw new HttpException({ error: "bad_quantity" }, 400);
+      if (i.channel === "SHELL" && !p.availableInShell && !i.internal) throw new ConflictException({ error: "not_orderable_here", product: p.name });
+      if (!Number.isInteger(l.quantity) || l.quantity < 1 || l.quantity > (i.internal ? 10_000 : 50)) throw new HttpException({ error: "bad_quantity" }, 400);
       const groups = p.productModifierGroups.map(({ modifierGroup: g }) => ({ id: g.id, name: g.name, minSelect: g.minSelect, maxSelect: g.maxSelect, modifierIds: g.modifiers.map((m) => m.id), modifiers: g.modifiers }));
       const chosen = l.modifierIds ?? [];
       try {
@@ -171,7 +182,23 @@ export class OrdersService {
         input: { unitMinor: toMinor(bp?.price ?? p.price, unit), quantity: l.quantity, modifiers: mods.map((m) => ({ name: m.name, priceDeltaMinor: toMinor(m.priceDelta, unit) })), taxClass: p.taxAppliesTo as TaxClass },
       };
     });
-    const discount: OrderDiscount = !i.discount ? null : i.discount.kind === "PERCENT" ? { kind: "PERCENT", value: i.discount.value } : { kind: "AMOUNT", valueMinor: toMinor(i.discount.value, unit) };
+    // Ready items (cans, snacks) can't be sold past what's on the shelf.
+    const onHand = await stockForProducts(t, branch.id, products.map((p) => ({ id: p.id, type: p.type, inventoryItemId: p.inventoryItemId, stationName: p.kitchenStation?.name ?? null })));
+    const wanted = new Map<string, number>();
+    for (const l of i.lines) wanted.set(l.productId, (wanted.get(l.productId) ?? 0) + l.quantity);
+    for (const [pid, qty] of wanted) {
+      const left = onHand.get(pid);
+      if (left !== undefined && left.lt(qty)) throw new ConflictException({ error: "sold_out", product: byId.get(pid)!.name, left: Math.max(0, Math.floor(Number(left))) });
+    }
+    // Promotions (automatic ones, and a promo code if given) come off on top of any manual discount.
+    const lineUnit = (x: (typeof priceInputs)[number]) => x.input.unitMinor + x.input.modifiers.reduce((a, m) => a + m.priceDeltaMinor, 0);
+    const subtotalMinor = priceInputs.reduce((a, x) => a + lineUnit(x) * x.input.quantity, 0);
+    const promo = i.internal
+      ? null
+      : await this.promotions.evaluate(t, { branchId: branch.id, customerId, order: { lines: priceInputs.map((x) => ({ productId: x.product.id, categoryId: x.product.categoryId, quantity: x.input.quantity, unitMinor: lineUnit(x) })) } }, i.promoCode ?? null);
+    const manualMinor = !i.discount ? 0 : i.discount.kind === "PERCENT" ? Math.round((subtotalMinor * i.discount.value) / 100) : toMinor(i.discount.value, unit);
+    const totalDiscount = Math.min(subtotalMinor, manualMinor + (promo?.discountMinor ?? 0));
+    const discount: OrderDiscount = totalDiscount > 0 ? { kind: "AMOUNT", valueMinor: totalDiscount } : null;
     let priced;
     try {
       priced = priceOrder(priceInputs.map((x) => x.input), await this.taxProfile(t, branch.id), discount);
@@ -226,6 +253,8 @@ export class OrdersService {
     // Nothing for the kitchen (a can from the fridge): handed over at once.
     if (ticketFor.size === 0) await t.order.update({ where: { id: order.id }, data: { status: "SERVED" } });
 
+    await consumeOrder(t, order.id, branch.id, employeeId);
+    if (promo?.applied.length) await this.promotions.redeem(t, promo, { customerId, orderId: order.id });
     await recomputeBill(t, billId);
     // Paying now pays for THIS order (a seat order paid from the wallet mustn't settle the whole session bill).
     if (i.payments?.length) await this.pay(t, billId, i.payments, actor, `${i.idempotencyKey}:pay`, order.id, priced.totalMinor);
@@ -288,6 +317,8 @@ export class OrdersService {
     const paid = await t.bill.findUnique({ where: { id: item.order.billId ?? "" }, select: { status: true } });
     if (paid?.status === "SETTLED") throw new ConflictException({ error: "bill_settled", hint: "Refund it instead." });
     await t.orderItem.update({ where: { id: itemId }, data: { status: "VOIDED", voidedById: actor.id, voidReason: reason } });
+    // Not started → the ingredients go back on the shelf. Cooked food stays used (it was made).
+    if (!cooking && item.status !== "SERVED") await returnOrderItems(t, [itemId], item.order.branchId, actor.id, reason);
     await this.retotal(t, item.order.id);
     await auditAs(t, actor, { action: "order.void_item", entityType: "Order", entityId: item.order.id, branchId: item.order.branchId, after: { item: item.nameSnapshot, qty: item.quantity.toString(), amount: item.lineTotal.toString(), reason } });
     return this.view(t, item.order.id);
@@ -298,7 +329,9 @@ export class OrdersService {
     if (!o) throw new NotFoundException({ error: "not_found" });
     if (["CANCELLED", "COMPLETED", "REFUNDED"].includes(o.status)) throw new ConflictException({ error: "not_cancellable", status: o.status });
     if (o.paymentState === "PAID" && (await t.payment.count({ where: { orderId, status: "CAPTURED" } }))) throw new ConflictException({ error: "order_paid", hint: "Refund it instead." });
+    const unstarted = await t.orderItem.findMany({ where: { orderId, status: { notIn: ["VOIDED", "REFUNDED", "SERVED"] }, OR: [{ kitchenTicketId: null }, { kitchenTicket: { status: { in: ["NEW", "ACCEPTED"] } } }] }, select: { id: true } });
     await t.order.update({ where: { id: orderId }, data: { status: "CANCELLED", cancelledAt: new Date(), cancelReason: reason, cancelledById: actor.id } });
+    await returnOrderItems(t, unstarted.map((x) => x.id), o.branchId, actor.id, reason);
     await t.orderItem.updateMany({ where: { orderId, status: { notIn: ["VOIDED", "REFUNDED"] } }, data: { status: "VOIDED", voidedById: actor.id, voidReason: reason } });
     const tickets = await t.kitchenTicket.findMany({ where: { orderId, status: { notIn: ["SERVED", "CANCELLED"] } }, select: { id: true, stationId: true } });
     await t.kitchenTicket.updateMany({ where: { id: { in: tickets.map((x) => x.id) } }, data: { status: "CANCELLED", cancelledAt: new Date() } });
@@ -347,7 +380,10 @@ export class OrdersService {
     await t.payment.update({ where: { id: paymentId }, data: { refundedAmount: { increment: fromMinor(amount, unit) } } });
     if (dest === "CASH") await t.cashMovement.create({ data: { organizationId: p.organizationId, shiftId: shift!.id, type: "CASH_REFUND", amount: fromMinor(-amount, unit), refundId: refund.id, paymentId, employeeId: actor.id, reason: r.reason } });
     if (dest === "WALLET") await moveMoney(t, { customerId: p.customerId!, bucket: "CASH", deltaMinor: amount, type: "REFUND", reason: r.reason, branchId: p.branchId, referenceType: "REFUND", referenceId: refund.id, paymentId, employeeId: actor.id, idempotencyKey: `${r.idempotencyKey}:wallet` });
-    if (p.billId) await recomputeBill(t, p.billId);
+    if (p.billId) {
+      const bill = await recomputeBill(t, p.billId);
+      await reverseForRefund(t, p.billId, amount, toMinor(bill.total, unit), refund.id);
+    }
     await auditAs(t, actor, { action: "payment.refund", entityType: "Payment", entityId: paymentId, branchId: p.branchId, after: { amount: fromMinor(amount, unit).toFixed(unit), destination: dest, reason: r.reason } });
     return refund;
   }

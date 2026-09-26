@@ -44,6 +44,9 @@ const TTL_SECONDS: Partial<Record<DeviceCommandType, number>> = {
   SCAN_GAMES: 120,
   RUN_REPAIR: 120,
   UPDATE_GAME: 900, // an offline PC's update expires and is re-issued by the job when it's back
+  POWER: 900, // may carry an "off in 60 s" delay; a later POWER for the same plug supersedes it
+  PRINT_RELEASE: 300,
+  PRINT_CANCEL: 300,
 };
 
 export interface IssueInput {

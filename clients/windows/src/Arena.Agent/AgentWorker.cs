@@ -25,6 +25,8 @@ public sealed class AgentWorker(
     ShellHub shell,
     ServerLink link,
     StationService station,
+    PrintMonitor printing,
+    PowerBridge power,
     ILogger<AgentWorker> log) : BackgroundService
 {
     public static readonly string Version = typeof(AgentWorker).Assembly.GetName().Version?.ToString(3) ?? "0.1.0";
@@ -49,6 +51,7 @@ public sealed class AgentWorker(
             identity.SafeMode ? " [SAFE MODE: disruptive commands are simulated]" : "");
         _safeMode = identity.SafeMode;
         station.Configure(identity.SafeMode);
+        printing.Configure(identity.SafeMode);
         shell.Configure(identity.Name, identity.SafeMode, LoadVenue());
         shell.LoginRequested += OnShellLogin;
         shell.LogoutRequested += OnShellLogout;
@@ -165,7 +168,7 @@ public sealed class AgentWorker(
         if (type == "error") { log.LogWarning("Server says: {Error}", doc.RootElement.GetProperty("error").GetString()); return; }
         if (type == "shell_result") { OnShellResult(doc.RootElement); return; }
         if (type == "help_result") { station.OnHelpResult(doc.RootElement); return; }
-        if (type is "menu" or "order_result" or "order_status") { station.ForwardToShell(doc.RootElement); return; }
+        if (type is "menu" or "order_result" or "order_status" or "print_quote" or "print_status") { station.ForwardToShell(doc.RootElement); return; }
         if (type == "config") { ApplyConfig(doc.RootElement, verifier, replay); return; }
         if (type != "command") return;
 
@@ -206,6 +209,16 @@ public sealed class AgentWorker(
             case "RUN_REPAIR":
                 var repair = PayloadString(e.Payload, "action");
                 return repair is null ? ExecResult.Fail("BAD_PAYLOAD", "action missing") : await station.RepairAsync(repair, ct);
+
+            case "PRINT_RELEASE":
+            case "PRINT_CANCEL":
+                var jobKey = PayloadString(e.Payload, "jobKey");
+                if (jobKey is null) return ExecResult.Fail("BAD_PAYLOAD", "jobKey missing");
+                return e.Type == "PRINT_RELEASE" ? printing.Release(jobKey) : printing.Cancel(jobKey);
+
+            case "POWER":
+                // This PC is the branch bridge: switch an agentless station's smart plug on the LAN.
+                return await power.ExecuteAsync(e.Payload, safeMode, ct);
 
             case "SEND_MESSAGE" when shell.ClientCount > 0:
                 shell.SendMessage(PayloadString(e.Payload, "title") ?? "Message from staff", PayloadString(e.Payload, "message") ?? "");

@@ -132,6 +132,83 @@ See [11-customers-wallet-bookings](11-customers-wallet-bookings.md). Money payme
 - **Public:** `GET /:slug/venue`, `POST /:slug/register`, `POST /:slug/login`.
 - **Signed in:** `/me`, `/logout`, `/wallet`, `/visits`, `/availability`, `/bookings` (list, create, `:id/cancel`), `/shop`, `/time`, `/memberships`.
 
+## Loyalty, promotions, tournaments & CRM (Phase 10)
+
+See [15-loyalty-promotions-tournaments-crm](15-loyalty-promotions-tournaments-crm.md). POS orders and session quote/start accept `promoCode`. Customer app registration accepts `referralCode`.
+
+| Method | Path | Permission |
+|---|---|---|
+| GET | /promotions · /promotions/:id | promotion.view |
+| POST · PATCH | /promotions · /promotions/:id | promotion.manage (sensitive) |
+| POST | /promotions/:id/status · /promotions/:id/codes | promotion.manage (sensitive) |
+| POST | /promotions/evaluate | promotion.view |
+| GET · POST · PATCH | /loyalty/rules · /loyalty/rules/:id | loyalty.view · loyalty.manage |
+| GET · POST · PATCH | /loyalty/rewards · /loyalty/rewards/:id | loyalty.view · loyalty.manage |
+| GET | /customers/:id/loyalty | customer.view |
+| POST | /customers/:id/loyalty/adjust | customer.adjust_points (sensitive) |
+| POST | /customers/:id/loyalty/redeem | loyalty.redeem |
+| GET | /tournaments · /tournaments/:id | tournament.view |
+| POST | /tournaments · /tournaments/:id/status · /tournaments/:id/teams · /tournaments/:id/start | tournament.manage |
+| PATCH | /tournaments/:id/seeds | tournament.manage |
+| POST | /teams/:id/check-in · /teams/:id/withdraw | tournament.manage |
+| POST | /matches/:id/result | tournament.score |
+| POST | /matches/:id/stations | tournament.manage |
+| GET | /segments · /segments/:id/members | crm.view |
+| POST · PATCH | /segments · /segments/:id · POST /segments/:id/members | crm.campaign_send (sensitive) |
+| POST | /segments/refresh | crm.view |
+| GET · POST | /campaigns · /campaigns/:id · /campaigns/audience | crm.view |
+| POST | /campaigns/:id/send · /campaigns/:id/cancel | crm.campaign_send (sensitive) |
+
+**Customer app (`/v1/app/:venue`):** `GET /loyalty`, `POST /loyalty/redeem`, `GET /tournaments`, `GET /tournaments/:id`, `POST /tournaments/:id/register` (teammates by username, fee from the wallet), `GET /inbox`, `POST /inbox/:id/read`.
+
+## Consoles, VR, station displays & printing (Phase 9)
+
+See [14-consoles-vr-printing](14-consoles-vr-printing.md). Session start/quote accept `players` and `ageConfirmed`; pricing plans accept `includedPlayers` and `extraPlayerRate`.
+
+| Method | Path | Permission |
+|---|---|---|
+| GET · POST | /branches/:id/stations | station.view · station.manage |
+| PATCH | /devices/:id/station | station.manage |
+| POST | /devices/:id/bridge | station.manage |
+| POST | /devices/:id/power | station.shutdown |
+| POST | /devices/:id/cleaned | station.start_session |
+| GET · POST · PATCH | /devices/:id/accessories · /devices/:id/accessories/:accessoryId | station.view · station.manage |
+| POST | /devices/:id/accessory-check | station.start_session |
+| POST · DELETE | /devices/:id/display-pairing | station.manage |
+| POST | /display/pair | public (one-time code, throttled) |
+| GET | /display/state | public (display token) |
+| GET | /branches/:id/print-jobs?open=1 | print.view |
+| POST | /print-jobs/:id/release · /print-jobs/:id/cancel | print.release |
+| GET · PUT | /branches/:id/print-settings | print.view · settings.manage |
+
+**Device socket:** `print_job`, `print_confirm`, `print_cancel`, `print_done` → server replies `print_quote`, `print_status`; signed commands `PRINT_RELEASE`, `PRINT_CANCEL`, `POWER` (to the bridge).
+
+## Inventory, purchasing & suppliers (Phase 8)
+
+See [13-inventory-purchasing](13-inventory-purchasing.md). Warehouse endpoints are checked against the warehouse's branch (a central warehouse needs organization scope). Stock writes carry an `idempotencyKey`.
+
+| Method | Path | Permission |
+|---|---|---|
+| GET · POST | /warehouses · PATCH /warehouses/:id | inventory.view · inventory.manage |
+| GET | /inventory/overview?branchId | inventory.view |
+| GET | /warehouses/:id/stock?q&category · /warehouses/:id/movements?itemId&type | inventory.view |
+| GET · POST · PATCH | /inventory/items · /inventory/items/:id | inventory.view · inventory.manage |
+| POST | /warehouses/:id/adjust (WASTE, ADJUSTMENT, ISSUE_TO_STATION) | inventory.adjust + reason |
+| POST | /inventory/transfers | inventory.transfer (both stores) |
+| POST | /warehouses/:id/counts | inventory.count |
+| GET · PUT | /products/:id/recipe | restaurant.menu_manage |
+| PUT | /modifiers/:id/stock | restaurant.menu_manage |
+| GET | /menu/costing?branchId | restaurant.menu_manage |
+| GET · POST · PATCH | /suppliers · /suppliers/:id | purchasing.view · purchasing.suppliers_manage |
+| GET · POST | /purchase-orders?status&supplierId · /purchase-orders/:id | purchasing.view · purchasing.create |
+| PATCH | /purchase-orders/:id (draft only) | purchasing.create |
+| POST | /purchase-orders/:id/submit · /ordered · /cancel | purchasing.create |
+| POST | /purchase-orders/:id/approve | purchasing.approve + reason (not the creator) |
+| POST | /purchase-orders/:id/receive · /close | purchasing.receive |
+| GET · POST | /warehouses/:id/reorder · /purchasing/reorder | purchasing.view · purchasing.create |
+| GET · POST | /supplier-invoices?status&supplierId | purchasing.view · purchasing.suppliers_manage |
+| POST | /supplier-invoices/:id/pay · /supplier-invoices/:id/status | purchasing.suppliers_manage |
+
 ## POS, restaurant, kitchen & shifts (Phase 7)
 
 See [12-pos-restaurant-kitchen](12-pos-restaurant-kitchen.md). Orders and payments carry an `idempotencyKey`.

@@ -46,6 +46,10 @@ export interface PlanDef {
   validTo: Date | null;
   isActive: boolean;
   packages: PackageDef[];
+  /** Consoles: players included in the rate (default 1). */
+  includedPlayers?: number;
+  /** Per extra player, in the rate's unit (per minute for PER_MINUTE, else per hour). */
+  extraPlayerRateMinor?: number | null;
 }
 
 export interface PricingContext {
@@ -209,7 +213,20 @@ function timeCharge(plan: PlanDef, minutes: number): number {
   throw new PricingError("not_time_based", `${plan.name} is not billed by time`);
 }
 
-export function quote(plan: PlanDef, req: QuoteRequest, ctx: PricingContext, opts: { membershipDiscountPct?: number; discount?: Discount } = {}): Quote {
+/** Players beyond what the rate includes. */
+export function extraPlayers(plan: Pick<PlanDef, "includedPlayers">, players: number): number {
+  return Math.max(0, Math.floor(players || 1) - Math.max(1, plan.includedPlayers ?? 1));
+}
+
+/** Extra-player charge for a stretch of time (billable minutes, same rounding as the base rate). */
+export function playerSurcharge(plan: PlanDef, minutes: number, players: number): number {
+  const n = extraPlayers(plan, players);
+  if (!n || !plan.extraPlayerRateMinor) return 0;
+  const billable = billableMinutes(plan, minutes);
+  return plan.billingMode === "PER_MINUTE" ? n * plan.extraPlayerRateMinor * billable : Math.round((n * plan.extraPlayerRateMinor * billable) / 60);
+}
+
+export function quote(plan: PlanDef, req: QuoteRequest, ctx: PricingContext, opts: { membershipDiscountPct?: number; discount?: Discount; players?: number } = {}): Quote {
   const lines: string[] = [];
   let minutes: number | null;
   let expiresAt: Date | null;
@@ -257,6 +274,17 @@ export function quote(plan: PlanDef, req: QuoteRequest, ctx: PricingContext, opt
     }
   }
 
+  // Consoles: each player beyond what the rate includes pays the extra-player rate for the same time.
+  const players = opts.players ?? 1;
+  if (minutes !== null && extraPlayers(plan, players) > 0 && plan.extraPlayerRateMinor) {
+    const extra = playerSurcharge(plan, minutes, players);
+    gross += extra;
+    lines.push(`${extraPlayers(plan, players)} extra player${extraPlayers(plan, players) > 1 ? "s" : ""} +${money(extra)}`);
+  }
+  if (req.kind === "open" && extraPlayers(plan, players) > 0 && plan.extraPlayerRateMinor) {
+    lines.push(`+${money(plan.extraPlayerRateMinor * extraPlayers(plan, players))}/${plan.billingMode === "PER_HOUR" ? "hour" : "min"} for ${extraPlayers(plan, players)} extra player(s)`);
+  }
+
   const membershipDiscount = Math.round((gross * Math.min(100, Math.max(0, opts.membershipDiscountPct ?? 0))) / 100);
   if (membershipDiscount) lines.push(`Membership discount −${money(membershipDiscount)}`);
   const afterMember = gross - membershipDiscount;
@@ -284,15 +312,15 @@ export function quote(plan: PlanDef, req: QuoteRequest, ctx: PricingContext, opt
 }
 
 /** Final charge for an open (postpaid) session from the time actually used. */
-export function postpaidCharge(plan: PlanDef, usedSeconds: number, membershipDiscountPct = 0): { minutes: number; totalMinor: number } {
+export function postpaidCharge(plan: PlanDef, usedSeconds: number, membershipDiscountPct = 0, players = 1): { minutes: number; totalMinor: number } {
   const usedMinutes = Math.max(0, usedSeconds) / 60;
   if (usedMinutes <= plan.graceMinutes) return { minutes: 0, totalMinor: 0 };
   const minutes = Math.ceil(usedMinutes);
-  const gross = timeCharge(plan, minutes);
+  const gross = timeCharge(plan, minutes) + playerSurcharge(plan, minutes, players);
   return { minutes: billableMinutes(plan, minutes), totalMinor: gross - Math.round((gross * membershipDiscountPct) / 100) };
 }
 
 /** Minutes of extra time a given amount of money buys (for "extend by package" helpers). */
-export function extensionQuote(plan: PlanDef, minutes: number): number {
-  return timeCharge(plan, minutes);
+export function extensionQuote(plan: PlanDef, minutes: number, players = 1): number {
+  return timeCharge(plan, minutes) + playerSurcharge(plan, minutes, players);
 }

@@ -4,6 +4,7 @@ import type { Db, TenantTx } from "@arena/db";
 import { auditAs } from "../common/audit.service.js";
 import { DB } from "../common/db.module.js";
 import { LiveBus } from "../devices/live.js";
+import { earnEvent } from "../loyalty/points.js";
 import { quote, selectPlans } from "../sessions/pricing.js";
 import { LIVE_STATUSES, SessionsService, stationClassFor, toPlanDef, type PaymentMethodInput } from "../sessions/sessions.service.js";
 import { fromMinor, moveMoney } from "../wallet/wallet.js";
@@ -289,6 +290,7 @@ export class BookingsService implements OnModuleInit, OnModuleDestroy {
       started.push(s.id);
     }
     await t.booking.update({ where: { id }, data: { status: "CHECKED_IN", checkedInAt: new Date() } });
+    if (b.customerId) await earnEvent(t, b.customerId, "BOOKING", b.branchId, { type: "BOOKING", id: b.id }, `pts:booking:${b.id}`, "Booking kept");
     await auditAs(t, actor, { action: "booking.check_in", entityType: "Booking", entityId: id, branchId: b.branchId, after: { sessions: started, minutes, payment: payment.method } });
     return { ...(await this.view(t, id)), sessionIds: started };
   }

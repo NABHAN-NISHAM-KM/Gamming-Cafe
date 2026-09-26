@@ -82,6 +82,18 @@ model Device {
   lastSeenAt            DateTime?              @db.Timestamptz(3)
   postSessionAction     PostSessionAction      @default(LOCK)
   cleaningRequired      Boolean                @default(false) // VR headsets: force CLEANING after session
+  /// No ArenaOS agent (console, VR headset, sim rig, TV): the server's timer is the only clock.
+  agentless             Boolean                @default(false)
+  /// Minimum customer age for this station (VR, motion sims).
+  minAge                Int?
+  /// Smart plug the branch bridge switches: { kind: SHELLY|SHELLY_GEN1|TASMOTA, host, channel, offDelaySeconds }.
+  powerPlug             Json?
+  /// This station's agent relays LAN actions (smart plugs) for the branch's agentless stations.
+  isBridge              Boolean                @default(false)
+  /// SMART_TV station displays: sha256 of the display token and of the one-time pairing code.
+  displayTokenHash      String?                @unique
+  displayPairCodeHash   String?                @unique
+  displayPairExpiresAt  DateTime?              @db.Timestamptz(3)
   notes                 String?
   metadata              Json                   @default("{}")
   createdAt             DateTime               @default(now()) @db.Timestamptz(3)
@@ -305,6 +317,9 @@ enum DeviceCommandType {
   SCREENSHOT
   SCAN_GAMES
   UPDATE_GAME
+  POWER // bridge agent switches a smart plug for an agentless station
+  PRINT_RELEASE
+  PRINT_CANCEL
 }
 
 enum DeviceCommandStatus {

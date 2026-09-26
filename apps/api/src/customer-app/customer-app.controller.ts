@@ -13,6 +13,8 @@ import { ZodPipe } from "../common/zod.pipe.js";
 import { BookingsService } from "../bookings/bookings.service.js";
 import { CommerceService } from "../customers/commerce.service.js";
 import { balances, walletView } from "../wallet/wallet.js";
+import { LoyaltyService } from "../loyalty/loyalty.service.js";
+import { TournamentsService } from "../tournaments/tournaments.service.js";
 
 /** Sliding-window attempt counter (per IP, per account). */
 class Throttle {
@@ -40,6 +42,8 @@ const Register = z
     email: z.email().max(254).nullish(),
     dateOfBirth: z.iso.date().nullish(),
     marketingConsent: z.boolean().default(false),
+    /** A friend's referral code: they earn points when you first play. */
+    referralCode: z.string().regex(/^[A-Za-z0-9]{4,16}$/).nullish(),
   })
   .strict();
 const Login = z.object({ username: z.string().min(1).max(254), password: z.string().min(1).max(256) }).strict();
@@ -87,6 +91,8 @@ export class CustomerAppController {
     @Inject(BookingsService) private readonly bookings: BookingsService,
     @Inject(CommerceService) private readonly commerce: CommerceService,
     @Inject(CONFIG) private readonly cfg: AppConfig,
+    @Inject(LoyaltyService) private readonly loyalty: LoyaltyService,
+    @Inject(TournamentsService) private readonly tournaments: TournamentsService,
   ) {}
 
   // ── venue & auth (public) ────────────────────────────────────────────────
@@ -129,11 +135,13 @@ export class CustomerAppController {
         select: { username: true, email: true, phone: true },
       });
       if (clash) throw new ConflictException({ error: clash.username === body.username ? "username_taken" : "already_registered", hint: "Sign in instead, or ask staff to reset your password." });
+      const referrer = body.referralCode ? await t.customer.findFirst({ where: { referralCode: body.referralCode.toUpperCase(), status: "ACTIVE" }, select: { id: true } }) : null;
+      if (body.referralCode && !referrer) throw new ConflictException({ error: "referral_code_invalid" });
       const c = await t.customer.create({
         data: {
           organizationId, username: body.username, displayName: body.displayName, passwordHash: await hashSecret(body.password), phone: body.phone ?? null,
           email: body.email?.toLowerCase() ?? null, dateOfBirth: body.dateOfBirth ? new Date(body.dateOfBirth) : null, marketingConsent: body.marketingConsent,
-          referralCode: randomBytes(4).toString("hex").toUpperCase(),
+          referralCode: randomBytes(4).toString("hex").toUpperCase(), referredById: referrer?.id ?? null,
         },
       });
       await auditAs(t, { type: "CUSTOMER", id: c.id }, { action: "customer.self_register", entityType: "Customer", entityId: c.id, after: { username: c.username } });
@@ -314,5 +322,77 @@ export class CustomerAppController {
   @Post("memberships")
   buyMembership(@Req() req: Request, @Body(new ZodPipe(BuyMembership)) body: z.infer<typeof BuyMembership>) {
     return this.as(req, (t, me) => this.commerce.sellMembership(t, { ...body, customerId: me.customerId, payment: { method: "WALLET" } }, { type: "CUSTOMER", id: me.customerId }));
+  }
+
+  // ── loyalty ──────────────────────────────────────────────────────────────
+
+  @Get("loyalty")
+  myLoyalty(@Req() req: Request) {
+    return this.as(req, (t, me) => this.loyalty.summary(t, me.customerId));
+  }
+
+  @Post("loyalty/redeem")
+  @HttpCode(200)
+  redeem(@Body(new ZodPipe(z.object({ rewardId: z.uuid(), idempotencyKey: z.string().min(8).max(100) }).strict())) body: { rewardId: string; idempotencyKey: string }, @Req() req: Request) {
+    return this.as(req, (t, me) => this.loyalty.redeem(t, me.customerId, body.rewardId, { type: "CUSTOMER", id: me.customerId }, `app:${me.customerId}:${body.idempotencyKey}`));
+  }
+
+  // ── tournaments ──────────────────────────────────────────────────────────
+
+  @Get("tournaments")
+  listTournaments(@Req() req: Request) {
+    return this.as(req, async (t, me) => {
+      const rows = await t.tournament.findMany({
+        where: { isPublic: true, OR: [{ status: { in: ["REGISTRATION_OPEN", "REGISTRATION_CLOSED", "CHECK_IN", "IN_PROGRESS"] } }, { status: "COMPLETED", endsAt: { gte: new Date(Date.now() - 30 * 86_400_000) } }] },
+        orderBy: { startsAt: "asc" },
+        include: { branch: { select: { name: true } }, game: { select: { title: true, coverUrl: true } }, _count: { select: { teams: { where: { status: { notIn: ["WITHDRAWN", "DISQUALIFIED"] } } } } } },
+      });
+      const mine = await t.tournamentPlayer.findMany({ where: { customerId: me.customerId, tournamentId: { in: rows.map((r) => r.id) } }, select: { tournamentId: true, team: { select: { name: true, status: true, finalPlacement: true } } } });
+      return rows.map((r) => ({
+        id: r.id, name: r.name, status: r.status, format: r.format, game: r.game?.title ?? r.customGameName, coverUrl: r.game?.coverUrl ?? r.bannerUrl, branch: r.branch.name, startsAt: r.startsAt,
+        teamSize: r.teamSize, maxTeams: r.maxTeams, entered: r._count.teams, entryFee: r.entryFee.toFixed(2), prizePool: r.prizePool.toFixed(2), currency: r.currency,
+        myTeam: mine.find((m) => m.tournamentId === r.id)?.team ?? null,
+      }));
+    });
+  }
+
+  @Get("tournaments/:id")
+  tournament(@Param("id") id: string, @Req() req: Request) {
+    return this.as(req, async (t, me) => {
+      const v = await this.tournaments.view(t, id, { publicOnly: true });
+      const mine = await t.tournamentPlayer.findFirst({ where: { tournamentId: id, customerId: me.customerId }, select: { teamId: true } });
+      return { ...v, myTeamId: mine?.teamId ?? null };
+    });
+  }
+
+  /** Enter with your team: teammates by username; the fee comes from your wallet. */
+  @Post("tournaments/:id/register")
+  registerTeam(@Param("id") id: string, @Body(new ZodPipe(z.object({ teamName: z.string().min(1).max(40), teammates: z.array(z.string().min(3).max(32)).max(9).default([]), idempotencyKey: z.string().min(8).max(100) }).strict())) body: { teamName: string; teammates: string[]; idempotencyKey: string }, @Req() req: Request) {
+    return this.as(req, async (t, me) => {
+      const mates = body.teammates.length ? await t.customer.findMany({ where: { username: { in: body.teammates.map((u) => u.toLowerCase()) }, status: "ACTIVE" }, select: { id: true, username: true } }) : [];
+      const missing = body.teammates.filter((u) => !mates.some((m) => m.username === u.toLowerCase()));
+      if (missing.length) throw new NotFoundException({ error: "player_not_found", usernames: missing });
+      const tr = await t.tournament.findUnique({ where: { id }, select: { isPublic: true, entryFee: true } });
+      if (!tr?.isPublic) throw new NotFoundException({ error: "tournament_not_found" });
+      return this.tournaments.register(t, id, { teamName: body.teamName, captainId: me.customerId, playerIds: mates.map((m) => m.id), payment: Number(tr.entryFee) > 0 ? { method: "WALLET" } : null, idempotencyKey: `app:${me.customerId}:${body.idempotencyKey}` }, { type: "CUSTOMER", id: me.customerId });
+    });
+  }
+
+  // ── inbox ────────────────────────────────────────────────────────────────
+
+  @Get("inbox")
+  inbox(@Req() req: Request) {
+    return this.as(req, (t, me) =>
+      t.notification.findMany({ where: { customerId: me.customerId, channel: "IN_APP", createdAt: { gte: new Date(Date.now() - 60 * 86_400_000) } }, orderBy: { createdAt: "desc" }, take: 50, select: { id: true, title: true, body: true, data: true, readAt: true, createdAt: true } }),
+    );
+  }
+
+  @Post("inbox/:id/read")
+  @HttpCode(200)
+  read(@Param("id") id: string, @Req() req: Request) {
+    return this.as(req, async (t, me) => {
+      await t.notification.updateMany({ where: { id, customerId: me.customerId, readAt: null }, data: { readAt: new Date(), status: "READ" } });
+      return { read: true };
+    });
   }
 }

@@ -34,6 +34,9 @@ export const DEVICE_COMMANDS = [
   "SCREENSHOT",
   "SCAN_GAMES",
   "UPDATE_GAME",
+  "POWER",
+  "PRINT_RELEASE",
+  "PRINT_CANCEL",
 ] as const;
 export type DeviceCommandType = (typeof DEVICE_COMMANDS)[number];
 
@@ -284,7 +287,40 @@ export type DeviceToServer =
   | { type: "self_repair"; action: RepairAction; ok: boolean; detail?: string | null }
   // Phase 7 — in-seat food & drink ordering from the Shell
   | { type: "menu_request"; requestId: string }
-  | { type: "place_order"; requestId: string; lines: SeatOrderLine[]; notes?: string | null; payWith: "BILL" | "WALLET" };
+  | { type: "place_order"; requestId: string; lines: SeatOrderLine[]; notes?: string | null; payWith: "BILL" | "WALLET" }
+  // Phase 9 — internet-café printing: the agent pauses every new job and asks
+  | { type: "print_job"; job: PrintJobReport }
+  | { type: "print_confirm"; jobKey: string; payWith: "BILL" | "WALLET" }
+  | { type: "print_cancel"; jobKey: string }
+  | { type: "print_done"; jobKey: string; ok: boolean; detail?: string | null };
+
+/** A paused spooler job as the station sees it. jobKey = spooler id + submit time (unique per station). */
+export interface PrintJobReport {
+  jobKey: string;
+  printerName: string;
+  document: string | null;
+  pages: number;
+  copies: number;
+  color: boolean;
+}
+
+/** What the customer is asked to approve on the Shell. */
+export interface PrintQuote {
+  jobKey: string;
+  jobId: string;
+  document: string | null;
+  pages: number;
+  copies: number;
+  color: boolean;
+  unitPrice: string;
+  total: string;
+  currency: string;
+  canPayWithWallet: boolean;
+  needsStaff: boolean;
+  expiresAt: string;
+  /** Why the customer is being asked again (e.g. the wallet couldn't cover it). */
+  notice?: string | null;
+}
 
 export type ServerToDevice =
   | { type: "welcome"; serverTime: string; heartbeatSeconds: number; deviceName: string; venue?: { name: string; branchName: string; logoUrl: string | null } }
@@ -295,6 +331,8 @@ export type ServerToDevice =
   | { type: "menu"; requestId: string; menu: SeatMenu | null; error?: string }
   | { type: "order_result"; requestId: string; ok: boolean; orderId?: string; number?: string; total?: string; currency?: string; error?: string; message?: string }
   | { type: "order_status"; orderId: string; number: string; status: "PREPARING" | "READY" | "SERVED"; message: string }
+  | { type: "print_quote"; quote: PrintQuote }
+  | { type: "print_status"; jobKey: string; status: "WAITING_STAFF" | "PRINTING" | "COMPLETED" | "CANCELLED" | "FAILED"; message: string }
   | { type: "error"; error: string };
 
 /**

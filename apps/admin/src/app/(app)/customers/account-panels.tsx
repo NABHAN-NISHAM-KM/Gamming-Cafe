@@ -323,3 +323,74 @@ export function TiersModal({ open, onClose }: { open: boolean; onClose: () => vo
     </Modal>
   );
 }
+
+// ── loyalty ─────────────────────────────────────────────────────────────────
+
+interface LoyaltySummary {
+  points: number;
+  referralCode: string | null;
+  tier: string | null;
+  multiplier: number;
+  expiringSoon: number;
+  history: Array<{ id: string; at: string; type: string; source: string; points: number; balanceAfter: number; reason: string | null }>;
+  rewards: Array<{ id: string; name: string; costPoints: number; rewardType: string; stock: number | null; affordable: boolean }>;
+}
+
+/** Points: balance, history, redeeming a reward for the customer, and manual adjustments (with a reason). */
+export function LoyaltyPanel({ customerId, onChanged }: { customerId: string; onChanged: () => void }) {
+  const can = useCan();
+  const s = useApi<LoyaltySummary>(`/customers/${customerId}/loyalty`);
+  const [result, setResult] = useState<string | null>(null);
+  const [adj, setAdj] = useState({ points: "", reason: "" });
+  const redeem = useAction(async (rewardId: string, name: string) => {
+    if (!confirm(`Redeem “${name}”?`)) return;
+    const r = await api<{ code?: string; minutes?: number; walletCredit?: string; balance: number }>(`/customers/${customerId}/loyalty/redeem`, { method: "POST", body: { rewardId, idempotencyKey: idem() } });
+    setResult(r.code ? `Code for the customer: ${r.code}` : r.minutes ? `${r.minutes} minutes added to their time` : r.walletCredit ? `${r.walletCredit} added to their wallet` : "Redeemed");
+    await s.reload();
+    onChanged();
+  });
+  const adjust = useAction(async () => {
+    await api(`/customers/${customerId}/loyalty/adjust`, { method: "POST", reason: adj.reason, action: "Adjust points", body: { points: Number(adj.points), reason: adj.reason, idempotencyKey: idem() } });
+    setAdj({ points: "", reason: "" });
+    await s.reload();
+  });
+  if (!s.data) return null;
+  const d = s.data;
+  return (
+    <div className="rounded-lg border border-line p-4 text-sm">
+      <p className="flex items-baseline justify-between">
+        <span className="font-medium">Loyalty points</span>
+        <span className="text-2xl font-semibold tabular-nums">{d.points}</span>
+      </p>
+      <p className="text-xs text-ink-3">
+        {d.tier ? `${d.tier} · ×${d.multiplier}` : "No tier"}{d.expiringSoon > 0 ? ` · ${d.expiringSoon} expire within 30 days` : ""}{d.referralCode ? ` · referral code ${d.referralCode}` : ""}
+      </p>
+      {result && <p className="mt-2 rounded bg-ok/10 px-2 py-1 text-ok">{result}</p>}
+      <ErrorNote>{redeem.error ?? adjust.error}</ErrorNote>
+      {can("loyalty.redeem") && d.rewards.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {d.rewards.map((r) => (
+            <Button key={r.id} size="sm" variant="secondary" disabled={!r.affordable} pending={redeem.pending} onClick={() => void redeem.run(r.id, r.name)} title={r.affordable ? "" : "Not enough points (or out of stock)"}>
+              {r.name} · {r.costPoints}
+            </Button>
+          ))}
+        </div>
+      )}
+      <ul className="mt-3 max-h-40 divide-y divide-line overflow-y-auto">
+        {d.history.slice(0, 20).map((h) => (
+          <li key={h.id} className="flex justify-between gap-2 py-1 text-xs">
+            <span className="truncate text-ink-2">{h.reason ?? h.source.toLowerCase()} <span className="text-ink-3">· {new Date(h.at).toLocaleDateString()}</span></span>
+            <span className={cx("tabular-nums", h.points < 0 ? "text-danger" : "text-ok")}>{h.points > 0 ? "+" : ""}{h.points}</span>
+          </li>
+        ))}
+      </ul>
+      {can("customer.adjust_points") && (
+        <form className="mt-3 flex items-end gap-2" onSubmit={(e) => { e.preventDefault(); void adjust.run(); }}>
+          <Field label="Adjust"><Input inputMode="numeric" value={adj.points} onChange={(e) => setAdj({ ...adj, points: e.target.value })} placeholder="+50 / −20" className="w-24" /></Field>
+          <Field label="Reason" className="flex-1"><Input value={adj.reason} onChange={(e) => setAdj({ ...adj, reason: e.target.value })} minLength={3} required placeholder="Compensation for a crash…" /></Field>
+          <Button type="submit" size="sm" pending={adjust.pending} disabled={!Number(adj.points)}>Save</Button>
+        </form>
+      )}
+    </div>
+  );
+}

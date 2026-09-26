@@ -106,6 +106,17 @@ public static class Outgoing
     public static string PlaceOrder(string requestId, IEnumerable<OrderLine> lines, string? notes, string payWith) =>
         JsonSerializer.Serialize(new { type = "place_order", requestId, lines = lines.Select(l => new { productId = l.ProductId, quantity = l.Quantity, modifierIds = l.ModifierIds }), notes, payWith }, Json.Options);
 
+    // ── Phase 9: printing ───────────────────────────────────────────────────
+
+    public static string PrintJob(Printing.PrintJobReport job) =>
+        JsonSerializer.Serialize(new { type = "print_job", job = new { jobKey = job.JobKey, printerName = job.PrinterName, document = job.Document, pages = job.Pages, copies = job.Copies, color = job.Color } }, Json.Options);
+
+    public static string PrintConfirm(string jobKey, string payWith) => JsonSerializer.Serialize(new { type = "print_confirm", jobKey, payWith }, Json.Options);
+
+    public static string PrintCancel(string jobKey) => JsonSerializer.Serialize(new { type = "print_cancel", jobKey }, Json.Options);
+
+    public static string PrintDone(string jobKey, bool ok, string? detail) => JsonSerializer.Serialize(new { type = "print_done", jobKey, ok, detail }, Json.Options);
+
     public static string SelfRepair(string action, bool ok, string? detail) =>
         JsonSerializer.Serialize(new { type = "self_repair", action, ok, detail }, Json.Options);
 
