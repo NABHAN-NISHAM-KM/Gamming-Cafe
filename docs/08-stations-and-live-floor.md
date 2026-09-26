@@ -12,8 +12,9 @@
 
 ## Adding a PC (enrolment)
 
+0. **Build the station package once:** `.\clients\windows\package.ps1` → `clients\windows\dist\ArenaOS-Station\{Agent,Shell}` (self-contained; `-FrameworkDependent` for a smaller one that needs the .NET 8 Desktop Runtime). Copy the whole folder to each PC.
 1. **Admin → Computers → Add stations.** Choose the zone and how many PCs one code may add (1–500), and how long it's valid (1–72 h). You get a code like `ARENA-XXXXX-XXXXX-XXXXX-XXXXX`. It's shown once; only its hash is stored.
-2. **On the PC, as Administrator:**
+2. **On the PC, as Administrator, from `ArenaOS-Station\Agent`:**
    ```
    ArenaAgent.exe enroll --api https://api.yourvenue.com --code ARENA-… --safe-mode off
    .\install-agent.ps1
@@ -24,6 +25,7 @@
    - Reinstalling Windows on the same PC (same MAC address) re-enrols the **same** station, keeping its history.
    - Plan limits apply: `MAX_DEVICES` → 402.
 3. The service starts automatically, restarts if it fails, and the PC appears on the Live Floor within seconds.
+4. `install-agent.ps1` also installs the Gaming Shell from `..\Shell` (or `-ShellPath`) to `%ProgramFiles%\ArenaOS\Shell`, and warns if the WebView2 runtime is missing. The agent then starts the Shell itself (see [09 · Autostart](09-sessions-and-shell.md#autostart-shellsupervisor)). `uninstall-agent.ps1` removes both.
 
 **Safe mode** (the default for `enroll` unless you pass `--safe-mode off`):
 - Restart, shutdown, logout, lock and app launch/close are **simulated**.
