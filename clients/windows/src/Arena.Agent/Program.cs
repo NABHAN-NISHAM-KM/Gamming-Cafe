@@ -61,6 +61,7 @@ switch (verb)
         builder.Services.AddHostedService(sp => sp.GetRequiredService<StationService>());
         builder.Services.AddHostedService(sp => sp.GetRequiredService<ShellHub>());
         builder.Services.AddHostedService<SessionWatchdog>();
+        builder.Services.AddHostedService<ShellSupervisor>();
         builder.Services.AddHostedService<AgentWorker>();
         await builder.Build().RunAsync();
         return 0;

@@ -31,6 +31,7 @@ Everything syncs in real time and keeps working at the branch when the internet 
 | [13 · Inventory & purchasing](docs/13-inventory-purchasing.md) | Stock ledger, recipes, waste, transfers, counts, purchase orders, receiving, supplier invoices |
 | [14 · Consoles, VR & printing](docs/14-consoles-vr-printing.md) | Agentless stations, player pricing, TV station displays, smart-plug bridge, print control |
 | [15 · Loyalty, promotions, tournaments & CRM](docs/15-loyalty-promotions-tournaments-crm.md) | Points ledger and rewards, promotions engine and codes, brackets and prizes, segments and campaigns |
+| [16 · Full test guide](docs/16-test-guide.md) | Server setup, physical gaming-PC setup, and a checklist for every role and feature |
 
 ## Repository
 

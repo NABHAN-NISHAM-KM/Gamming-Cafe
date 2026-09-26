@@ -126,6 +126,25 @@ Three pieces, each trusting the next one less:
   - `--dev`: a normal window with DevTools.
   - Deeper lockdown is Phase 13: an Explorer replacement, key filtering, and a staff exit.
 
+### Autostart (`ShellSupervisor`)
+
+The agent service keeps the Shell running on the customer's desktop. Every
+3 s it looks at the console session and, when the rules in
+`ShellAutostartPolicy` (Agent.Core, unit-tested) allow, starts
+`ArenaShell.exe --kiosk` in that session with `CreateProcessAsUser`.
+- **Where:** `%ProgramFiles%\ArenaOS\Shell\ArenaShell.exe` (next to the agent,
+  installed by `install-agent.ps1`), or `ARENA_SHELL_EXE`.
+- **Who:** standard Windows users only. Administrators (UAC limited/full
+  tokens, or members of Administrators with UAC off) get the normal desktop,
+  so staff can do maintenance.
+- **When not:** safe mode, the Shell isn't installed, or the agent is running in
+  a console (`run`), where it isn't SYSTEM.
+- **Killed or crashed:** it's back on the next tick. 5 launches within 2
+  minutes → autostart pauses for 5 minutes and an error is logged, instead of
+  spinning.
+- Replaces the earlier manual logon task; the installer removes an old
+  `ArenaShell` scheduled task if it finds one.
+
 ### UI (`apps/shell`)
 
 - **Lock screen:** venue, clock, station name, sign-in, EN/العربية, and an offline banner.
