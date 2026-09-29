@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- ArenaOS desktop demos: a WebView2 window that serves one of the live demo
+       builds (npm run build:demos) from inside the EXE. Built twice:
+         -p:DemoApp=Shell    -> ArenaOS-Shell-Demo.exe (Gaming Shell, windowed)
+         -p:DemoApp=Console  -> ArenaOS-Console.exe    (admin + Super Admin; demo or a real server)
+       See clients/windows/package-demos.ps1. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <OutputType>WinExe</OutputType>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>Arena.DemoHost</RootNamespace>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <DemoApp Condition="'$(DemoApp)' == ''">Console</DemoApp>
+    <DefineConstants>$(DefineConstants);DEMO_$(DemoApp.ToUpperInvariant())</DefineConstants>
+    <AssemblyName Condition="'$(DemoApp)' == 'Shell'">ArenaOS-Shell-Demo</AssemblyName>
+    <AssemblyName Condition="'$(DemoApp)' == 'Console'">ArenaOS-Console</AssemblyName>
+    <Product Condition="'$(DemoApp)' == 'Shell'">ArenaOS Gaming Shell (demo)</Product>
+    <Product Condition="'$(DemoApp)' == 'Console'">ArenaOS Console</Product>
+    <ApplicationIcon Condition="Exists('arena.ico')">arena.ico</ApplicationIcon>
+    <!-- One file, no .NET install needed on the PC. -->
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <DebugType>none</DebugType>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Made by package-demos.ps1 from apps/website/live/<app>. -->
+    <EmbeddedResource Include="obj\site-$(DemoApp).zip" LogicalName="site.zip" Condition="Exists('obj\site-$(DemoApp).zip')" />
+    <EmbeddedResource Include="start.html" LogicalName="start.html" />
+  </ItemGroup>
+</Project>

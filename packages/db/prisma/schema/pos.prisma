@@ -209,6 +209,7 @@ model Bill {
   @@unique([id, organizationId])
   @@unique([organizationId, number])
   @@index([organizationId, branchId, status])
+  @@index([organizationId, branchId, closedAt]) // sales reports
 }
 
 enum OrderChannel {

@@ -12,8 +12,8 @@
 | 8 | Inventory, purchasing, suppliers | ✅ **Done** |
 | 9 | Console / VR / simulator management, internet-café printing | ✅ **Done** |
 | 10 | Tournaments, loyalty, promotions engine, CRM | ✅ **Done** |
-| 11 | Reports, accounting, analytics | Next |
-| 12 | Super Admin, subscriptions, SaaS billing, organization management | |
+| 11 | Reports, accounting, analytics | ✅ **Done** |
+| 12 | Super Admin, subscriptions, SaaS billing, organization management | Next |
 | 13 | Offline branch edge + sync, hardening, monitoring, backups, DR, load and chaos tests | |
 
 ## Phase 1 deliverables
@@ -97,6 +97,23 @@ Details are in [09-sessions-and-shell](09-sessions-and-shell.md).
 - **Admin:** Start/extend/move/end on the Live Floor with live quotes and countdowns; Sessions, Customers and Rates pages.
 - **Migration:** `0009_session_timers`.
 - **Tests:** JavaScript suites all pass (including 19 session e2e + 17 pricing), and 34 .NET tests.
+
+## Phase 11 summary
+
+Details are in [19-accounting-reports-analytics](19-accounting-reports-analytics.md).
+
+- **General ledger that keeps itself:** a background poster books bills, payments, refunds, wallet credits, stock, drawer movements, shift closes, supplier invoices and expenses as double-entry entries.
+  - Each document books only the change since it was last booked, on the day it changed.
+  - Exactly once, per document version; entries are append-only.
+- **Chart of accounts** per organization; manual journal entries (balanced, reason required, reversible once); expenses (drawer-paid ones leave the shift); period lock.
+- **Statements:** trial balance, profit & loss, balance sheet, account ledgers, journal; branch-scoped; CSV.
+- **Reconciliation** of wallets, inventory, payables and drawers against the ledger, nightly.
+- **Reports:** sales (with stock-cost margins), VAT, cash & shifts, gaming utilization, staff; branch-local days; CSV.
+- **Dashboard analytics:** live status, today vs last week and, with Advanced analytics, period comparisons, trends and customer insight.
+- **Fix:** counter cash for top-ups, memberships and time packages now reaches the cashier's drawer.
+- **Admin:** Finance and Reports pages; a new dashboard.
+- **Migrations:** `0015_accounting`, `0016_reporting_indexes`.
+- **Tests:** 24 new API tests (15 accounting e2e, 7 reports e2e, 2 CSV).
 
 ## Phase 10 summary
 

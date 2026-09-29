@@ -101,6 +101,19 @@ describe.skipIf(!HAS_DB)("Customers, wallet, memberships & bookings (e2e)", () =
       expect(w.ledger.filter((l: any) => l.type === "TOPUP" && l.bucket === "CASH")).toHaveLength(1);
     });
 
+    it("concurrent first top-ups for a customer with no wallet all succeed into a single wallet", async () => {
+      const c = await newCustomer();
+      expect((await owner.query(`SELECT 1 FROM "Wallet" WHERE "customerId" = $1`, [c.id])).rowCount).toBe(0);
+      const results = await Promise.all(Array.from({ length: 6 }, () => topUp(cashierT, c.id, "10")));
+      for (const r of results) expect(r.status, JSON.stringify(r.body)).toBe(201);
+      const rows = await owner.query(`SELECT "cashBalance" FROM "Wallet" WHERE "customerId" = $1`, [c.id]);
+      expect(rows.rowCount).toBe(1);
+      expect(Number(rows.rows[0].cashBalance)).toBe(60);
+      const w = await wallet(c.id);
+      expect(w).toMatchObject({ cash: "60.00", total: "60.00" });
+      expect(w.ledger.filter((l: any) => l.type === "TOPUP" && l.bucket === "CASH")).toHaveLength(6);
+    });
+
     it("bonus credit needs the sensitive adjust right (with a reason); cashiers can't hand it out", async () => {
       const c = await newCustomer();
       expect((await topUp(cashierT, c.id, "100", "10")).status).toBe(403);

@@ -2,6 +2,7 @@ import { ConflictException, Injectable, NotFoundException } from "@nestjs/common
 import { randomBytes } from "node:crypto";
 import type { TenantTx } from "@arena/db";
 import { auditAs } from "../common/audit.service.js";
+import { openShiftOf } from "../pos/bills.js";
 import { PricingError, quote } from "../sessions/pricing.js";
 import { toPlanDef } from "../sessions/sessions.service.js";
 import { adjustTime } from "../sessions/time-balance.js";
@@ -76,12 +77,17 @@ export class CommerceService {
       if (s.payment.method === "WALLET") {
         paymentId = await payFromWallet(t, { bill: { id: bill.id, branchId: branch.id, currency: branch.currency }, amountMinor: netMinor, unit, key: `${s.key}:pay`, customerId: s.customerId, employeeId });
       } else {
+        // Cash at the counter goes into the cashier's open drawer, like any POS sale, so the shift count adds up.
+        const shift = await openShiftOf(t, employeeId, branch.id);
         paymentId = (await t.payment.create({
           data: {
-            organizationId, branchId: branch.id, billId: bill.id, customerId: s.customerId, employeeId, method: s.payment.method, provider: "MANUAL",
+            organizationId, branchId: branch.id, billId: bill.id, customerId: s.customerId, employeeId, shiftId: shift?.id ?? null, method: s.payment.method, provider: "MANUAL",
             providerRef: s.payment.reference ?? null, status: "CAPTURED", amount, currency: branch.currency, idempotencyKey: `${s.key}:pay`, capturedAt: now,
           },
         })).id;
+        if (s.payment.method === "CASH" && shift) {
+          await t.cashMovement.create({ data: { organizationId, shiftId: shift.id, type: "CASH_SALE", amount, paymentId, employeeId: employeeId! } });
+        }
       }
     }
     await t.bill.update({ where: { id: bill.id }, data: { subtotal: order.subtotal, discountTotal: order.discountTotal, total: amount, paidTotal: amount, status: "SETTLED", closedAt: now } });

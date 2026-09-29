@@ -113,6 +113,7 @@ model Refund {
 
   @@unique([organizationId, idempotencyKey])
   @@index([organizationId, paymentId])
+  @@index([organizationId, processedAt]) // refund reports
 }
 
 // ── Shifts & cash drawer ──
@@ -174,6 +175,7 @@ model Shift {
 
   @@unique([id, organizationId])
   @@index([organizationId, branchId, status])
+  @@index([organizationId, branchId, closedAt]) // cash reports
 }
 
 enum CashMovementType {
@@ -275,8 +277,9 @@ model JournalEntry {
   branchId       String?       @db.Uuid
   entryDate      DateTime      @db.Date
   description    String
-  sourceType     String // PAYMENT, WALLET_TX, REFUND, STOCK_MOVEMENT, MANUAL
-  sourceId       String?       @db.Uuid
+  sourceType     String // BILL, PAYMENT, REFUND, WALLET_TX, STOCK_MOVEMENT, CASH_MOVEMENT, SHIFT, SUPPLIER_INVOICE, EXPENSE, MANUAL
+  sourceId       String?       @db.Uuid // one posting of a document (a version of it); unique → exactly-once
+  documentId     String?       @db.Uuid // the business document (bill, payment, …) — every posting of it shares this
   currency       String        @db.Char(3)
   postedById     String?       @db.Uuid
   reversesId     String?       @db.Uuid
@@ -287,6 +290,24 @@ model JournalEntry {
   @@unique([id, organizationId])
   @@unique([organizationId, sourceType, sourceId]) // exactly-once posting
   @@index([organizationId, entryDate])
+  @@index([organizationId, documentId])
+}
+
+/// What the automatic poster has booked for one business document so far.
+/// Documents change after they're first booked (a settled bill is voided, a
+/// supplier invoice gets paid), so each run books only the difference between
+/// what the document should be worth now and `posted`. `fingerprint` is the
+/// document version last booked — unchanged documents are skipped.
+model PostingCursor {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @db.Uuid
+  documentType   String // BILL, PAYMENT, …
+  documentId     String   @db.Uuid
+  fingerprint    String
+  posted         Json // { "<accountSystemKey>|<branchId>": "<signed amount, debit +>" }
+  updatedAt      DateTime @updatedAt @db.Timestamptz(3)
+
+  @@unique([organizationId, documentType, documentId])
 }
 
 /// Immutable. Σdebit = Σcredit per entry (deferred constraint trigger).

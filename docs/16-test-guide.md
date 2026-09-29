@@ -6,6 +6,7 @@ the **Expect** column, note the step number and what you saw.
 
 | Part | What | Time |
 |---|---|---|
+| [0](#0--quick-tour-no-install) | Quick tour: live demos + downloads, nothing to install | 30 min |
 | [A](#a--what-you-need) | Hardware, network and accounts you need | read once |
 | [B](#b--set-up-the-server-pc) | Set up the server PC (database, API, admin, apps) | 45 min |
 | [C](#c--automated-tests-first) | Automated tests | 15 min |
@@ -16,6 +17,35 @@ the **Expect** column, note the step number and what you saw.
 | [H](#h--failure-and-recovery-tests) | Failure and recovery (unplug, reboot, restart) | 1 h |
 | [I](#i--troubleshooting) | Troubleshooting | as needed |
 | [J](#j--not-built-yet-dont-test) | What isn't built yet (don't test) | read once |
+| [K](#k--super-admin-platform) | Super Admin (platform) | 45 min |
+| [L](#l--downloads-desktop-exes-apk-installer) | Downloads: desktop EXEs, Android APK, station installer | 45 min |
+
+---
+
+## 0 · Quick tour (no install)
+
+The fastest way to see everything working. It uses the **live demos**: the real apps running a simulated venue in the browser. Nothing here touches a server or a database. Build them once (see [18 · Live demos](18-live-demos.md)), then:
+
+```bash
+npm run build:demos
+npm run dev -w @arena/website
+```
+
+Open `http://localhost:5180`.
+
+| # | Do | Expect |
+|---|---|---|
+| - [ ] 0.1 | Look at the homepage | A 3D arena animates behind the headline; screens change colour; moving the mouse tilts the camera |
+| - [ ] 0.2 | Scroll to **Live, not a video** → **Launch all three** | Admin (Live Floor), Gaming Shell and customer app load inside the laptop, monitor and phone |
+| - [ ] 0.3 | In the Shell (monitor), sign in **ahmed / ahmed123** | Shell shows the countdown. In the admin, **PC-01** turns "in use" with Ahmed |
+| - [ ] 0.4 | Shell → **Food** → order a burger | Admin → **Kitchen** shows the ticket. Within about a minute the Shell says the order is being prepared, then ready |
+| - [ ] 0.5 | Admin → click **PC-01** → **Message** → send "hello" | The message pops up on the Shell |
+| - [ ] 0.6 | Admin → PC-01 → **End session** | The Shell goes back to its lock screen |
+| - [ ] 0.7 | Phone app: sign in ahmed / ahmed123 → **Book** a VIP PC tomorrow | Admin → **Bookings** lists it |
+| - [ ] 0.8 | Open `/live/admin/login/`, pick **Super Admin**, Sign in, type any 6 digits | The platform console opens at /platform |
+| - [ ] 0.9 | Bottom-left **Live demo → Reset** | The venue starts fresh |
+
+Then install the downloads from the **Download** section and follow [L](#l--downloads-desktop-exes-apk-installer).
 
 ---
 
@@ -65,6 +95,9 @@ Every staff password: **`ArenaDemo!2026`**
 | kitchen@demo.test | Kitchen Staff | DXB1 |
 | inventory@demo.test | Inventory Manager | whole organization |
 | owner@rival.test | Org Owner | **Rival Gaming** (a different tenant, Starter plan) |
+| super@arenaos.test | **Super Admin** | The whole platform. Two-step sign-in: the first sign-in shows a QR code to scan with an authenticator app |
+
+Everyone signs in at the same page, `http://SERVER:3000/login`. Staff land in the venue console; the Super Admin lands in `/platform`.
 
 | Customer | Password | PIN | Notes |
 |---|---|---|---|
@@ -98,7 +131,10 @@ enrolment, so it must not change.
 New-NetFirewallRule -DisplayName "ArenaOS API"      -Direction Inbound -Protocol TCP -LocalPort 4000 -Action Allow -Profile Private,Domain
 New-NetFirewallRule -DisplayName "ArenaOS Admin"    -Direction Inbound -Protocol TCP -LocalPort 3000 -Action Allow -Profile Private,Domain
 New-NetFirewallRule -DisplayName "ArenaOS Customer" -Direction Inbound -Protocol TCP -LocalPort 5175 -Action Allow -Profile Private,Domain
+New-NetFirewallRule -DisplayName "ArenaOS Website"  -Direction Inbound -Protocol TCP -LocalPort 5180 -Action Allow -Profile Private,Domain
 ```
+
+The Super Admin service (port 4100) is only called by the admin server on the same PC, so it needs no firewall rule.
 
 Also make sure the Ethernet network is set to **Private** (Settings → Network
 → Ethernet → Network profile type), otherwise the rules don't apply.
@@ -124,11 +160,14 @@ npm run seed -w @arena/api
 
 - [ ] Seed ends by printing the demo logins.
 
-Start the four apps, **each in its own terminal** (or use the Code tab's
+Start the apps, **each in its own terminal** (or use the Code tab's
 preview, which reads `.claude/launch.json`):
 
 ```bash
 npm run dev -w @arena/api
+```
+```bash
+npm run dev:platform -w @arena/api
 ```
 ```bash
 npm run dev -w @arena/admin
@@ -146,6 +185,9 @@ npm run dev -w @arena/shell
 | - [ ] Open `http://SERVER:3000` | Admin login page |
 | - [ ] Open `http://SERVER:5175/demo` on your phone | Customer app for "Demo Arena" |
 | - [ ] Open `http://localhost:5174` on the server | Gaming Shell preview (mock agent) |
+| - [ ] Open `http://localhost:4100/health` on the server | `{"ok":true,"service":"arena-platform"}` |
+
+> If the admin login says **"Something went wrong on the server"**, the API isn't running. If Super Admin sign-in says it **can't reach the platform service**, start `npm run dev:platform -w @arena/api`.
 
 ---
 
@@ -699,7 +741,7 @@ station identity).
 | Area | Status |
 |---|---|
 | **Finance** and **Reports** pages | Phase 11 (greyed out in the menu) |
-| **Super Admin platform UI** | No UI yet; platform roles and impersonation exist in the API only |
+| **Super Admin impersonation, client releases** | Platform roles, organizations, plans and audit are built ([K](#k--super-admin-platform)); impersonating a venue's staff and pushing client releases aren't |
 | **Full kiosk lockdown** (Explorer replacement, key filtering, staff exit, maintenance-mode PIN unlock) | Phase 13. The Shell autostarts and is restarted if killed, but Windows keys and Ctrl+Alt+Del still work today |
 | **Real online payments** | "Pay now" is a demo card; it's off in production |
 | **SMS / e-mail / WhatsApp delivery** | Goes to the dev outbox until a provider is connected |
@@ -708,10 +750,78 @@ station identity).
 
 ---
 
+## K · Super Admin (platform)
+
+Needs the platform service running (`npm run dev:platform -w @arena/api`). Details: [17 · Super Admin](17-super-admin.md).
+
+| # | Do | Expect |
+|---|---|---|
+| - [ ] K.1 | `http://SERVER:3000/login` → `super@arenaos.test` / `ArenaDemo!2026` | The same page switches to **"ArenaOS platform · Super Admin sign-in"** and shows a QR code |
+| - [ ] K.2 | Scan the QR with Google Authenticator / 1Password / Authy, type the 6-digit code | Lands on `/platform` → **Overview** with organizations, revenue, stations, plan mix |
+| - [ ] K.3 | Sign out, sign in again | Asks only for the code (no QR) |
+| - [ ] K.4 | Wrong password 5 times | "Too many failed attempts" (locked for 15 min) |
+| - [ ] K.5 | **Organizations** → search "demo", filter **Active** | Demo Arena listed with branches, stations, staff, customers |
+| - [ ] K.6 | **New organization**: name "Test Arena", plan Starter, 14-day trial, owner `you@test.local` | Shows a temporary password once. Sign in at `/login` with it: you're that venue's owner, asked to set up two-step sign-in |
+| - [ ] K.7 | Open Test Arena → **Suspend** without a reason | Refused: a reason is required |
+| - [ ] K.8 | Suspend with a reason | In another browser, the Test Arena owner is signed out and can't sign in ("no access") |
+| - [ ] K.9 | **Reactivate** | The owner can sign in again |
+| - [ ] K.10 | **Subscription** tab → change plan, set Max stations 5, **+30 days** | Saved; the venue's limits change (adding a 6th station is refused) |
+| - [ ] K.11 | **Features** tab → turn **Tournaments** off with a reason | The venue's admin loses the Tournaments module |
+| - [ ] K.12 | **Plans & features** → edit Starter's price; tick a module on a plan | Saved; organizations on that plan follow it |
+| - [ ] K.13 | **Audit log** | Every action above, with who, when and the reason |
+| - [ ] K.14 | Signed in as `owner@demo.test` (venue staff), open `/platform` | Sent to sign-in: staff sessions don't work on the platform |
+| - [ ] K.15 | Ctrl+K on any platform page | Search jumps to pages and "New organization" |
+
+---
+
+## L · Downloads (desktop EXEs, APK, installer)
+
+Build them with the commands in [18 · Live demos](18-live-demos.md), or download them from the website's **Download** section (`http://SERVER:5180/#downloads`).
+
+### L.1 · ArenaOS-Console.exe (admin + Super Admin)
+
+| # | Do | Expect |
+|---|---|---|
+| - [ ] L.1.1 | Double-click it. If Windows SmartScreen appears: **More info → Run anyway** (the demo isn't code-signed) | A start screen: **Explore the demo venue** or **Connect to your ArenaOS** |
+| - [ ] L.1.2 | **Open the live demo** → pick Owner → Sign in | The venue console with the live floor, everything clickable |
+| - [ ] L.1.3 | **Ctrl+Shift+H** | Back to the start screen. **F11** toggles full screen |
+| - [ ] L.1.4 | **Connect** → `http://SERVER:3000` | Your real admin sign-in page (needs the server from [B](#b--set-up-the-server-pc)) |
+| - [ ] L.1.5 | Close and reopen | It remembers your last choice |
+
+### L.2 · ArenaOS-Shell-Demo.exe
+
+| # | Do | Expect |
+|---|---|---|
+| - [ ] L.2.1 | Run it (while the Console is open too) | The Gaming Shell in a normal window, station **PC-01** |
+| - [ ] L.2.2 | Sign in ahmed / ahmed123 | Countdown starts; the Console's Live Floor shows PC-01 in use |
+| - [ ] L.2.3 | In the Console, message or end PC-01 | The Shell shows the message / locks |
+
+### L.3 · ArenaOS-Customer.apk (Android)
+
+| # | Do | Expect |
+|---|---|---|
+| - [ ] L.3.1 | Copy the APK to the phone (or open the website's download link on the phone) and tap it. Allow **Install unknown apps** when asked | An app called **Arena** with the ArenaOS icon |
+| - [ ] L.3.2 | Open it, sign in ahmed / ahmed123 (works in flight mode) | Wallet AED 170, 2 h prepaid time |
+| - [ ] L.3.3 | Book, Shop → buy a time package, Rewards → redeem, Tournaments → join | Each works; wallet and points change |
+
+### L.4 · ArenaOS-Station-Setup.exe (real station, on a gaming PC)
+
+This is the real installer: it installs the agent service and the kiosk Shell and changes the PC. Use a gaming PC, not your own computer. It replaces the manual steps in [D.5](#d5--enrol-and-install-the-agent-per-pc-as-administrator)–[D.6](#d6--gaming-shell-autostart-per-pc).
+
+| # | Do | Expect |
+|---|---|---|
+| - [ ] L.4.1 | Admin → **Computers → Add stations** → create a code | A code like `ARENA-XXXXX-…` |
+| - [ ] L.4.2 | On the gaming PC, run the installer as Administrator; enter the server address `http://SERVER:4000` and the code | Installs without errors |
+| - [ ] L.4.3 | Restart the PC | The Gaming Shell starts on its own; the PC appears on the Live Floor within seconds |
+| - [ ] L.4.4 | Continue with the per-PC checklist [D.8](#d8--per-pc-acceptance-checklist) | |
+
+---
+
 ### Sign-off
 
 | Part | Tester | Date | Pass / issues |
 |---|---|---|---|
+| 0 Quick tour | | | |
 | B Server | | | |
 | C Automated | | | |
 | D Gaming PCs | | | |
@@ -719,3 +829,5 @@ station identity).
 | F Roles | | | |
 | G Security | | | |
 | H Recovery | | | |
+| K Super Admin | | | |
+| L Downloads | | | |

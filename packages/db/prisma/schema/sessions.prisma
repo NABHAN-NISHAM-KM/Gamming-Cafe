@@ -169,6 +169,7 @@ model GamingSession {
   @@index([organizationId, branchId, status])
   @@index([organizationId, customerId])
   @@index([status, expiresAt]) // expiry sweeper
+  @@index([organizationId, branchId, startedAt]) // utilization reports
 }
 
 enum ExtensionSource {

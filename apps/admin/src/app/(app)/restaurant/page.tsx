@@ -189,6 +189,7 @@ function MenuAdmin({ branchId }: { branchId: string }) {
   const [editing, setEditing] = useState<ManagedProduct | "new" | null>(null);
   const [addingCat, setAddingCat] = useState(false);
   const [addingGroup, setAddingGroup] = useState(false);
+  const [addingStation, setAddingStation] = useState(false);
   const [recipeFor, setRecipeFor] = useState<ManagedProduct | null>(null);
   const [costView, setCostView] = useState(false);
   const toggle = useAction(async (p: ManagedProduct, isAvailable: boolean) => {
@@ -208,6 +209,7 @@ function MenuAdmin({ branchId }: { branchId: string }) {
         ))}
         <div className="ml-auto flex gap-2">
           <Button size="sm" variant={costView ? "primary" : "ghost"} onClick={() => setCostView(!costView)}><ChefHat className="size-4" /> Food cost</Button>
+          <Button size="sm" variant="ghost" onClick={() => setAddingStation(true)} title="Where orders are prepared: Kitchen, Bar…"><Plus className="size-4" /> Kitchen station</Button>
           <Button size="sm" variant="ghost" onClick={() => setAddingCat(true)}><Plus className="size-4" /> Category</Button>
           <Button size="sm" variant="ghost" onClick={() => setAddingGroup(true)}><Plus className="size-4" /> Options group</Button>
           <Button size="sm" variant="primary" onClick={() => setEditing("new")}><Plus className="size-4" /> Product</Button>
@@ -253,6 +255,9 @@ function MenuAdmin({ branchId }: { branchId: string }) {
       </Modal>
       <Modal open={addingCat} onClose={() => setAddingCat(false)} title="New category">
         {addingCat && <CategoryForm onDone={() => { setAddingCat(false); void m.reload(); }} />}
+      </Modal>
+      <Modal open={addingStation} onClose={() => setAddingStation(false)} title="New kitchen station">
+        {addingStation && <StationForm branchId={branchId} existing={m.data.stations.filter((s) => s.branchId === branchId).map((s) => s.name)} onDone={() => { setAddingStation(false); void m.reload(); }} />}
       </Modal>
       <Modal open={addingGroup} onClose={() => setAddingGroup(false)} title="New options group">
         {addingGroup && <GroupForm onDone={() => { setAddingGroup(false); void m.reload(); }} />}
@@ -325,6 +330,24 @@ function ProductForm({ m, branchId, p, defaultCategory, onDone }: { m: Manage; b
       {p && <label className="flex items-center gap-2 text-sm sm:col-span-4"><input type="checkbox" checked={f.isActive} onChange={(e) => setF({ ...f, isActive: e.target.checked })} /> On the menu (untick to retire it everywhere)</label>}
       <div className="sm:col-span-4"><ErrorNote>{save.error}</ErrorNote></div>
       <div className="flex justify-end sm:col-span-4"><Button type="submit" variant="primary" pending={save.pending}>{p ? "Save" : "Add product"}</Button></div>
+    </form>
+  );
+}
+
+/** A prep station at this branch. Products are routed to it, and it gets its own column on the kitchen screen. */
+function StationForm({ branchId, existing, onDone }: { branchId: string; existing: string[]; onDone: () => void }) {
+  const [name, setName] = useState(existing.includes("Kitchen") ? "Bar" : "Kitchen");
+  const save = useAction(async () => {
+    await api(`/branches/${branchId}/kitchen-stations`, { method: "POST", body: { name: name.trim() } });
+    onDone();
+  });
+  return (
+    <form className="grid gap-3" onSubmit={(e) => { e.preventDefault(); void save.run(); }}>
+      <Field label="Name" hint={existing.length ? `Already here: ${existing.join(", ")}` : "e.g. Kitchen, Bar, Grill"}>
+        <Input value={name} onChange={(e) => setName(e.target.value)} required maxLength={40} autoFocus />
+      </Field>
+      <ErrorNote>{save.error}</ErrorNote>
+      <div className="flex justify-end"><Button type="submit" variant="primary" pending={save.pending}>Add station</Button></div>
     </form>
   );
 }

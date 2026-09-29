@@ -49,18 +49,21 @@ function AddStations({ branch, zones, open, onClose, onCreated }: { branch: Bran
   const [hours, setHours] = useState(24);
   const [label, setLabel] = useState("");
   const [created, setCreated] = useState<(Token & { code: string }) | null>(null);
+  // Reset only when the modal opens: `zones` is a fresh array every parent render,
+  // so depending on it would wipe `created` as soon as onCreated() reloads the page.
   useEffect(() => {
     if (open) {
       setCreated(null);
-      setZoneId(zones[0]?.id ?? "");
+      setZoneId("");
     }
-  }, [open, zones]);
+  }, [open]);
+  const zone = zoneId || zones[0]?.id || "";
 
   const create = useAction(async () => {
     const t = await api<Token & { code: string }>(`/branches/${branch.id}/enrollment-tokens`, {
       method: "POST",
       action: "Create enrolment code",
-      body: { zoneId: zoneId || null, maxUses, expiresInHours: hours, label: label || null },
+      body: { zoneId: zone || null, maxUses, expiresInHours: hours, label: label || null },
     });
     setCreated(t);
     onCreated();
@@ -80,7 +83,7 @@ function AddStations({ branch, zones, open, onClose, onCreated }: { branch: Bran
           }}
         >
           <Field label="Zone" className="sm:col-span-2" hint="New PCs appear in this zone. You can move them later.">
-            <Select value={zoneId} onChange={(e) => setZoneId(e.target.value)}>
+            <Select value={zone} onChange={(e) => setZoneId(e.target.value)}>
               {zones.map((z) => (
                 <option key={z.id} value={z.id}>
                   {z.name}

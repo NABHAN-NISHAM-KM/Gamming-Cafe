@@ -12,7 +12,8 @@
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "db:validate": "npm run validate -w @arena/db",
-    "db:generate": "npm run generate -w @arena/db"
+    "db:generate": "npm run generate -w @arena/db",
+    "build:demos": "node scripts/build-demos.mjs"
   },
   "engines": {
     "node": ">=22"

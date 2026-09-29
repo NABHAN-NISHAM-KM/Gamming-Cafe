@@ -1,25 +1,9 @@
 @import "tailwindcss";
+@import "@arena/theme/theme.css";
 
-/* Gaming Shell — dark arena at night: near-black violet base, one neon
-   accent, generous type for 1080p/1440p monitors seen from a gaming chair. */
-@theme static {
-  --font-sans: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
-  --font-display: "Bahnschrift", "Segoe UI Variable Display", "Segoe UI", sans-serif;
-  --font-mono: "Cascadia Mono", Consolas, monospace;
-
-  --color-void: #07060d;
-  --color-deck: #100e1b;
-  --color-deck-2: #181527;
-  --color-rim: #2a2540;
-  --color-glow: #7cf6ff;
-  --color-glow-2: #a78bfa;
-  --color-text: #ecebf7;
-  --color-dim: #9b97b8;
-  --color-mute: #625e80;
-  --color-warn: #ffb547;
-  --color-alarm: #ff4d6d;
-  --color-good: #46e3a1;
-}
+/* Gaming Shell — the ArenaOS theme seen from a gaming chair: generous type
+   for 1080p/1440p monitors, glass panels over a slow aurora. Tokens (void,
+   deck, glow…) come from @arena/theme and match the admin console. */
 
 @layer base {
   html,
@@ -30,29 +14,14 @@
   body {
     margin: 0;
     background: var(--color-void);
-    color: var(--color-text);
-    font-family: var(--font-sans);
     user-select: none;
     overflow: hidden;
-    -webkit-font-smoothing: antialiased;
   }
   input {
     user-select: text;
   }
   :focus-visible {
-    outline: 2px solid var(--color-glow);
     outline-offset: 3px;
-  }
-}
-
-@layer components {
-  .tabular {
-    font-variant-numeric: tabular-nums;
-  }
-  .glass {
-    background: color-mix(in oklab, var(--color-deck) 78%, transparent);
-    backdrop-filter: blur(18px);
-    border: 1px solid var(--color-rim);
   }
 }
 
@@ -62,6 +31,7 @@
 }
 .aurora {
   animation: drift 18s ease-in-out infinite alternate;
+  will-change: transform;
 }
 @keyframes pulse-ring {
   0%, 100% { opacity: 1; }
@@ -70,6 +40,23 @@
 .pulse {
   animation: pulse-ring 1.2s ease-in-out infinite;
 }
-@media (prefers-reduced-motion: reduce) {
-  .aurora, .pulse { animation: none; }
+
+/* Game cover sheen that sweeps across on hover. */
+.sheen {
+  position: relative;
+  isolation: isolate;
+}
+.sheen::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 35%, rgb(255 255 255 / 0.14) 50%, transparent 65%);
+  background-size: 250% 100%;
+  background-position: 130% 0;
+  transition: background-position 0.7s var(--ease-out);
+}
+.sheen:hover::before {
+  background-position: -30% 0;
 }

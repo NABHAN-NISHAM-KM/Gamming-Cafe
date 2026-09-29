@@ -1,0 +1,239 @@
+/* ArenaOS · "Arena Night" — one theme for the admin console (and super admin),
+   the Gaming Shell and the customer app. The marketing site mirrors these
+   values in apps/website/assets/site.css.
+
+   Direction: near-black violet surfaces, an electric-violet primary with a
+   cyan second accent (the brand gradient), Chakra Petch for display type and
+   Inter for everything people read. Status colours are reserved for station
+   and order state and never used decoratively.
+
+   Import after `@import "tailwindcss";` in each app's stylesheet, and import
+   `@arena/theme/fonts` once from the app entry point. */
+
+@theme static {
+  /* ── Type ─────────────────────────────────────────────────────────────── */
+  --font-sans: "Inter Variable", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Chakra Petch", "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Mono", "Cascadia Code", ui-monospace, Consolas, monospace;
+
+  /* ── Surfaces (darkest → raised) ──────────────────────────────────────── */
+  --color-bg: #07070c;
+  --color-panel: #0e0d18;
+  --color-panel-2: #151323;
+  --color-raised: #1c1a2e;
+  --color-line: #242138;
+  --color-line-strong: #34304f;
+
+  /* ── Text ─────────────────────────────────────────────────────────────── */
+  --color-ink: #eeecf8;
+  --color-ink-2: #aca8c7;
+  --color-ink-3: #85819f; /* ≥ 4.5:1 on panel */
+
+  /* ── Brand ────────────────────────────────────────────────────────────── */
+  --color-accent: #a07cff;
+  --color-accent-strong: #7c4dff;
+  --color-accent-ink: #0b0717;
+  --color-accent-soft: #1d1638;
+  --color-accent-2: #2ee6f6;
+
+  /* ── Status (station + order state) ──────────────────────────────────── */
+  --color-ok: #34d399;
+  --color-busy: #fb5d7a;
+  --color-reserved: #facc15;
+  --color-ending: #fb923c;
+  --color-offline: #64748b;
+  --color-maint: #60a5fa;
+  --color-danger: #fb4d6d;
+
+  /* ── Player-facing vocabulary (Shell + customer app): same values ───── */
+  --color-void: var(--color-bg);
+  --color-deck: var(--color-panel);
+  --color-deck-2: var(--color-panel-2);
+  --color-rim: var(--color-line-strong);
+  --color-glow: var(--color-accent);
+  --color-glow-2: var(--color-accent-2);
+  --color-text: var(--color-ink);
+  --color-dim: var(--color-ink-2);
+  --color-mute: var(--color-ink-3);
+  --color-good: var(--color-ok);
+  --color-warn: #fbbf24;
+  --color-alarm: var(--color-danger);
+
+  /* ── Motion ───────────────────────────────────────────────────────────── */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --animate-enter: enter 0.32s var(--ease-out) both;
+  --animate-pop: pop 0.22s var(--ease-out) both;
+  --animate-shimmer: shimmer 1.4s linear infinite;
+
+  /* ── Depth ────────────────────────────────────────────────────────────── */
+  --shadow-glow: 0 0 0 1px color-mix(in oklab, var(--color-accent) 45%, transparent), 0 8px 32px -8px color-mix(in oklab, var(--color-accent) 55%, transparent);
+  --shadow-lift: 0 1px 0 0 rgb(255 255 255 / 0.04) inset, 0 12px 40px -12px rgb(0 0 0 / 0.7);
+
+  @keyframes enter {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes pop {
+    from { opacity: 0; transform: scale(0.96) translateY(4px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes shimmer {
+    from { background-position: 150% 0; }
+    to { background-position: -50% 0; }
+  }
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    background: var(--color-bg);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-feature-settings: "cv11", "ss01";
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  h1, h2, h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+  ::selection {
+    background: color-mix(in oklab, var(--color-accent) 35%, transparent);
+    color: var(--color-ink);
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+  button:not(:disabled), [role="button"], summary, label[for], select {
+    cursor: pointer;
+  }
+  input, select, textarea {
+    color-scheme: dark;
+  }
+
+  /* Thin, themed scrollbars (Chromium / WebView2 / Firefox). */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-line-strong) transparent;
+  }
+
+  /* Native <dialog>: fade + lift in, using @starting-style (no JS). */
+  dialog {
+    transition: opacity 0.2s var(--ease-out), transform 0.2s var(--ease-out), overlay 0.2s allow-discrete, display 0.2s allow-discrete;
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  dialog[open] {
+    opacity: 1;
+    transform: none;
+    @starting-style {
+      opacity: 0;
+      transform: translateY(8px) scale(0.98);
+    }
+  }
+  dialog::backdrop {
+    background: rgb(4 3 10 / 0.72);
+    backdrop-filter: blur(6px);
+    transition: opacity 0.2s, overlay 0.2s allow-discrete, display 0.2s allow-discrete;
+    opacity: 0;
+  }
+  dialog[open]::backdrop {
+    opacity: 1;
+    @starting-style {
+      opacity: 0;
+    }
+  }
+}
+
+/* ── Shared utilities ─────────────────────────────────────────────────── */
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Frosted surface for overlays and the Shell. */
+@utility glass {
+  background: color-mix(in oklab, var(--color-panel) 76%, transparent);
+  backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid color-mix(in oklab, var(--color-line-strong) 80%, transparent);
+}
+
+/* Card surface with a faint top highlight, so panels read as lit from above. */
+@utility surface {
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.025), transparent 40%),
+    var(--color-panel);
+  border: 1px solid var(--color-line);
+  box-shadow: var(--shadow-lift);
+}
+
+/* Brand gradient fill and text. */
+@utility brand-gradient {
+  background-image: linear-gradient(120deg, var(--color-accent-strong), var(--color-accent) 45%, var(--color-accent-2));
+}
+@utility gradient-text {
+  background-image: linear-gradient(120deg, var(--color-accent), var(--color-accent-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Tactile press feedback for anything clickable. */
+@utility press {
+  transition-property: transform, background-color, border-color, color, box-shadow, opacity, filter;
+  transition-duration: 160ms;
+  transition-timing-function: var(--ease-out);
+  &:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+}
+
+/* Loading placeholder. */
+@utility skeleton {
+  border-radius: 0.5rem;
+  background: linear-gradient(90deg, var(--color-panel-2) 25%, var(--color-raised) 50%, var(--color-panel-2) 75%);
+  background-size: 200% 100%;
+  animation: var(--animate-shimmer);
+}
+
+/* Faint grid backdrop used on hero and lock screens. */
+@utility grid-bg {
+  background-image:
+    linear-gradient(var(--color-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-line) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+/* Live "pulse" dot, e.g. an in-use station or a playing game. */
+@utility live-dot {
+  position: relative;
+  &::after {
+    content: "";
+    position: absolute;
+    inset: -3px;
+    border-radius: 999px;
+    border: 2px solid currentColor;
+    opacity: 0;
+    animation: ping-ring 1.8s var(--ease-out) infinite;
+  }
+}
+@keyframes ping-ring {
+  0% { opacity: 0.6; transform: scale(0.6); }
+  100% { opacity: 0; transform: scale(1.8); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Spinners keep turning: they carry meaning, not decoration. */
+  *:not(.animate-spin), *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -57,7 +57,7 @@ describe.skipIf(!HAS_DB)("ArenaOS API (e2e)", () => {
     await owner.query(
       `UPDATE "Employee" e SET status = 'TERMINATED' FROM "User" u
         WHERE u.id = e."userId" AND u.email LIKE '%@demo.test' AND e.status IN ('INVITED', 'ACTIVE')
-          AND u.email NOT IN ('owner@demo.test', 'manager@demo.test', 'cashier@demo.test', 'tech@demo.test', 'waiter@demo.test', 'kitchen@demo.test', 'inventory@demo.test')`,
+          AND u.email NOT IN ('owner@demo.test', 'manager@demo.test', 'cashier@demo.test', 'tech@demo.test', 'waiter@demo.test', 'kitchen@demo.test', 'inventory@demo.test', 'accountant@demo.test')`,
     );
     app = await createApp(loadConfig({ NODE_ENV: "test" }));
     await app.init();
@@ -144,6 +144,12 @@ describe.skipIf(!HAS_DB)("ArenaOS API (e2e)", () => {
       const s = await newStaff("cashier", dxb1);
       const token = (await login(s.email, s.password)).body.accessToken;
       const setup = (await as(token).post("/v1/auth/mfa/totp/setup")).body;
+      // A mistyped code is a 422, not a 401 (clients treat 401 as "signed out"); the session stays valid.
+      const wrong = String((Number(totpAt(setup.secret, Date.now())) + 1) % 1_000_000).padStart(6, "0");
+      const bad = await as(token).post("/v1/auth/mfa/totp/confirm", { code: wrong });
+      expect(bad.status).toBe(422);
+      expect(bad.body.error).toBe("invalid_mfa_code");
+      expect((await as(token).get("/v1/auth/me")).status).toBe(200);
       await as(token).post("/v1/auth/mfa/totp/confirm", { code: totpAt(setup.secret, Date.now() - 30_000) }).expect(200);
 
       const step1 = (await login(s.email, s.password)).body;
@@ -245,6 +251,19 @@ describe.skipIf(!HAS_DB)("ArenaOS API (e2e)", () => {
         .set("X-Action-Reason", "test");
       expect(res.status).toBe(409);
       expect(res.body.error).toBe("last_owner");
+    });
+
+    it("suspending someone needs rights over everything they hold: an org admin can't lock out the owner", async () => {
+      const me = (await as(ownerToken).get("/v1/auth/me")).body;
+      const admin = await newStaff("org_admin");
+      const adminToken = (await login(admin.email, admin.password)).body.accessToken;
+      const res = await as(adminToken).patch(`/v1/employees/${me.employee.id}`, { status: "SUSPENDED" }, "test");
+      expect(res.status).toBe(403);
+      expect((await login("owner@demo.test")).status).toBe(200);
+
+      // Ordinary suspensions still work: a branch manager can suspend a cashier at their branch.
+      const cashier = await newStaff("cashier", dxb1);
+      expect((await as(managerToken).patch(`/v1/employees/${cashier.id}`, { status: "SUSPENDED" }, "test")).status).toBe(200);
     });
 
     it("plan limits are enforced (Starter = 1 branch)", async () => {

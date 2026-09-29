@@ -8,6 +8,7 @@ import { useAction, useApi } from "@/lib/client/hooks";
 import { useCan, useMe } from "@/lib/client/me";
 import { EMP_TONE, statusLabel, type Branch, type Employee, type Role } from "@/lib/client/types";
 import { Badge, Button, Card, ErrorNote, Field, Input, Modal, PageHeader, Select, Spinner } from "@/components/ui";
+import { useRouteId } from "@/lib/client/route-id";
 
 function GrantRole({ employeeId, branches, onDone }: { employeeId: string; branches: Branch[]; onDone: () => void }) {
   const roles = useApi<Role[]>("/roles");
@@ -89,7 +90,7 @@ function SetPin({ employeeId, onDone }: { employeeId: string; onDone: () => void
 }
 
 export default function EmployeePage({ params }: { params: Promise<{ employeeId: string }> }) {
-  const { employeeId } = use(params);
+  const employeeId = useRouteId(use(params).employeeId);
   const me = useMe();
   const can = useCan();
   const emp = useApi<Employee>(`/employees/${employeeId}`);

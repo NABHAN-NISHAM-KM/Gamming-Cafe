@@ -90,6 +90,25 @@ export class EmployeesController {
     return role;
   }
 
+  /**
+   * Suspending or terminating someone takes away everything they hold, so it
+   * needs the same rights as revoking their roles would (an org admin can't
+   * lock out the owner), and the last active owner can never be taken out.
+   */
+  private async checkCanDeactivate(employeeId: string) {
+    const held = await tx().employeeRoleAssignment.findMany({
+      where: { employeeId },
+      select: { roleId: true, scope: true, brandId: true, branchId: true, role: { select: { key: true } } },
+    });
+    for (const a of held) assertCanDelegate((await this.rolePermissions(a.roleId)).permissions, await scopeTarget(a));
+    if (held.some((a) => a.role.key === "org_owner" && a.scope === "ORGANIZATION")) {
+      const others = await tx().employeeRoleAssignment.count({
+        where: { scope: "ORGANIZATION", role: { key: "org_owner" }, employee: { status: "ACTIVE", id: { not: employeeId } } },
+      });
+      if (others === 0) throw new ConflictException({ error: "last_owner" });
+    }
+  }
+
   @RequirePermissionAnyScope("employee.view")
   @Get()
   async list() {
@@ -160,6 +179,7 @@ export class EmployeesController {
     if (employeeId === principal().employeeId && body.status && body.status !== "ACTIVE") {
       throw new ForbiddenException({ error: "cannot_deactivate_self" });
     }
+    if (body.status && body.status !== "ACTIVE") await this.checkCanDeactivate(employeeId);
     // Moving someone to another branch requires rights over the destination too.
     if (body.homeBranchId !== undefined) authorizeFor("employee.manage", await this.homeTarget(body.homeBranchId));
     const before = await tx().employee.findUniqueOrThrow({ where: { id: employeeId }, select: PUBLIC_FIELDS });

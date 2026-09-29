@@ -22,9 +22,9 @@ function useLoad<T>(fn: () => Promise<T>, deps: unknown[] = []) {
 
 function Screen({ title, children, action }: { title: string; children: ReactNode; action?: ReactNode }) {
   return (
-    <section className="mx-auto w-full max-w-lg px-4 pb-28 pt-6">
+    <section className="animate-enter mx-auto w-full max-w-lg px-4 pb-28 pt-6">
       <div className="mb-5 flex items-center justify-between">
-        <h1 className="font-display text-2xl font-semibold">{title}</h1>
+        <h1 className="font-display text-[1.75rem] font-semibold">{title}</h1>
         {action}
       </div>
       {children}
@@ -38,7 +38,7 @@ function Toast({ text, tone, onDone }: { text: string; tone: "good" | "bad"; onD
     return () => clearTimeout(t);
   }, [text, onDone]);
   return (
-    <div role="status" className={cx("fixed inset-x-4 top-4 z-50 mx-auto max-w-lg rounded-2xl border px-4 py-3 text-sm shadow-2xl", tone === "good" ? "border-good/40 bg-deck text-good" : "border-alarm/50 bg-deck text-alarm")}>
+    <div role="status" className={cx("glass animate-pop fixed inset-x-4 top-4 z-50 mx-auto max-w-lg rounded-2xl border px-4 py-3 text-sm shadow-2xl", tone === "good" ? "border-good/40 text-good" : "border-alarm/50 text-alarm")}>
       {text}
     </div>
   );
@@ -82,7 +82,7 @@ function Auth({ venue, onIn }: { venue: Venue | undefined; onIn: () => void }) {
         <div className="absolute -bottom-1/4 -right-1/3 h-[50vh] w-[80vw] rounded-full opacity-20 blur-[100px]" style={{ background: "radial-gradient(circle, var(--color-glow), transparent 60%)" }} />
       </div>
       <div className="mb-10 flex items-center gap-3">
-        <div className="grid size-12 place-items-center rounded-2xl bg-gradient-to-br from-glow to-glow-2 font-display text-xl font-bold text-void">{(venue?.name ?? "A").slice(0, 1)}</div>
+        <div className="grid size-12 place-items-center rounded-2xl brand-gradient shadow-glow font-display text-xl font-bold text-void">{(venue?.name ?? "A").slice(0, 1)}</div>
         <div>
           <p className="font-display text-2xl font-semibold">{venue?.name ?? "…"}</p>
           <p className="text-sm text-dim">{venue?.branches.map((b) => b.name).join(" · ")}</p>
@@ -113,7 +113,7 @@ function Auth({ venue, onIn }: { venue: Venue | undefined; onIn: () => void }) {
           {busy && <Loader2 className="size-5 animate-spin" />} {mode === "in" ? "Sign in" : "Create account"}
         </button>
       </form>
-      <button onClick={() => { setMode(mode === "in" ? "up" : "in"); setError(null); }} className="mt-6 text-center text-sm text-dim">
+      <button onClick={() => { setMode(mode === "in" ? "up" : "in"); setError(null); }} className="mt-6 min-h-11 text-center text-sm text-dim">
         {mode === "in" ? <>New here? <span className="text-glow">Create an account</span></> : <>Have an account? <span className="text-glow">Sign in</span></>}
       </button>
     </main>
@@ -127,7 +127,7 @@ function HomeScreen({ me, bookings, go, unread }: { me: Me; bookings: Booking[];
   const tier = me.membershipTier;
   return (
     <Screen title={`Hi, ${me.displayName.split(" ")[0]}`}>
-      <div className="relative overflow-hidden rounded-3xl border border-rim p-6" style={{ background: "linear-gradient(135deg, color-mix(in oklab, var(--color-glow-2) 35%, var(--color-deck)), var(--color-deck) 70%)" }}>
+      <div className="relative overflow-hidden rounded-3xl border border-rim p-6" style={{ background: "radial-gradient(120% 90% at 100% 0%, color-mix(in oklab, var(--color-glow-2) 22%, transparent), transparent 55%), linear-gradient(135deg, color-mix(in oklab, var(--color-glow) 38%, var(--color-deck)), var(--color-deck) 72%)", boxShadow: "var(--shadow-lift)" }}>
         <p className="text-sm text-dim">Wallet</p>
         <p className="tabular mt-1 font-display text-4xl font-semibold">{me.wallet.currency} {me.wallet.total}</p>
         {Number(me.wallet.bonus) > 0 && <p className="mt-1 text-sm text-glow">incl. {me.wallet.bonus} bonus</p>}
@@ -144,7 +144,7 @@ function HomeScreen({ me, bookings, go, unread }: { me: Me; bookings: Booking[];
 
       {me.playingNow && (
         <div className="card mt-4 flex items-center gap-4 border-good/40 p-5">
-          <span className="size-2.5 animate-pulse rounded-full bg-good" />
+          <span className="live-dot size-2.5 rounded-full bg-good text-good" />
           <div className="flex-1">
             <p className="font-semibold">Playing on {me.playingNow.station}</p>
             <p className="text-sm text-dim">{me.playingNow.expiresAt ? `Until ${time(me.playingNow.expiresAt)}` : "Open session — pay at the end"}</p>
@@ -153,7 +153,7 @@ function HomeScreen({ me, bookings, go, unread }: { me: Me; bookings: Booking[];
         </div>
       )}
 
-      <button onClick={() => go("bookings")} className="card mt-4 flex w-full items-center gap-4 p-5 text-left">
+      <button onClick={() => go("bookings")} className="card press hover:border-rim mt-4 flex w-full items-center gap-4 p-5 text-left">
         <CalendarClock className="size-7 text-glow" />
         <div className="flex-1">
           {next ? (
@@ -172,16 +172,16 @@ function HomeScreen({ me, bookings, go, unread }: { me: Me; bookings: Booking[];
       </button>
 
       <div className="mt-4 grid grid-cols-3 gap-3">
-        <button onClick={() => go("events")} className="card flex flex-col items-center gap-1.5 p-4 text-sm"><Trophy className="size-6 text-warn" /> Tournaments</button>
-        <button onClick={() => go("inbox")} className="card relative flex flex-col items-center gap-1.5 p-4 text-sm"><Inbox className="size-6 text-glow" /> Inbox{unread > 0 && <span className="absolute right-3 top-3 grid size-5 place-items-center rounded-full bg-alarm text-[11px] font-bold text-white">{unread}</span>}</button>
-        <button onClick={() => go("wallet")} className="card flex flex-col items-center gap-1.5 p-4 text-sm"><Wallet className="size-6 text-glow-2" /> Wallet</button>
+        <button onClick={() => go("events")} className="card press hover:border-rim flex flex-col items-center gap-1.5 p-4 text-sm"><Trophy className="size-6 text-warn" /> Tournaments</button>
+        <button onClick={() => go("inbox")} className="card press hover:border-rim relative flex flex-col items-center gap-1.5 p-4 text-sm"><Inbox className="size-6 text-glow" /> Inbox{unread > 0 && <span className="absolute right-3 top-3 grid size-5 place-items-center rounded-full bg-alarm text-[11px] font-bold text-white">{unread}</span>}</button>
+        <button onClick={() => go("wallet")} className="card press hover:border-rim flex flex-col items-center gap-1.5 p-4 text-sm"><Wallet className="size-6 text-glow-2" /> Wallet</button>
       </div>
       <div className="mt-6 grid grid-cols-2 gap-3">
         <button onClick={() => go("book")} className="btn btn-primary py-5"><CalendarClock className="size-5" /> Book</button>
         <button onClick={() => go("shop")} className="btn btn-ghost py-5"><ShoppingBag className="size-5" /> Buy time</button>
       </div>
       {!tier && (
-        <button onClick={() => go("shop")} className="card mt-4 flex w-full items-center gap-4 p-5 text-left">
+        <button onClick={() => go("shop")} className="card press hover:border-rim mt-4 flex w-full items-center gap-4 p-5 text-left">
           <Sparkles className="size-6 text-glow-2" />
           <div className="flex-1">
             <p className="font-semibold">Become a member</p>
@@ -354,7 +354,7 @@ function MeScreen({ me, venue, onOut }: { me: Me; venue: Venue; onOut: () => voi
   return (
     <Screen title="Me">
       <div className="card flex items-center gap-4 p-5">
-        <div className="grid size-14 place-items-center rounded-full bg-gradient-to-br from-glow-2 to-glow font-display text-2xl font-bold text-void">{me.displayName.slice(0, 1)}</div>
+        <div className="grid size-14 place-items-center rounded-full brand-gradient font-display text-2xl font-bold text-void">{me.displayName.slice(0, 1)}</div>
         <div>
           <p className="font-display text-xl font-semibold">{me.displayName}</p>
           <p className="text-sm text-dim">@{me.username}</p>
@@ -444,13 +444,14 @@ export function App() {
       {tab === "rewards" && <RewardsScreen toast={showToast} onChanged={() => void refresh()} />}
       {tab === "events" && <TournamentsScreen toast={showToast} onChanged={() => void refresh()} />}
       {tab === "inbox" && <InboxScreen back={() => setTab("home")} onRead={() => void refreshUnread()} />}
-      <nav className="safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-rim bg-deck/95 backdrop-blur" aria-label="Main">
+      <nav className="glass safe-bottom fixed inset-x-0 bottom-0 z-40 border-x-0 border-b-0" aria-label="Main">
         <div className="mx-auto flex max-w-lg justify-around pt-2">
           {NAV.map((n) => {
             const active = tab === n.id || (n.id === "book" && tab === "bookings");
             return (
-              <button key={n.id} onClick={() => setTab(n.id)} className={cx("flex w-16 flex-col items-center gap-1 py-1 text-[11px]", active ? "text-glow" : "text-mute")} aria-current={active ? "page" : undefined}>
-                <n.icon className="size-6" />
+              <button key={n.id} onClick={() => setTab(n.id)} className={cx("press relative flex min-h-12 w-16 flex-col items-center gap-1 py-1 text-[11px] font-medium", active ? "text-text" : "text-mute")} aria-current={active ? "page" : undefined}>
+                {active && <span className="absolute -top-2 h-0.5 w-8 rounded-full bg-glow shadow-[0_0_10px_var(--color-glow)]" aria-hidden />}
+                <n.icon className={cx("size-6 transition-colors", active && "text-glow")} />
                 {n.label}
               </button>
             );

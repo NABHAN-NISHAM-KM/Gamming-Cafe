@@ -1,5 +1,6 @@
 import { ConflictException } from "@nestjs/common";
 import type { TenantTx } from "@arena/db";
+import { walletFor } from "../wallet/wallet.js";
 
 /**
  * Prepaid gaming minutes on a customer account (Wallet.timeBalanceMin), kept
@@ -31,9 +32,7 @@ export async function adjustTime(
   if (existing) return { balanceAfter: Number(existing.balanceAfter), applied: false }; // retry → no double effect
 
   for (let attempt = 0; attempt < 3; attempt++) {
-    const wallet =
-      (await t.wallet.findFirst({ where: { customerId: input.customerId, currency: input.currency } })) ??
-      (await t.wallet.create({ data: { organizationId: input.organizationId, customerId: input.customerId, currency: input.currency } }));
+    const wallet = await walletFor(t, input.organizationId, input.customerId, input.currency);
     const after = wallet.timeBalanceMin + input.deltaMinutes;
     if (after < 0) throw new ConflictException({ error: "insufficient_time", balanceMinutes: wallet.timeBalanceMin });
 

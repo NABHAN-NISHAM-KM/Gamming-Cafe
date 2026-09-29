@@ -1,0 +1,11 @@
+{
+  "capturedAt": "2026-09-28T07:35:05.392Z",
+  "staffLogin": {
+    "organization": {
+      "id": "01a0e6ea-b19d-765a-b856-3f697aa2a91b",
+      "slug": "demo",
+      "name": "Demo Arena"
+    }
+  },
+  "customerToken": "demo"
+}

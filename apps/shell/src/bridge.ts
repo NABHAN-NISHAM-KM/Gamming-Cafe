@@ -247,21 +247,42 @@ function mockProbe(): Probe {
  * reviewed. ?session=90 starts logged in with 90 seconds left (expiry demo);
  * ?age=13 signs in as a 13-year-old (age-locked games).
  */
+/** Demo build: the Shell runs as one station of the shared demo venue (@arena/demo). */
+interface DemoLink {
+  stationName: string;
+  venue: { name: string; branchName: string };
+  session(): { id: string; customerName: string; tier: string | null; startedAt: string; expiresAt: string | null; customerAge: number | null } | null;
+  login(u: string, s: string): { ok: true } | { ok: false; error: string; message: string };
+  logout(): void;
+  menu(): SeatMenu;
+  order(lines: OrderLine[], notes: string | undefined, payWith: "BILL" | "WALLET"): Promise<{ ok: boolean; orderId?: string; number?: string; total?: string; currency?: string; error?: string; message?: string }>;
+  help(topic: string): void;
+  onChange(fn: (e: { kind: "state" } | { kind: "message"; title: string; text: string } | { kind: "order"; orderId: string; number: string; status: string }) => void): () => void;
+}
+
 function mockBridge(): Bridge {
   const listeners = new Set<Listener>();
   const params = new URLSearchParams(location.search);
   const emit = (m: HostMessage) => setTimeout(() => listeners.forEach((l) => l(m)), 0);
+  const demo = (window as unknown as { __ARENA_DEMO__?: { shell(n: string): DemoLink } }).__ARENA_DEMO__;
+  const link = demo?.shell(params.get("station") ?? "PC-01") ?? null;
   const startSeconds = Number(params.get("session") ?? 0);
-  const age = Number(params.get("age") ?? 27);
+  let age = Number(params.get("age") ?? 27);
+  const fromLink = (): ShellSession | null => {
+    const s = link?.session();
+    if (!s) return null;
+    age = s.customerAge ?? 25;
+    return { id: s.id, customerName: s.customerName, tier: s.tier, startedAt: s.startedAt, expiresAt: s.expiresAt, warningMinutes: [30, 15, 10, 5, 1] };
+  };
   const newSession = (seconds: number): ShellSession => ({
     id: "mock", customerName: age < 18 ? "Sara" : "Ahmed", tier: "Gold", startedAt: new Date().toISOString(),
     expiresAt: new Date(Date.now() + seconds * 1000).toISOString(), warningMinutes: [30, 15, 10, 5, 1],
   });
   let state: ShellState = {
     connected: true,
-    station: { name: "PC-07" },
-    venue: { name: "Demo Arena", branchName: "Dubai Marina", logoUrl: null },
-    session: startSeconds ? newSession(startSeconds) : null,
+    station: { name: link?.stationName ?? "PC-07" },
+    venue: { name: link?.venue.name ?? "Demo Arena", branchName: link?.venue.branchName ?? "Dubai Marina", logoUrl: null },
+    session: link ? fromLink() : startSeconds ? newSession(startSeconds) : null,
     serverOffsetMs: 0,
     safeMode: true,
   };
@@ -285,7 +306,20 @@ function mockBridge(): Bridge {
         pushLibrary();
       }, new Date(state.session.expiresAt).getTime() - Date.now() + 1500);
   };
-  armExpiry();
+  if (!link) armExpiry();
+  // Venue → station: staff start/extend/end sessions, send messages, kitchen progress.
+  link?.onChange((ev) => {
+    if (ev.kind === "state") {
+      const before = state.session?.id ?? null;
+      state = { ...state, session: fromLink() };
+      push();
+      if (before !== (state.session?.id ?? null)) pushLibrary();
+    } else if (ev.kind === "message") emit({ type: "message", title: ev.title, text: ev.text });
+    else if (ev.kind === "order") {
+      const text = ev.status === "PREPARING" ? "Your order is being prepared" : ev.status === "READY" ? "Your order is ready — it's on its way to you" : "Enjoy your food!";
+      emit({ type: "order_status", orderId: ev.orderId, number: ev.number, status: ev.status as "PREPARING" | "READY" | "SERVED", message: text });
+    }
+  });
   // Preview printing: ?print=1 (or window.arenaMockPrint() in the console) pops a quote as if a job was sent to the printer.
   const mockPrint = (color = false) => {
     const pages = 4;
@@ -302,11 +336,30 @@ function mockBridge(): Bridge {
           pushExtras();
           break;
         case "logout":
+          if (link) {
+            link.logout();
+            state = { ...state, session: fromLink() };
+            push();
+            pushLibrary();
+            break;
+          }
           state = { ...state, session: null };
           push();
           pushLibrary();
           break;
         case "login": {
+          if (link) {
+            const r = link.login(m.username, m.secret);
+            setTimeout(() => {
+              emit(r.ok ? { type: "login_result", requestId: m.requestId, ok: true } : { type: "login_result", requestId: m.requestId, ok: false, error: r.error, message: r.message });
+              if (r.ok) {
+                state = { ...state, session: fromLink() };
+                push();
+                pushLibrary();
+              }
+            }, 500);
+            break;
+          }
           const ok = ["ahmed", "sara"].includes(m.username.toLowerCase()) && ["ahmed123", "sara1234", "1234"].includes(m.secret);
           setTimeout(() => {
             emit(ok ? { type: "login_result", requestId: m.requestId, ok } : { type: "login_result", requestId: m.requestId, ok: false, error: "invalid_credentials", message: "Wrong username or password." });
@@ -329,6 +382,7 @@ function mockBridge(): Bridge {
           break;
         }
         case "help":
+          link?.help(m.topic);
           setTimeout(() => emit({ type: "help_result", requestId: m.requestId, ok: true, message: "Staff have been notified." }), 500);
           break;
         case "repair":
@@ -338,9 +392,13 @@ function mockBridge(): Bridge {
           emit({ type: "pointer", ...pointer });
           break;
         case "menu_request":
-          setTimeout(() => emit({ type: "menu", requestId: m.requestId, menu: MOCK_MENU }), 300);
+          setTimeout(() => emit({ type: "menu", requestId: m.requestId, menu: link ? link.menu() : MOCK_MENU }), 300);
           break;
         case "place_order": {
+          if (link) {
+            void link.order(m.lines, m.notes, m.payWith).then((r) => emit({ type: "order_result", requestId: m.requestId, ...r, ok: r.ok }));
+            break;
+          }
           const total = m.lines.reduce((a, l) => {
             const p = MOCK_MENU.categories.flatMap((c) => c.products).find((x) => x.id === l.productId)!;
             const mods = p.modifierGroups.flatMap((g) => g.modifiers).filter((x) => l.modifierIds.includes(x.id)).reduce((s, x) => s + Number(x.priceDelta), 0);

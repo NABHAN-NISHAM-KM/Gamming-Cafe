@@ -7,14 +7,14 @@
   <meta name="description" content="Host the ArenaOS server once, then install ArenaOS-Station-Setup.exe on every gaming PC and connect it to your admin with an enrolment code." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/site.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Chakra+Petch:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/site.css?v=4" />
   <style>
     .arch { display: grid; grid-template-columns: 1fr auto 1fr; gap: 18px; align-items: center; margin: 26px 0; }
     .arch .box { background: var(--panel); border: 1px solid var(--line-2); border-radius: 14px; padding: 18px; }
     .arch .box h4 { margin: 0 0 8px; font-size: 16px; }
     .arch .box li { font-size: 14px; margin: 3px 0; }
-    .arch .arrow { text-align: center; color: var(--cyan); font-family: var(--mono); font-size: 13px; }
+    .arch .arrow { text-align: center; color: var(--accent); font-family: var(--mono); font-size: 13px; }
     .arch .arrow div { font-size: 26px; }
     .wizard { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 16px 0; }
     .wz { background: var(--panel); border: 1px solid var(--line-2); border-radius: 12px; overflow: hidden; }
@@ -22,7 +22,7 @@
     .wz .in { padding: 12px; font-size: 12.5px; color: var(--ink-2); min-height: 150px; }
     .wz .in b { display: block; font-size: 13.5px; margin-bottom: 8px; }
     .wz .f { background: var(--bg-2); border: 1px solid var(--line-2); border-radius: 6px; padding: 5px 8px; margin: 4px 0 8px; font-family: var(--mono); font-size: 11px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .dl-card { display: flex; gap: 20px; align-items: center; justify-content: space-between; flex-wrap: wrap; background: radial-gradient(80% 140% at 0% 0%, rgb(34 211 238 / .14), transparent 60%), var(--panel); border: 1px solid var(--line-2); border-radius: 16px; padding: 22px 24px; margin: 18px 0; }
+    .dl-card { display: flex; gap: 20px; align-items: center; justify-content: space-between; flex-wrap: wrap; background: radial-gradient(80% 140% at 0% 0%, rgb(160 124 255 / .14), transparent 60%), var(--panel); border: 1px solid var(--line-2); border-radius: 16px; padding: 22px 24px; margin: 18px 0; }
     .dl-card h4 { margin: 0 0 4px; font-size: 18px; }
     .dl-card p { margin: 0; font-size: 14px; }
     @media (max-width: 1000px) { .wizard { grid-template-columns: repeat(2, 1fr); } }
@@ -237,12 +237,12 @@ api.yourvenue.com {
             <tr><td>The Gaming Shell doesn't open</td><td>Make sure the player account is <b>not</b> an administrator, test mode is off, and the WebView2 Runtime is installed.</td></tr>
             <tr><td>Wake-on-LAN doesn't work</td><td>At least one other station on the same network must be online. Also enable WOL in the BIOS and on the network adapter, and turn off Fast Startup.</td></tr>
           </table></div>
-          <p>Need a hand? <a href="contact.html" style="color:var(--cyan)">Contact us</a> and we'll help you set up your first branch.</p>
+          <p>Need a hand? <a href="contact.html" style="color:var(--accent)">Contact us</a> and we'll help you set up your first branch.</p>
         </section>
       </div>
     </div>
   </main>
   <footer id="footer"></footer>
-  <script src="assets/site.js"></script>
+  <script src="assets/site.js?v=4"></script>
 </body>
 </html>

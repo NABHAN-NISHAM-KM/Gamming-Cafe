@@ -7,12 +7,12 @@
   <meta name="description" content="ArenaOS plans: Starter for a single venue, Pro for growing chains, Enterprise for unlimited branches, brands and API access. Compare limits and every module." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/site.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Chakra+Petch:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/site.css?v=4" />
   <style>
     .soon { font-size: 10.5px; font-weight: 600; padding: 2px 7px; border-radius: 999px; background: #2a2410; color: var(--amber); border: 1px solid #574a17; margin-left: 6px; vertical-align: middle; }
     .calc { display: grid; grid-template-columns: 1.2fr 1fr; gap: 28px; align-items: center; }
-    .calc input[type=range] { width: 100%; accent-color: var(--cyan); }
+    .calc input[type=range] { width: 100%; accent-color: var(--accent); }
     .calc label { display: flex; justify-content: space-between; font-size: 14px; color: var(--ink-2); margin: 18px 0 6px; }
     .calc label b { color: var(--ink); font-family: var(--mono); }
     .rec { text-align: center; padding: 30px; }
@@ -83,13 +83,13 @@
           <details><summary>Do you support my hardware and launchers?</summary><p>The agent runs on Windows 10/11 PCs. The game library supports the major launchers (Steam, Epic, Riot, Battle.net, EA, Ubisoft) and detects installs automatically. Consoles, VR and TVs run agentless.</p></details>
           <details><summary>Which payment methods and currencies?</summary><p>Your venue can take cash, card and mixed payments through the POS, with wallets in your local currency. ArenaOS supports AED, SAR, QAR, KWD, BHD, OMR, INR, GBP and USD out of the box.</p></details>
           <details><summary>Is my data isolated from other venues?</summary><p>Yes — three independent layers: PostgreSQL row-level security, a tenant-scoped data client, and route-level authorization. Each layer is tested in CI on every change.</p></details>
-          <details><summary>Is there a free trial?</summary><p>Try every surface right now in the <a href="demos.html" style="color:var(--cyan)">interactive demos</a>. For a pilot at your venue, <a href="contact.html" style="color:var(--cyan)">talk to us</a>.</p></details>
+          <details><summary>Is there a free trial?</summary><p>Try every surface right now in the <a href="demos.html" style="color:var(--accent)">interactive demos</a>. For a pilot at your venue, <a href="contact.html" style="color:var(--accent)">talk to us</a>.</p></details>
         </div>
       </div>
     </section>
   </main>
   <footer id="footer"></footer>
-  <script src="assets/site.js"></script>
+  <script src="assets/site.js?v=4"></script>
   <script>
     // Mirrors packages/contracts/src/features.ts and the plans seeded in apps/api/scripts/seed.ts.
     const GROUPS = [

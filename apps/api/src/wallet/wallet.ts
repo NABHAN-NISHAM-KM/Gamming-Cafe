@@ -24,15 +24,21 @@ export async function orgCurrency(t: TenantTx) {
   return { organizationId: org.id, currency: org.defaultCurrency, unit };
 }
 
-async function walletFor(t: TenantTx, organizationId: string, customerId: string, currency: string) {
-  return (
-    (await t.wallet.findFirst({ where: { customerId, currency } })) ??
-    (await t.wallet.create({ data: { organizationId, customerId, currency } }).catch(async (e) => {
-      // Created concurrently by another request — use that one.
-      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") return t.wallet.findFirstOrThrow({ where: { customerId, currency } });
-      throw e;
-    }))
-  );
+/**
+ * The customer's wallet in `currency`, created on first use. A failed INSERT
+ * would abort the surrounding Postgres transaction, so a concurrent first use
+ * is absorbed with ON CONFLICT DO NOTHING (which waits for the other insert to
+ * commit) and the row is then re-read. `organizationId` must be the current
+ * org — the RLS policy's WITH CHECK refuses anything else.
+ */
+export async function walletFor(t: TenantTx, organizationId: string, customerId: string, currency: string) {
+  const found = await t.wallet.findFirst({ where: { customerId, currency } });
+  if (found) return found;
+  await t.$executeRaw`
+    INSERT INTO "Wallet" ("id", "organizationId", "customerId", "currency", "updatedAt")
+    VALUES (gen_random_uuid(), ${organizationId}::uuid, ${customerId}::uuid, ${currency}, now())
+    ON CONFLICT ("customerId", "currency") DO NOTHING`;
+  return t.wallet.findFirstOrThrow({ where: { customerId, currency } });
 }
 
 export interface Movement {

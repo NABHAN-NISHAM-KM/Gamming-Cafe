@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/main.ts",
+    "dev:platform": "tsx watch src/platform/server.ts",
     "start": "node dist/main.js",
     "build": "tsup",
     "seed": "tsx scripts/seed.ts",

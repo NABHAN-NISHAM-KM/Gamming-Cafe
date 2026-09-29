@@ -16,11 +16,13 @@ The seed creates two organizations. Every account's password is `ArenaDemo!2026`
 
 | Login | Org | Role |
 |---|---|---|
-| owner@demo.test | Demo Arena (Pro plan) | Org Owner |
+| owner@demo.test | Demo Arena (Pro plan + Accounting add-on) | Org Owner |
 | manager@demo.test | Demo Arena | Branch Manager @ DXB1 |
 | cashier@demo.test | Demo Arena | Cashier @ DXB1 |
 | tech@demo.test | Demo Arena | Technician @ DXB1 |
+| accountant@demo.test | Demo Arena | Accountant (all branches) |
 | owner@rival.test | Rival Gaming (Starter plan) | Org Owner |
+| super@arenaos.test | — (platform) | Super Admin. Signs in at the same `/login` page and lands in `/platform` (platform service) — see [17 · Super Admin](17-super-admin.md) |
 
 ## Request pipeline
 
@@ -131,6 +133,26 @@ See [11-customers-wallet-bookings](11-customers-wallet-bookings.md). Money payme
 **Customer app** (`/v1/app`, customer token):
 - **Public:** `GET /:slug/venue`, `POST /:slug/register`, `POST /:slug/login`.
 - **Signed in:** `/me`, `/logout`, `/wallet`, `/visits`, `/availability`, `/bookings` (list, create, `:id/cancel`), `/shop`, `/time`, `/memberships`.
+
+## Accounting, reports & analytics (Phase 11)
+
+See [19-accounting-reports-analytics](19-accounting-reports-analytics.md). Every list and statement takes `from`, `to` (local days; default this month) and `branchId`, and shows only the caller's branches. `format=csv` exports (needs reports.export). `/accounting/*` needs the ACCOUNTING feature.
+
+| Method | Path | Permission |
+|---|---|---|
+| GET | /accounting/accounts · /accounting/accounts/:id/ledger | accounting.view |
+| POST · PATCH | /accounting/accounts · /accounting/accounts/:id | accounting.post (sensitive) |
+| GET | /accounting/trial-balance · /profit-and-loss · /profit-series · /balance-sheet | accounting.view |
+| GET | /accounting/journal | accounting.view |
+| POST | /accounting/journal · /accounting/journal/:id/reverse | accounting.post (sensitive) |
+| GET · POST · PATCH | /accounting/expenses · /accounting/expenses/:id | accounting.view · accounting.expense (at the branch) |
+| GET · PUT | /accounting/settings · /accounting/lock | accounting.view · accounting.post (sensitive) |
+| POST | /accounting/sync | accounting.view (books pending changes now) |
+| GET | /accounting/reconciliation | accounting.view (organization) |
+| GET | /reports/sales · /reports/sales/daily · /reports/vat · /reports/cash | reports.financial |
+| GET | /reports/utilization | reports.operational |
+| GET | /reports/staff | reports.staff |
+| GET | /analytics/overview?days=7\|30\|90 | reports.operational (trends need ADVANCED_REPORTS) |
 
 ## Loyalty, promotions, tournaments & CRM (Phase 10)
 

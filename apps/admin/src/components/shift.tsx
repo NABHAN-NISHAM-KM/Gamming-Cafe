@@ -27,6 +27,27 @@ export function ShiftPanel({ branchId, shift }: { branchId: string; shift: Retur
   );
 }
 
+/** A branch needs a cash drawer before anyone can open a shift. Managers add it here. */
+function AddDrawer({ branchId, onAdded }: { branchId: string; onAdded: () => void }) {
+  const can = useCan();
+  const [name, setName] = useState("Front desk");
+  const add = useAction(async () => {
+    await api(`/branches/${branchId}/cash-drawers`, { method: "POST", body: { name: name.trim() } });
+    onAdded();
+  });
+  if (!can("settings.manage", branchId)) return <Card className="p-5 text-sm text-ink-3">This branch has no cash drawer yet. Ask a manager to add one (POS → My shift).</Card>;
+  return (
+    <Card className="p-5">
+      <p className="mb-4 text-sm text-ink-3">This branch has no cash drawer yet. Add one for each till; cashiers open their shift on it.</p>
+      <form className="flex flex-wrap items-end gap-3" onSubmit={(e) => { e.preventDefault(); void add.run(); }}>
+        <Field label="Drawer name" className="min-w-56 flex-1"><Input value={name} onChange={(e) => setName(e.target.value)} required maxLength={40} /></Field>
+        <Button type="submit" variant="primary" pending={add.pending}>Add cash drawer</Button>
+      </form>
+      <div className="mt-3"><ErrorNote>{add.error}</ErrorNote></div>
+    </Card>
+  );
+}
+
 function OpenForm({ branchId, onOpened }: { branchId: string; onOpened: () => void }) {
   const drawers = useApi<Array<{ id: string; name: string; shifts: Array<{ id: string; employee: { displayName: string } }> }>>(`/branches/${branchId}/cash-drawers`);
   const [drawer, setDrawer] = useState("");
@@ -36,7 +57,7 @@ function OpenForm({ branchId, onOpened }: { branchId: string; onOpened: () => vo
     onOpened();
   });
   if (!drawers.data) return <Spinner />;
-  if (!drawers.data.length) return <Card className="p-5 text-sm text-ink-3">This branch has no cash drawer yet. A manager can add one in Settings.</Card>;
+  if (!drawers.data.length) return <AddDrawer branchId={branchId} onAdded={() => void drawers.reload()} />;
   return (
     <Card className="p-5">
       <h3 className="mb-1 font-semibold">Open your shift</h3>

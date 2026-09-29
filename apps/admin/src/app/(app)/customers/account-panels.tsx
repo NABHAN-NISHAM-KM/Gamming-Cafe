@@ -274,7 +274,7 @@ export function MembershipPanel({ customerId, onChanged }: { customerId: string;
 export function TiersModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const can = useCan();
   const tiers = useApi<Tier[]>(open ? "/membership-tiers" : null);
-  const [f, setF] = useState({ code: "", name: "", rank: "15", price: "", durationDays: "30", gamingDiscountPct: "10", bonusMinutesMonthly: "0", bookingWindowDays: "7", color: "#7CF6FF" });
+  const [f, setF] = useState({ code: "", name: "", rank: "15", price: "", durationDays: "30", gamingDiscountPct: "10", bonusMinutesMonthly: "0", bookingWindowDays: "7", color: "#A07CFF" });
   const add = useAction(async () => {
     await api("/membership-tiers", {
       method: "POST",

@@ -1,0 +1,13 @@
+{
+  "appId": "app.arenaos.customer",
+  "appName": "Arena",
+  "webDir": "dist-demo",
+  "backgroundColor": "#07070c",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "backgroundColor": "#07070c",
+    "allowMixedContent": false
+  }
+}

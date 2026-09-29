@@ -26,3 +26,13 @@ apps/customer/dist/
 
 # Built station installer copied in for hosting
 apps/website/downloads/*.exe
+
+# Live demo builds (npm run build:demos)
+apps/admin/.next-demo/
+apps/website/live/
+
+# Android APK build (apps/customer/build-apk.ps1 regenerates these)
+apps/customer/dist-demo/
+apps/customer/android/
+apps/website/downloads/*.apk
+clients/windows/dist/

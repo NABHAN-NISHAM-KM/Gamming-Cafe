@@ -10,6 +10,8 @@
     "preview": "vite preview --port 5174"
   },
   "dependencies": {
+    "@arena/demo": "*",
+    "@arena/theme": "*",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "lucide-react": "^1.48.0"

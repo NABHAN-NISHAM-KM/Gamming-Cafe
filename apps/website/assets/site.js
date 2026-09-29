@@ -47,6 +47,7 @@
     ["features.html", "Features", "features"],
     ["pricing.html", "Pricing", "pricing"],
     ["demos.html", "Live demos", "demos"],
+    ["index.html#downloads", "Download", "downloads"],
     ["guide.html", "Guide", "guide"],
     ["install.html", "Install", "install"],
     ["contact.html", "Contact", "contact"],
@@ -57,7 +58,7 @@
     nav.innerHTML = `<div class="wrap">
       <a class="brand" href="${base}index.html"><span class="brand-mark">A</span><span>Arena<b>OS</b></span></a>
       <nav class="nav-links">${links.map(([h, l, k]) => `<a href="${base}${h}" class="${k === page ? "on" : ""}">${l}</a>`).join("")}</nav>
-      <div class="nav-cta"><a class="btn btn-ghost btn-sm" href="${base}demos.html">Try the demo</a><a class="btn btn-primary btn-sm" href="${base}contact.html">Book a call</a></div>
+      <div class="nav-cta"><a class="btn btn-ghost btn-sm" href="${base}contact.html">Book a call</a><a class="btn btn-primary btn-sm" href="${base}live/admin/login/">Try it live</a></div>
       <button class="menu-btn" aria-label="Menu">☰</button>
     </div>`;
     nav.querySelector(".menu-btn").addEventListener("click", () => nav.classList.toggle("open"));
@@ -70,7 +71,7 @@
         <div><a class="brand" href="${base}index.html"><span class="brand-mark">A</span><span>Arena<b>OS</b></span></a>
           <p>The operating system for gaming cafés, esports arenas, internet cafés, console &amp; VR centres and gaming restaurants.</p></div>
         <div><h4>Product</h4><a href="${base}features.html#stations">Stations &amp; Live Floor</a><a href="${base}features.html#sessions">Sessions &amp; Shell</a><a href="${base}features.html#pos">POS &amp; restaurant</a><a href="${base}features.html#engage">Loyalty &amp; tournaments</a></div>
-        <div><h4>Demos</h4><a href="${base}demo/superadmin.html">Super Admin</a><a href="${base}demo/admin.html">Venue admin</a><a href="${base}demo/shell.html">Gaming Shell</a><a href="${base}demo/customer.html">Customer app</a></div>
+        <div><h4>Live demos</h4><a href="${base}live/admin/login/">Venue admin</a><a href="${base}live/admin/login/?next=%2Fplatform">Super Admin</a><a href="${base}live/shell/">Gaming Shell</a><a href="${base}live/app/">Customer app</a><a href="${base}index.html#downloads">Downloads</a></div>
         <div><h4>Company</h4><a href="${base}pricing.html">Pricing</a><a href="${base}contact.html">Contact sales</a><a href="${base}guide.html">How it works</a><a href="${base}install.html">Install guide</a><a href="${base}pricing.html#faq">FAQ</a></div>
       </div>
       <div class="copy"><span>© ${new Date().getFullYear()} ArenaOS. All rights reserved.</span><span>Built for venues that never close.</span></div>
@@ -89,6 +90,83 @@
     };
     pre.appendChild(b);
   });
+
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const finePointer = matchMedia("(pointer: fine)").matches;
+
+  // 3D tilt that follows the pointer (cards marked .tilt).
+  if (finePointer && !reduced)
+    document.querySelectorAll(".tilt").forEach((el) => {
+      el.addEventListener("pointermove", (e) => {
+        const r = el.getBoundingClientRect();
+        const x = (e.clientX - r.left) / r.width;
+        const y = (e.clientY - r.top) / r.height;
+        el.style.setProperty("--ry", `${(x - 0.5) * 10}deg`);
+        el.style.setProperty("--rx", `${(0.5 - y) * 8}deg`);
+        el.style.setProperty("--mx", `${x * 100}%`);
+        el.style.setProperty("--my", `${y * 100}%`);
+      });
+      el.addEventListener("pointerleave", () => {
+        el.style.setProperty("--rx", "0deg");
+        el.style.setProperty("--ry", "0deg");
+      });
+    });
+
+  // Numbers that count up when they scroll into view: <b class="count" data-to="111" data-suffix="+">.
+  const counters = "IntersectionObserver" in window ? new IntersectionObserver((es) => es.forEach((e) => {
+    if (!e.isIntersecting) return;
+    counters.unobserve(e.target);
+    const el = e.target;
+    const to = Number(el.dataset.to);
+    const pre = el.dataset.prefix ?? "";
+    const suf = el.dataset.suffix ?? "";
+    if (reduced || !Number.isFinite(to)) return;
+    const t0 = performance.now();
+    const step = (t) => {
+      const k = Math.min(1, (t - t0) / 1400);
+      const v = to * (1 - Math.pow(1 - k, 3));
+      el.textContent = pre + (to % 1 ? v.toFixed(1) : Math.round(v).toLocaleString()) + suf;
+      if (k < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }), { threshold: 0.6 }) : null;
+  document.querySelectorAll(".count[data-to]").forEach((el) => counters?.observe(el));
+
+  // The 3D arena in the hero: loaded only when there's room for it.
+  const stage = document.querySelector("[data-arena3d]");
+  if (stage) {
+    const lowEnd = (navigator.hardwareConcurrency ?? 8) < 4 || navigator.connection?.saveData;
+    if (!lowEnd) {
+      const go = () => import(new URL(`${base}assets/arena3d.js`, location.href).href).then((m) => m.mountArena(stage)).catch((e) => console.warn("3D hero unavailable:", e));
+      "requestIdleCallback" in window ? requestIdleCallback(go, { timeout: 1200 }) : setTimeout(go, 300);
+    }
+  }
+
+  // Live demos inside device frames: rendered at their natural size and scaled
+  // to fit, loaded only when the visitor clicks (keeps the page fast).
+  document.querySelectorAll("[data-live]").forEach((screen) => {
+    const [w, h] = (screen.dataset.vp ?? "1440x900").split("x").map(Number);
+    const vp = document.createElement("div");
+    vp.className = "vp";
+    vp.style.width = `${w}px`;
+    vp.style.height = `${h}px`;
+    screen.prepend(vp);
+    const fit = () => (vp.style.transform = `scale(${screen.clientWidth / w})`);
+    new ResizeObserver(fit).observe(screen);
+    fit();
+    const start = () => {
+      if (screen.classList.contains("loaded")) return;
+      const f = document.createElement("iframe");
+      f.src = base + screen.dataset.live;
+      f.title = screen.dataset.title ?? "ArenaOS live demo";
+      f.loading = "eager";
+      f.allow = "clipboard-write";
+      vp.appendChild(f);
+      screen.classList.add("loaded");
+    };
+    screen.querySelector(".cover")?.addEventListener("click", start);
+  });
+  document.querySelectorAll("[data-launch-all]").forEach((b) => b.addEventListener("click", () => document.querySelectorAll("[data-live] .cover").forEach((c) => c.click())));
 
   const io = "IntersectionObserver" in window ? new IntersectionObserver((es) => es.forEach((e) => e.isIntersecting && (e.target.classList.add("in"), io.unobserve(e.target))), { threshold: 0.12 }) : null;
   document.querySelectorAll(".reveal").forEach((el) => (io ? io.observe(el) : el.classList.add("in")));

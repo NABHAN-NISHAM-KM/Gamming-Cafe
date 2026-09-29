@@ -70,6 +70,7 @@ export const TENANT_MODELS: ReadonlySet<string> = new Set([
   "Payment",
   "PaymentGatewayConfig",
   "PeripheralProfile",
+  "PostingCursor",
   "PricingPackage",
   "PricingPlan",
   "PrintJob",

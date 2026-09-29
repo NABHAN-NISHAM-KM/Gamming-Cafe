@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ArenaOS Console</title>
+  <style>
+    :root { --bg: #07070c; --panel: #0e0d18; --panel-2: #151323; --line: #242138; --line-2: #34304f; --ink: #eeecf8; --ink-2: #aca8c7; --ink-3: #85819f; --accent: #a07cff; --accent-2: #2ee6f6; --accent-ink: #0b0717; --ok: #34d399; --danger: #fb4d6d; }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body { background: radial-gradient(900px 500px at 50% -10%, rgb(160 124 255 / .18), transparent 60%), radial-gradient(700px 400px at 100% 110%, rgb(46 230 246 / .08), transparent 60%), var(--bg); color: var(--ink); font: 15px/1.55 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; display: grid; place-items: center; padding: 24px; -webkit-font-smoothing: antialiased; }
+    .wrap { width: min(880px, 100%); }
+    .brand { display: flex; align-items: center; gap: 12px; justify-content: center; margin-bottom: 8px; }
+    .mark { width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; font: 800 20px "Segoe UI", sans-serif; color: var(--accent-ink); background: linear-gradient(120deg, #7c4dff, var(--accent) 45%, var(--accent-2)); box-shadow: 0 0 40px -8px var(--accent); }
+    h1 { margin: 0; font: 700 26px "Segoe UI Variable Display", "Segoe UI", sans-serif; letter-spacing: -0.01em; }
+    h1 b { color: var(--accent); font-weight: 700; }
+    .sub { text-align: center; color: var(--ink-2); margin: 6px 0 32px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .card { background: linear-gradient(180deg, rgb(255 255 255 / .03), transparent 40%), var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 26px; display: flex; flex-direction: column; transition: transform .2s cubic-bezier(.22,1,.36,1), border-color .2s, box-shadow .2s; }
+    .card:hover { transform: translateY(-3px); border-color: rgb(160 124 255 / .5); box-shadow: 0 24px 60px -30px rgb(160 124 255 / .6); }
+    .tag { font-size: 11.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+    .card.server .tag { color: var(--accent-2); }
+    h2 { margin: 8px 0 6px; font: 600 20px "Segoe UI Variable Display", "Segoe UI", sans-serif; }
+    p { margin: 0; color: var(--ink-2); flex: 1; }
+    ul { margin: 14px 0 0; padding-left: 18px; color: var(--ink-2); font-size: 14px; }
+    label { display: block; margin-top: 16px; font-size: 12.5px; color: var(--ink-2); }
+    input { width: 100%; margin-top: 6px; height: 42px; border-radius: 10px; border: 1px solid var(--line-2); background: rgb(7 7 12 / .7); color: var(--ink); padding: 0 12px; font: inherit; outline: none; transition: border-color .15s, box-shadow .15s; }
+    input:focus { border-color: var(--accent-2); box-shadow: 0 0 0 4px rgb(46 230 246 / .15); }
+    button { margin-top: 18px; height: 44px; border: 0; border-radius: 11px; font: 600 15px "Segoe UI", sans-serif; cursor: pointer; transition: transform .15s, filter .15s, box-shadow .2s; }
+    button:active { transform: scale(.97); }
+    .primary { color: var(--accent-ink); background: linear-gradient(120deg, #7c4dff, var(--accent) 45%, var(--accent-2)); box-shadow: 0 10px 30px -12px var(--accent); }
+    .primary:hover { filter: brightness(1.08); }
+    .ghost { color: var(--ink); background: var(--panel-2); border: 1px solid var(--line-2); }
+    .ghost:hover { border-color: var(--accent-2); }
+    .err { margin-top: 10px; color: var(--danger); font-size: 13px; min-height: 18px; }
+    .foot { margin-top: 24px; text-align: center; color: var(--ink-3); font-size: 12.5px; }
+    kbd { border: 1px solid var(--line-2); border-radius: 5px; padding: 1px 6px; background: var(--panel-2); font: 11.5px Consolas, monospace; }
+    @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+    @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <div class="brand"><span class="mark">A</span><h1>Arena<b>OS</b> Console</h1></div>
+    <p class="sub">Venue admin and Super Admin, on your desktop.</p>
+    <div class="grid">
+      <section class="card">
+        <span class="tag">Live demo · offline</span>
+        <h2>Explore the demo venue</h2>
+        <p>Demo Arena, Dubai Marina — 18 PCs, consoles, VR, a kitchen and customers. Everything works and runs on this PC.</p>
+        <ul>
+          <li>Venue owner, manager, cashier or Super Admin</li>
+          <li>Runs with the Gaming Shell demo: start a session here and it unlocks there</li>
+        </ul>
+        <button class="primary" id="demo">Open the live demo</button>
+      </section>
+      <section class="card server">
+        <span class="tag">Your venue</span>
+        <h2>Connect to your ArenaOS</h2>
+        <p>Use the console with your own ArenaOS installation or cloud account.</p>
+        <label for="url">Admin address
+          <input id="url" type="url" placeholder="https://admin.yourvenue.com" autocomplete="url" spellcheck="false" />
+        </label>
+        <div class="err" id="err"></div>
+        <button class="ghost" id="connect">Connect</button>
+      </section>
+    </div>
+    <p class="foot">Press <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>H</kbd> any time to come back here · <kbd>F11</kbd> full screen</p>
+  </main>
+  <script>
+    const KEY = "arena.console.choice";
+    const read = () => { try { return JSON.parse(localStorage.getItem(KEY) || "null"); } catch { return null; } };
+    const save = (v) => { try { localStorage.setItem(KEY, JSON.stringify(v)); } catch {} };
+    const openDemo = () => { save({ mode: "demo" }); location.href = "/live/admin/login/"; };
+    const openServer = (url) => { save({ mode: "server", url }); location.href = url.replace(/\/+$/, "") + "/login"; };
+    const stay = new URLSearchParams(location.search).has("stay");
+    const last = read();
+    const input = document.getElementById("url");
+    if (last?.url) input.value = last.url;
+    if (!stay && last?.mode === "demo") openDemo();
+    else if (!stay && last?.mode === "server" && last.url) openServer(last.url);
+    document.getElementById("demo").onclick = openDemo;
+    const connect = () => {
+      const err = document.getElementById("err");
+      let v = input.value.trim();
+      if (!/^https?:\/\//i.test(v)) v = "https://" + v;
+      try { new URL(v); } catch { err.textContent = "That doesn't look like a web address."; return; }
+      err.textContent = "";
+      openServer(v);
+    };
+    document.getElementById("connect").onclick = connect;
+    input.addEventListener("keydown", (e) => e.key === "Enter" && connect());
+  </script>
+</body>
+</html>

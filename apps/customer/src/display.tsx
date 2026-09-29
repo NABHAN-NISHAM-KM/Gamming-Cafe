@@ -77,7 +77,7 @@ function Pair({ onPaired }: { onPaired: (token: string) => void }) {
           className="mt-8 w-full rounded-2xl border border-rim bg-deck px-6 py-5 text-center font-mono text-4xl tracking-[0.2em] text-text outline-none focus:border-glow"
         />
         {error && <p className="mt-4 text-alarm">{error}</p>}
-        <button disabled={busy || code.replace(/[^0-9A-Z]/g, "").length < 8} className="mt-6 w-full rounded-2xl bg-gradient-to-r from-glow to-glow-2 py-4 font-display text-xl font-semibold text-void disabled:opacity-40">
+        <button disabled={busy || code.replace(/[^0-9A-Z]/g, "").length < 8} className="mt-6 w-full rounded-2xl brand-gradient press py-4 font-display text-xl font-semibold text-void disabled:opacity-40">
           {busy ? "Pairing…" : "Pair"}
         </button>
       </form>
@@ -180,7 +180,7 @@ function Board({ token, onUnpaired }: { token: string; onUnpaired: () => void })
     <main className="flex min-h-dvh flex-col gap-6 p-8">
       <header className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          {state.logoUrl ? <img src={state.logoUrl} alt="" className="size-12 rounded-xl" /> : <span className="grid size-12 place-items-center rounded-xl bg-gradient-to-br from-glow to-glow-2 font-display text-2xl font-bold text-void">{state.venue.slice(0, 1)}</span>}
+          {state.logoUrl ? <img src={state.logoUrl} alt="" className="size-12 rounded-xl" /> : <span className="grid size-12 place-items-center rounded-xl brand-gradient font-display text-2xl font-bold text-void">{state.venue.slice(0, 1)}</span>}
           <div>
             <p className="font-display text-2xl font-semibold">{state.venue}</p>
             <p className="text-dim">{state.branch}</p>

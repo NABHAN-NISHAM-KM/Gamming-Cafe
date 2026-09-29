@@ -65,6 +65,10 @@ import { OrdersService } from "./pos/orders.service.js";
 import { PosController } from "./pos/pos.controller.js";
 import { SeatOrderingService } from "./pos/seat-ordering.service.js";
 import { ShiftsService } from "./pos/shifts.service.js";
+import { AccountingController } from "./accounting/accounting.controller.js";
+import { AccountingPosterService } from "./accounting/poster.service.js";
+import { ReportsController } from "./reports/reports.controller.js";
+import { AnalyticsController } from "./reports/analytics.controller.js";
 
 @Controller()
 class HealthController {
@@ -126,6 +130,9 @@ export class AppModule {
         PrintController,
         InventoryController,
         PurchasingController,
+        AccountingController,
+        ReportsController,
+        AnalyticsController,
       ],
       providers: [
         TokensService,
@@ -163,6 +170,7 @@ export class AppModule {
         PrintService,
         StockService,
         PurchasingService,
+        AccountingPosterService,
         { provide: APP_GUARD, useClass: AuthGuard },
         { provide: APP_INTERCEPTOR, useClass: TenantInterceptor },
         { provide: APP_FILTER, useClass: ErrorsFilter },

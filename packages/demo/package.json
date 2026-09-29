@@ -1,0 +1,15 @@
+{
+  "name": "@arena/demo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "In-browser ArenaOS demo engine: a simulated backend seeded from real captured API data, used by the demo builds of every app",
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "enrich": "node scripts/enrich.mjs",
+    "typecheck": "tsc --noEmit -p ."
+  }
+}

@@ -5,6 +5,7 @@ import {
   Inject,
   Injectable,
   UnauthorizedException,
+  UnprocessableEntityException,
 } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import type { Db } from "@arena/db";
@@ -144,7 +145,9 @@ export class AuthService {
     const pending = await this.db.global.mfaFactor.findFirst({ where: { userId, type: "TOTP", confirmedAt: null }, orderBy: { createdAt: "desc" } });
     if (!pending) throw new ConflictException({ error: "no_pending_enrolment" });
     const step = verifyTotp(unseal(pending.secretEnc, this.cfg.MFA_ENCRYPTION_KEY_B64), code);
-    if (step === null) throw new UnauthorizedException({ error: "invalid_mfa_code" });
+    // 422, not 401: the caller is signed in and just mistyped. A 401 reads as
+    // "session expired" to clients, and the admin would sign the user out.
+    if (step === null) throw new UnprocessableEntityException({ error: "invalid_mfa_code" });
     await this.db.global.mfaFactor.deleteMany({ where: { userId, type: "TOTP", confirmedAt: { not: null } } });
     await this.db.global.mfaFactor.update({ where: { id: pending.id }, data: { confirmedAt: new Date(), lastUsedAt: new Date(step * 30_000) } });
     return { enabled: true };

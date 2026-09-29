@@ -7,12 +7,12 @@
   <meta name="description" content="The complete ArenaOS guide: how the server, admin, station agent, Gaming Shell and customer app work together — stations, sessions, pricing, customers, bookings, POS, kitchen, inventory, consoles, printing, loyalty, tournaments, security and a day at the venue." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/site.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Chakra+Petch:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/site.css?v=4" />
   <style>
     .toc { max-height: calc(100vh - 110px); overflow-y: auto; scrollbar-width: thin; }
-    .toc a.on { color: var(--cyan); border-left-color: var(--cyan); background: var(--panel); }
-    .part { font: 600 12px var(--font); letter-spacing: .12em; text-transform: uppercase; color: var(--cyan); margin-bottom: 8px; display: block; }
+    .toc a.on { color: var(--accent); border-left-color: var(--accent); background: var(--panel); }
+    .part { font: 600 12px var(--font); letter-spacing: .12em; text-transform: uppercase; color: var(--accent); margin-bottom: 8px; display: block; }
     .lede { font-size: 17px; }
     .diagram { background: var(--bg-2); border: 1px solid var(--line-2); border-radius: 16px; padding: 18px; margin: 18px 0 22px; overflow-x: auto; }
     .diagram svg { min-width: 720px; width: 100%; height: auto; }
@@ -24,13 +24,13 @@
     .mini ul { margin: 6px 0 0; padding-left: 18px; }
     .flowline { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 14px 0 18px; }
     .flowline span { background: var(--panel); border: 1px solid var(--line-2); border-radius: 10px; padding: 7px 12px; font-size: 13.5px; color: var(--ink); }
-    .flowline i { color: var(--cyan); font-style: normal; }
+    .flowline i { color: var(--accent); font-style: normal; }
     .dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; background: var(--c); margin-right: 6px; vertical-align: -1px; }
-    .rule { border-left: 3px solid var(--cyan); background: #0b1d26; padding: 14px 18px; border-radius: 0 12px 12px 0; margin: 16px 0; color: #cdeef7; font-size: 15px; }
+    .rule { border-left: 3px solid var(--accent); background: #0b1d26; padding: 14px 18px; border-radius: 0 12px 12px 0; margin: 16px 0; color: #cdeef7; font-size: 15px; }
     .rule b { color: #fff; }
     .checklist { list-style: none; padding: 0 !important; counter-reset: c; }
     .checklist li { counter-increment: c; position: relative; padding: 12px 14px 12px 52px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; margin: 8px 0; }
-    .checklist li::before { content: counter(c); position: absolute; left: 14px; top: 12px; width: 26px; height: 26px; border-radius: 8px; background: #0e3440; color: var(--cyan); display: grid; place-items: center; font: 700 13px var(--display); }
+    .checklist li::before { content: counter(c); position: absolute; left: 14px; top: 12px; width: 26px; height: 26px; border-radius: 8px; background: #1d1638; color: var(--accent); display: grid; place-items: center; font: 700 13px var(--display); }
     .checklist li small { display: block; color: var(--ink-3); margin-top: 2px; }
     .day { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
     @media (max-width: 800px) { .day { grid-template-columns: 1fr; } }
@@ -118,40 +118,40 @@
           <div class="diagram">
             <svg viewBox="0 0 900 380" role="img" aria-label="ArenaOS architecture: browsers and phones talk to the server over HTTPS; each gaming PC runs an agent service connected by WebSocket, which drives the Gaming Shell over a local pipe.">
               <defs>
-                <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#22d3ee" /></marker>
+                <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#a07cff" /></marker>
               </defs>
-              <g font-family="Inter, sans-serif" font-size="13" fill="#e8edf7">
+              <g font-family="Inter, sans-serif" font-size="13" fill="#eeecf8">
                 <!-- server -->
-                <rect x="330" y="20" width="240" height="150" rx="14" fill="#111723" stroke="#22d3ee" />
+                <rect x="330" y="20" width="240" height="150" rx="14" fill="#0e0d18" stroke="#a07cff" />
                 <text x="450" y="46" text-anchor="middle" font-weight="700" font-size="15">☁ ArenaOS server</text>
-                <rect x="350" y="60" width="200" height="30" rx="8" fill="#161d2c" stroke="#2f3a50" /><text x="450" y="80" text-anchor="middle">API · session clock · pricing</text>
-                <rect x="350" y="96" width="95" height="30" rx="8" fill="#161d2c" stroke="#2f3a50" /><text x="397" y="116" text-anchor="middle">PostgreSQL</text>
-                <rect x="455" y="96" width="95" height="30" rx="8" fill="#161d2c" stroke="#2f3a50" /><text x="502" y="116" text-anchor="middle">Redis</text>
-                <text x="450" y="152" text-anchor="middle" fill="#a9b3c8" font-size="12">holds the command-signing keys</text>
+                <rect x="350" y="60" width="200" height="30" rx="8" fill="#151323" stroke="#34304f" /><text x="450" y="80" text-anchor="middle">API · session clock · pricing</text>
+                <rect x="350" y="96" width="95" height="30" rx="8" fill="#151323" stroke="#34304f" /><text x="397" y="116" text-anchor="middle">PostgreSQL</text>
+                <rect x="455" y="96" width="95" height="30" rx="8" fill="#151323" stroke="#34304f" /><text x="502" y="116" text-anchor="middle">Redis</text>
+                <text x="450" y="152" text-anchor="middle" fill="#aca8c7" font-size="12">holds the command-signing keys</text>
                 <!-- left clients -->
-                <rect x="20" y="20" width="200" height="44" rx="10" fill="#111723" stroke="#2f3a50" /><text x="120" y="47" text-anchor="middle">🖥 Admin (staff browser)</text>
-                <rect x="20" y="78" width="200" height="44" rx="10" fill="#111723" stroke="#2f3a50" /><text x="120" y="105" text-anchor="middle">📱 Customer app (phone)</text>
-                <rect x="20" y="136" width="200" height="44" rx="10" fill="#111723" stroke="#2f3a50" /><text x="120" y="163" text-anchor="middle">📺 TV display · 🍳 KDS</text>
-                <path d="M220 42 L330 70" stroke="#22d3ee" fill="none" marker-end="url(#ar)" marker-start="url(#ar)" />
-                <path d="M220 100 L330 95" stroke="#22d3ee" fill="none" marker-end="url(#ar)" marker-start="url(#ar)" />
-                <path d="M220 158 L330 130" stroke="#22d3ee" fill="none" marker-end="url(#ar)" marker-start="url(#ar)" />
-                <text x="275" y="30" text-anchor="middle" fill="#6f7b94" font-size="11.5">HTTPS</text>
+                <rect x="20" y="20" width="200" height="44" rx="10" fill="#0e0d18" stroke="#34304f" /><text x="120" y="47" text-anchor="middle">🖥 Admin (staff browser)</text>
+                <rect x="20" y="78" width="200" height="44" rx="10" fill="#0e0d18" stroke="#34304f" /><text x="120" y="105" text-anchor="middle">📱 Customer app (phone)</text>
+                <rect x="20" y="136" width="200" height="44" rx="10" fill="#0e0d18" stroke="#34304f" /><text x="120" y="163" text-anchor="middle">📺 TV display · 🍳 KDS</text>
+                <path d="M220 42 L330 70" stroke="#a07cff" fill="none" marker-end="url(#ar)" marker-start="url(#ar)" />
+                <path d="M220 100 L330 95" stroke="#a07cff" fill="none" marker-end="url(#ar)" marker-start="url(#ar)" />
+                <path d="M220 158 L330 130" stroke="#a07cff" fill="none" marker-end="url(#ar)" marker-start="url(#ar)" />
+                <text x="275" y="30" text-anchor="middle" fill="#85819f" font-size="11.5">HTTPS</text>
                 <!-- right: consoles -->
-                <rect x="680" y="20" width="200" height="60" rx="10" fill="#111723" stroke="#2f3a50" /><text x="780" y="45" text-anchor="middle">🎮 Consoles · VR · sims</text><text x="780" y="64" text-anchor="middle" fill="#a9b3c8" font-size="11.5">no agent — server timer only</text>
-                <rect x="680" y="100" width="200" height="60" rx="10" fill="#111723" stroke="#2f3a50" /><text x="780" y="125" text-anchor="middle">🔌 Smart plug</text><text x="780" y="144" text-anchor="middle" fill="#a9b3c8" font-size="11.5">switched by a bridge PC on the LAN</text>
-                <path d="M570 60 L680 50" stroke="#6f7b94" stroke-dasharray="4 4" fill="none" marker-end="url(#ar)" />
+                <rect x="680" y="20" width="200" height="60" rx="10" fill="#0e0d18" stroke="#34304f" /><text x="780" y="45" text-anchor="middle">🎮 Consoles · VR · sims</text><text x="780" y="64" text-anchor="middle" fill="#aca8c7" font-size="11.5">no agent — server timer only</text>
+                <rect x="680" y="100" width="200" height="60" rx="10" fill="#0e0d18" stroke="#34304f" /><text x="780" y="125" text-anchor="middle">🔌 Smart plug</text><text x="780" y="144" text-anchor="middle" fill="#aca8c7" font-size="11.5">switched by a bridge PC on the LAN</text>
+                <path d="M570 60 L680 50" stroke="#85819f" stroke-dasharray="4 4" fill="none" marker-end="url(#ar)" />
                 <!-- PC -->
-                <rect x="250" y="230" width="400" height="130" rx="14" fill="#0c0a16" stroke="#a78bfa" />
+                <rect x="250" y="230" width="400" height="130" rx="14" fill="#0c0a16" stroke="#2ee6f6" />
                 <text x="450" y="254" text-anchor="middle" font-weight="700" font-size="15">🖥 Each gaming PC</text>
-                <rect x="270" y="270" width="170" height="70" rx="10" fill="#181527" stroke="#2a2540" /><text x="355" y="296" text-anchor="middle" font-weight="600">Station agent</text><text x="355" y="314" text-anchor="middle" fill="#9b97b8" font-size="11.5">Windows service (SYSTEM)</text><text x="355" y="330" text-anchor="middle" fill="#9b97b8" font-size="11.5">verifies · locks · reports</text>
-                <rect x="460" y="270" width="170" height="70" rx="10" fill="#181527" stroke="#2a2540" /><text x="545" y="296" text-anchor="middle" font-weight="600">Gaming Shell</text><text x="545" y="314" text-anchor="middle" fill="#9b97b8" font-size="11.5">full-screen for players</text><text x="545" y="330" text-anchor="middle" fill="#9b97b8" font-size="11.5">shows · asks · never decides</text>
-                <path d="M440 305 L460 305" stroke="#a78bfa" fill="none" marker-end="url(#ar)" marker-start="url(#ar)" />
-                <text x="450" y="355" text-anchor="middle" fill="#6f7b94" font-size="11">local pipe</text>
-                <path d="M400 170 L370 270" stroke="#22d3ee" fill="none" marker-end="url(#ar)" marker-start="url(#ar)" />
-                <text x="372" y="200" text-anchor="end" fill="#a9b3c8" font-size="12">WebSocket: heartbeats ↑</text>
-                <text x="368" y="217" text-anchor="end" fill="#a9b3c8" font-size="12">signed commands ↓</text>
-                <path d="M650 300 C720 300 760 190 760 160" stroke="#6f7b94" stroke-dasharray="4 4" fill="none" marker-end="url(#ar)" />
-                <text x="690" y="250" fill="#6f7b94" font-size="11.5">bridge PC</text>
+                <rect x="270" y="270" width="170" height="70" rx="10" fill="#151323" stroke="#34304f" /><text x="355" y="296" text-anchor="middle" font-weight="600">Station agent</text><text x="355" y="314" text-anchor="middle" fill="#aca8c7" font-size="11.5">Windows service (SYSTEM)</text><text x="355" y="330" text-anchor="middle" fill="#aca8c7" font-size="11.5">verifies · locks · reports</text>
+                <rect x="460" y="270" width="170" height="70" rx="10" fill="#151323" stroke="#34304f" /><text x="545" y="296" text-anchor="middle" font-weight="600">Gaming Shell</text><text x="545" y="314" text-anchor="middle" fill="#aca8c7" font-size="11.5">full-screen for players</text><text x="545" y="330" text-anchor="middle" fill="#aca8c7" font-size="11.5">shows · asks · never decides</text>
+                <path d="M440 305 L460 305" stroke="#2ee6f6" fill="none" marker-end="url(#ar)" marker-start="url(#ar)" />
+                <text x="450" y="355" text-anchor="middle" fill="#85819f" font-size="11">local pipe</text>
+                <path d="M400 170 L370 270" stroke="#a07cff" fill="none" marker-end="url(#ar)" marker-start="url(#ar)" />
+                <text x="372" y="200" text-anchor="end" fill="#aca8c7" font-size="12">WebSocket: heartbeats ↑</text>
+                <text x="368" y="217" text-anchor="end" fill="#aca8c7" font-size="12">signed commands ↓</text>
+                <path d="M650 300 C720 300 760 190 760 160" stroke="#85819f" stroke-dasharray="4 4" fill="none" marker-end="url(#ar)" />
+                <text x="690" y="250" fill="#85819f" font-size="11.5">bridge PC</text>
               </g>
             </svg>
             <div class="cap">Browsers and phones talk to the server over HTTPS. Each gaming PC keeps one WebSocket connection open. The server signs every command, and the PC verifies the signature before doing anything.</div>
@@ -187,7 +187,7 @@
             <tr><td>Branches / stations / staff</td><td>1 / 30 / 10</td><td>5 / 250 / 100</td><td>Unlimited</td></tr>
             <tr><td>Included</td><td>PC gaming &amp; Shell, consoles, internet café, bookings, memberships, wallet, inventory, loyalty, promotions, customer app, remote support, game updates, offline edge</td><td>Everything in Starter plus restaurant, KDS, tables, purchasing, tournaments, CRM, VR &amp; sims, license pool, advanced analytics</td><td>Everything, plus diskless, accounting, public API and multiple brands</td></tr>
           </table></div>
-          <p>Adding a station beyond your limit is refused with "Your plan's station limit is reached". See <a href="pricing.html" style="color:var(--cyan)">Pricing</a> for the full module list.</p>
+          <p>Adding a station beyond your limit is refused with "Your plan's station limit is reached". See <a href="pricing.html" style="color:var(--accent)">Pricing</a> for the full module list.</p>
         </section>
 
         <!-- 4 -->
@@ -220,7 +220,7 @@
         <section id="setup">
           <h2>5. First-time setup (in this order)</h2>
           <ol class="checklist">
-            <li><b>Host the server and sign in as owner.</b><small>See the <a href="install.html" style="color:var(--cyan)">install guide</a>. Turn on two-step sign-in straight away.</small></li>
+            <li><b>Host the server and sign in as owner.</b><small>See the <a href="install.html" style="color:var(--accent)">install guide</a>. Turn on two-step sign-in straight away.</small></li>
             <li><b>Branches &amp; zones.</b><small>Admin → Branches &amp; zones. Set each branch's timezone, currency and tax, then create its zones.</small></li>
             <li><b>Employees &amp; roles.</b><small>Admin → Employees. Add staff, give each a role per branch, and set PINs.</small></li>
             <li><b>Rates.</b><small>Admin → Rates. A price per zone, packages (for example 3 hours + 30 bonus minutes), happy-hour windows, a night pass, and console player pricing.</small></li>
@@ -231,7 +231,7 @@
             <li><b>Inventory.</b><small>Warehouses, items, recipes (burger = bun + patty + …), minimum levels and suppliers. Receive your opening stock through a purchase order.</small></li>
             <li><b>Memberships, loyalty &amp; promotions.</b><small>Membership tiers, point rules, the rewards catalog, happy hours and codes.</small></li>
             <li><b>Customer app link.</b><small>Share <code>https://api.yourvenue.com/&lt;your-slug&gt;</code> as a QR code at the counter.</small></li>
-            <li><b>Test day.</b><small>Run one session, one food order, one booking and one shift close before opening. The <a href="demos.html" style="color:var(--cyan)">demos</a> show what to expect.</small></li>
+            <li><b>Test day.</b><small>Run one session, one food order, one booking and one shift close before opening. The <a href="demos.html" style="color:var(--accent)">demos</a> show what to expect.</small></li>
           </ol>
         </section>
 
@@ -253,14 +253,14 @@
             <div class="mini"><p><span class="dot" style="--c:var(--orange)"></span><b>Ending soon</b>: 5 minutes or less left</p></div>
             <div class="mini"><p><span class="dot" style="--c:var(--amber)"></span><b>Reserved</b>: a booking starts within 2 hours</p></div>
             <div class="mini"><p><span class="dot" style="--c:#64748b"></span><b>Offline</b>: no heartbeat for 30 s</p></div>
-            <div class="mini"><p><span class="dot" style="--c:var(--violet)"></span><b>Maintenance / Cleaning</b>: can't be sold</p></div>
+            <div class="mini"><p><span class="dot" style="--c:var(--accent-2)"></span><b>Maintenance / Cleaning</b>: can't be sold</p></div>
           </div>
           <p>Badges show the game being played, a customer asking for help (🔔, answered with "On my way"), and alerts.</p>
           <h3>The station drawer</h3>
           <p>Click any station to see the customer, time left, game, live CPU/GPU/RAM/disk readings, temperatures, network, peripherals (missing ones in red), installed games, boot mode and the last commands. From there staff can:</p>
           <div class="tw"><table class="t">
             <tr><th>Action</th><th>What happens</th><th>Permission</th></tr>
-            <tr><td>Start / extend / move / end session</td><td>See <a href="#sessions" style="color:var(--cyan)">Sessions</a></td><td>station.start_session / end_session</td></tr>
+            <tr><td>Start / extend / move / end session</td><td>See <a href="#sessions" style="color:var(--accent)">Sessions</a></td><td>station.start_session / end_session</td></tr>
             <tr><td>Send message</td><td>Pops up inside the Shell (or a Windows box)</td><td>station.message</td></tr>
             <tr><td>Lock</td><td>Locks the Windows session</td><td>station.lock</td></tr>
             <tr><td>Restart / shut down / log out</td><td>Runs with a 5-second notice</td><td>station.restart / shutdown</td></tr>
@@ -303,7 +303,7 @@
           <ul>
             <li><b>Membership discount</b> (for example Gold −20 %) applies automatically. A <b>staff discount</b> needs the <code>pos.discount</code> permission.</li>
             <li><b>Consoles:</b> a rate includes N players (for example 2), and each extra controller adds a set price.</li>
-            <li><b>Promotions</b> (happy hour, bonus minutes, codes) are added on top. See <a href="#promotions" style="color:var(--cyan)">Promotions</a>.</li>
+            <li><b>Promotions</b> (happy hour, bonus minutes, codes) are added on top. See <a href="#promotions" style="color:var(--accent)">Promotions</a>.</li>
             <li>The price is <b>locked in when the session starts</b>. Editing a rate later never changes a running session.</li>
             <li>All money is stored in whole minor units (fils, cents), so there are no rounding surprises.</li>
           </ul>
@@ -320,16 +320,16 @@
           </div>
           <div class="diagram">
             <svg viewBox="0 0 900 150" role="img" aria-label="Session timeline: start, warnings at 30, 15, 10, 5 and 1 minutes, ending soon from 5 minutes, then expiry and lock.">
-              <g font-family="Inter, sans-serif" font-size="12.5" fill="#e8edf7">
-                <line x1="40" y1="70" x2="860" y2="70" stroke="#2f3a50" stroke-width="6" stroke-linecap="round" />
-                <line x1="40" y1="70" x2="690" y2="70" stroke="#f87171" stroke-width="6" stroke-linecap="round" />
+              <g font-family="Inter, sans-serif" font-size="12.5" fill="#eeecf8">
+                <line x1="40" y1="70" x2="860" y2="70" stroke="#34304f" stroke-width="6" stroke-linecap="round" />
+                <line x1="40" y1="70" x2="690" y2="70" stroke="#fb5d7a" stroke-width="6" stroke-linecap="round" />
                 <line x1="690" y1="70" x2="820" y2="70" stroke="#fb923c" stroke-width="6" />
-                <circle cx="40" cy="70" r="9" fill="#34d399" /><text x="40" y="40" text-anchor="middle" font-weight="600">Start</text><text x="40" y="100" text-anchor="middle" fill="#a9b3c8">paid · PC unlocks</text>
+                <circle cx="40" cy="70" r="9" fill="#34d399" /><text x="40" y="40" text-anchor="middle" font-weight="600">Start</text><text x="40" y="100" text-anchor="middle" fill="#aca8c7">paid · PC unlocks</text>
                 <g fill="#facc15"><circle cx="430" cy="70" r="6" /><circle cx="560" cy="70" r="6" /><circle cx="620" cy="70" r="6" /><circle cx="690" cy="70" r="6" /><circle cx="790" cy="70" r="6" /></g>
                 <text x="430" y="45" text-anchor="middle">30</text><text x="560" y="45" text-anchor="middle">15</text><text x="620" y="45" text-anchor="middle">10</text><text x="690" y="45" text-anchor="middle">5</text><text x="790" y="45" text-anchor="middle">1 min</text>
-                <text x="560" y="100" text-anchor="middle" fill="#a9b3c8">warnings on the Shell</text>
+                <text x="560" y="100" text-anchor="middle" fill="#aca8c7">warnings on the Shell</text>
                 <text x="755" y="120" text-anchor="middle" fill="#fb923c">"Ending soon" on the Live Floor</text>
-                <circle cx="820" cy="70" r="9" fill="#a78bfa" /><text x="838" y="40" text-anchor="middle" font-weight="600">End</text><text x="850" y="100" text-anchor="middle" fill="#a9b3c8">bill closed · PC locks</text>
+                <circle cx="820" cy="70" r="9" fill="#2ee6f6" /><text x="838" y="40" text-anchor="middle" font-weight="600">End</text><text x="850" y="100" text-anchor="middle" fill="#aca8c7">bill closed · PC locks</text>
               </g>
             </svg>
             <div class="cap">The server checks every timer every 2 seconds. Expiry is accurate to within about 2 seconds, even across restarts.</div>
@@ -663,13 +663,13 @@
             <tr><td><b>Signed command</b></td><td>An instruction to a PC that carries the branch's digital signature, so it can't be forged.</td></tr>
             <tr><td><b>X / Z report</b></td><td>Mid-shift cash summary / final frozen totals at shift close.</td></tr>
           </table></div>
-          <p style="margin-top:24px">Next: <a href="install.html" style="color:var(--cyan)">install it</a>, or <a href="demos.html" style="color:var(--cyan)">click through the demos</a> first.</p>
+          <p style="margin-top:24px">Next: <a href="install.html" style="color:var(--accent)">install it</a>, or <a href="demos.html" style="color:var(--accent)">click through the demos</a> first.</p>
         </section>
       </div>
     </div>
   </main>
   <footer id="footer"></footer>
-  <script src="assets/site.js"></script>
+  <script src="assets/site.js?v=4"></script>
   <script>
     // Highlight the section being read in the table of contents.
     const links = [...document.querySelectorAll("#toc a")];

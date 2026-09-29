@@ -40,7 +40,7 @@ function VenueMark({ state, big }: { state: ShellState; big?: boolean }) {
       {state.venue.logoUrl ? (
         <img src={state.venue.logoUrl} alt="" className={big ? "h-14" : "h-8"} />
       ) : (
-        <div className={cx("grid place-items-center rounded-xl bg-gradient-to-br from-glow to-glow-2 font-display font-bold text-void", big ? "size-14 text-2xl" : "size-9 text-base")}>{state.venue.name.slice(0, 1)}</div>
+        <div className={cx("brand-gradient grid place-items-center rounded-xl font-display font-bold text-void shadow-glow", big ? "size-14 text-2xl" : "size-9 text-base")}>{state.venue.name.slice(0, 1)}</div>
       )}
       <div>
         <p className={cx("whitespace-nowrap font-display font-semibold tracking-wide", big ? "text-3xl" : "text-lg")}>{state.venue.name}</p>
@@ -116,7 +116,7 @@ function LockScreen({ state, t, lang, setLang }: { state: ShellState; t: Strings
             e.preventDefault();
             submit();
           }}
-          className="glass w-full max-w-md rounded-3xl p-10 shadow-2xl shadow-black/40"
+          className="glass animate-pop w-full max-w-md rounded-3xl p-10 shadow-2xl shadow-black/50"
         >
           <div className="mb-8 flex items-center justify-between">
             <h1 className="font-display text-3xl font-semibold">{t.signIn}</h1>
@@ -132,7 +132,7 @@ function LockScreen({ state, t, lang, setLang }: { state: ShellState; t: Strings
               onChange={(e) => setUsername(e.target.value)}
               autoComplete="off"
               spellCheck={false}
-              className="w-full rounded-xl border border-rim bg-void/70 px-4 py-4 text-lg outline-none transition focus:border-glow"
+              className="w-full rounded-xl border border-rim bg-void/70 px-4 py-4 text-lg outline-none transition focus:border-glow focus:ring-4 focus:ring-glow/15"
             />
           </label>
           <label className="mt-5 block">
@@ -142,7 +142,7 @@ function LockScreen({ state, t, lang, setLang }: { state: ShellState; t: Strings
               value={secret}
               onChange={(e) => setSecret(e.target.value)}
               autoComplete="off"
-              className="w-full rounded-xl border border-rim bg-void/70 px-4 py-4 text-lg outline-none transition focus:border-glow"
+              className="w-full rounded-xl border border-rim bg-void/70 px-4 py-4 text-lg outline-none transition focus:border-glow focus:ring-4 focus:ring-glow/15"
             />
           </label>
           {error && (
@@ -153,7 +153,7 @@ function LockScreen({ state, t, lang, setLang }: { state: ShellState; t: Strings
           <button
             type="submit"
             disabled={busy || !state.connected}
-            className="mt-8 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-glow to-glow-2 py-4 font-display text-lg font-semibold text-void transition hover:brightness-110 disabled:opacity-50"
+            className="brand-gradient press mt-8 flex w-full items-center justify-center gap-2 rounded-xl py-4 font-display text-lg font-semibold text-void hover:shadow-glow hover:brightness-110 disabled:opacity-50"
           >
             {busy ? (
               <>
@@ -277,7 +277,7 @@ function SessionScreen({ state, t }: { state: ShellState; t: Strings }) {
         <VenueMark state={state} />
         {playing && (
           <button onClick={() => setTab("games")} className="ml-4 flex items-center gap-2 rounded-full border border-good/40 bg-good/10 px-4 py-1.5 text-sm text-good">
-            <span className="size-2 animate-pulse rounded-full bg-good" /> Playing {playing.title}
+            <span className="live-dot size-2 rounded-full bg-good" /> Playing {playing.title}
           </button>
         )}
         <div className="ml-auto flex items-center gap-5">
@@ -287,13 +287,13 @@ function SessionScreen({ state, t }: { state: ShellState; t: Strings }) {
             <p className={cx("tabular font-mono text-2xl font-semibold", lastMinute && "text-alarm pulse")}>{remaining === null ? hms(serverNow - new Date(s.startedAt).getTime()) : hms(remaining)}</p>
           </div>
           <div className="flex items-center gap-3">
-            <div className="grid size-11 place-items-center rounded-full bg-gradient-to-br from-glow-2 to-glow font-display text-lg font-bold text-void">{s.customerName.slice(0, 1)}</div>
+            <div className="brand-gradient grid size-11 place-items-center rounded-full font-display text-lg font-bold text-void">{s.customerName.slice(0, 1)}</div>
             <div className="leading-tight">
               <p className="font-semibold">{s.customerName}</p>
               {s.tier && <p className="text-xs text-glow-2">{s.tier}</p>}
             </div>
           </div>
-          <button onClick={() => confirm(t.logoutConfirm) && bridge.send({ type: "logout" })} className="rounded-xl border border-rim p-3 text-dim hover:border-alarm hover:text-alarm" aria-label={t.logout} title={t.logout}>
+          <button onClick={() => confirm(t.logoutConfirm) && bridge.send({ type: "logout" })} className="press rounded-xl border border-rim p-3 text-dim hover:border-alarm hover:text-alarm" aria-label={t.logout} title={t.logout}>
             <LogOut className="size-5" />
           </button>
         </div>
@@ -305,15 +305,15 @@ function SessionScreen({ state, t }: { state: ShellState; t: Strings }) {
           <button
             key={x.id}
             onClick={() => setTab(x.id)}
-            className={cx("relative flex items-center gap-3 rounded-xl px-4 py-3 font-display text-base tracking-wide transition", tab === x.id ? "bg-glow/10 text-glow" : "text-dim hover:bg-deck-2 hover:text-text")}
+            className={cx("press relative flex items-center gap-3 rounded-xl px-4 py-3 font-display text-base tracking-wide", tab === x.id ? "bg-glow/12 text-text" : "text-dim hover:bg-deck-2 hover:text-text")}
           >
-            {tab === x.id && <span className="absolute inset-y-2 left-0 w-1 rounded-full bg-glow" />}
-            <x.icon className="size-5" />
+            {tab === x.id && <span className="absolute inset-y-2 left-0 w-1 rounded-full bg-glow shadow-[0_0_12px_var(--color-glow)]" />}
+            <x.icon className={cx("size-5", tab === x.id && "text-glow")} />
             {x.label}
           </button>
         ))}
       </nav>
-      <section className="relative min-w-0 flex-1 overflow-y-auto p-10">
+      <section key={tab} className="animate-enter relative min-w-0 flex-1 overflow-y-auto p-10">
         {tab === "home" && (
           <div className="mx-auto grid min-h-full max-w-6xl items-center gap-12 lg:grid-cols-[auto_1fr]">
             <div className="relative grid place-items-center">
@@ -346,7 +346,7 @@ function SessionScreen({ state, t }: { state: ShellState; t: Strings }) {
       </div>
 
       {note && (
-        <div role="status" className={cx("fixed bottom-8 left-1/2 z-20 -translate-x-1/2 rounded-2xl border px-6 py-3 shadow-2xl", note.tone === "good" ? "border-good/40 bg-deck text-good" : note.tone === "warn" ? "border-warn/50 bg-deck text-warn" : "border-alarm bg-deck text-alarm")}>
+        <div role="status" key={note.text} className={cx("glass animate-pop fixed bottom-8 left-1/2 z-20 -translate-x-1/2 rounded-2xl border px-6 py-3 shadow-2xl", note.tone === "good" ? "border-good/40 bg-deck text-good" : note.tone === "warn" ? "border-warn/50 bg-deck text-warn" : "border-alarm bg-deck text-alarm")}>
           {note.text}
         </div>
       )}
@@ -377,10 +377,10 @@ function StaffMessage({ msg, onClose }: { msg: { title: string; text: string } |
   if (!msg) return null;
   return (
     <div className="fixed inset-0 z-40 grid place-items-center bg-void/60 backdrop-blur-sm">
-      <div className="glass max-w-lg rounded-3xl p-10 text-center shadow-2xl">
+      <div className="glass animate-pop max-w-lg rounded-3xl p-10 text-center shadow-2xl">
         <p className="text-sm uppercase tracking-[0.25em] text-glow">{msg.title}</p>
         <p className="mt-4 font-display text-3xl">{msg.text}</p>
-        <button onClick={onClose} className="mt-8 rounded-xl bg-gradient-to-r from-glow to-glow-2 px-10 py-3 font-display font-semibold text-void">
+        <button onClick={onClose} className="brand-gradient press mt-8 rounded-xl px-10 py-3 font-display font-semibold text-void hover:shadow-glow">
           OK
         </button>
       </div>
@@ -421,7 +421,7 @@ export function App() {
       <StaffMessage msg={msg} onClose={() => setMsg(null)} />
       {bridge.mock && (
         <div className="fixed bottom-3 right-3 flex items-center gap-1.5 rounded-full border border-rim bg-deck px-3 py-1 text-xs text-mute">
-          <Wifi className="size-3" /> Preview mode · try ahmed / ahmed123
+          <Wifi className="size-3" /> {import.meta.env.VITE_ARENA_DEMO === "1" ? `Live demo · ${state?.station.name ?? ""} · sign in as ahmed / ahmed123` : "Preview mode · try ahmed / ahmed123"}
         </div>
       )}
     </div>

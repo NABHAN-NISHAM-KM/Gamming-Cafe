@@ -59,7 +59,7 @@ function Options({ p, currency, onAdd, onClose }: { p: Product; currency: string
           <button
             disabled={!!missing}
             onClick={() => onAdd({ key: rid(), productId: p.id, quantity: qty, modifierIds: chosen, name: p.name, unit, optionNames: mods.map((m) => m.name) })}
-            className="flex-1 rounded-xl bg-gradient-to-r from-glow to-glow-2 py-3.5 font-display text-lg font-semibold text-void disabled:opacity-40"
+            className="flex-1 rounded-xl brand-gradient press py-3.5 font-display text-lg font-semibold text-void disabled:opacity-40"
           >
             {missing ? `Choose ${missing.name.toLowerCase()}` : `Add · ${currency} ${(unit * qty).toFixed(2)}`}
           </button>
@@ -195,7 +195,7 @@ export function FoodScreen({ notify, station }: { notify: Notify; station: strin
               <span className="text-dim">Total</span>
               <span className="tabular font-display text-2xl font-semibold">{menu.currency} {total.toFixed(2)}</span>
             </div>
-            <button onClick={() => void send()} disabled={sending} className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-glow to-glow-2 py-4 font-display text-lg font-semibold text-void disabled:opacity-60">
+            <button onClick={() => void send()} disabled={sending} className="flex w-full items-center justify-center gap-2 rounded-xl brand-gradient press py-4 font-display text-lg font-semibold text-void disabled:opacity-60">
               {sending ? <Loader2 className="size-5 animate-spin" /> : <Check className="size-5" />} Place order
             </button>
             <p className="mt-2 text-center text-xs text-mute">Prices include VAT.</p>

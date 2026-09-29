@@ -8,6 +8,7 @@ import { useAction, useApi } from "@/lib/client/hooks";
 import { useCan } from "@/lib/client/me";
 import { Badge, Button, Card, Empty, ErrorNote, Field, Input, Modal, PageHeader, Select, Spinner } from "@/components/ui";
 import { STATUS_TONE, statusLabel, type Branch } from "@/lib/client/types";
+import { useRouteId } from "@/lib/client/route-id";
 
 const ZONE_TYPES = {
   PC_STANDARD: { label: "Regular PCs", icon: Monitor },
@@ -38,7 +39,7 @@ interface Zone {
 function ZoneForm({ branchId, zone, onDone }: { branchId: string; zone?: Zone; onDone: () => void }) {
   const [name, setName] = useState(zone?.name ?? "");
   const [type, setType] = useState<ZoneType>(zone?.type ?? "PC_STANDARD");
-  const [color, setColor] = useState(zone?.color ?? "#22d3ee");
+  const [color, setColor] = useState(zone?.color ?? "#a07cff");
   const [minAge, setMinAge] = useState(zone?.minAge?.toString() ?? "");
   const save = useAction(async () => {
     const body = { name, type, color, minAge: minAge ? Number(minAge) : null };
@@ -132,7 +133,7 @@ function EditBranch({ branch, onDone }: { branch: Branch; onDone: () => void }) 
 }
 
 export default function BranchPage({ params }: { params: Promise<{ branchId: string }> }) {
-  const { branchId } = use(params);
+  const branchId = useRouteId(use(params).branchId);
   const can = useCan();
   const branch = useApi<Branch>(`/branches/${branchId}`);
   const zones = useApi<Zone[]>(`/branches/${branchId}/zones`);

@@ -71,7 +71,7 @@ export function PrintApproval({ notify }: { notify: Notify }) {
         {job.notice && <p className="mt-3 rounded-xl bg-warn/10 px-4 py-2 text-sm text-warn">{job.notice}</p>}
         {job.needsStaff && <p className="mt-3 text-sm text-dim">Staff will release it at the front desk after you confirm.</p>}
         <div className={cx("mt-6 grid gap-3", job.canPayWithWallet ? "grid-cols-2" : "grid-cols-1")}>
-          <button disabled={busy === job.jobKey} onClick={() => confirm("BILL")} className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-glow to-glow-2 py-3.5 font-display font-semibold text-void disabled:opacity-50">
+          <button disabled={busy === job.jobKey} onClick={() => confirm("BILL")} className="flex items-center justify-center gap-2 rounded-xl brand-gradient press py-3.5 font-display font-semibold text-void disabled:opacity-50">
             <Receipt className="size-5" /> Add to my bill
           </button>
           {job.canPayWithWallet && (

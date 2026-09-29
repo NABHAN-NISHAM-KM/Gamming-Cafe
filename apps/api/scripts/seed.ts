@@ -529,6 +529,8 @@ interface DemoOrg {
   plan: string;
   branches: Array<{ code: string; name: string; zones: Array<[string, string]> }>;
   staff: Array<{ email: string; name: string; code: string; role: string; branch?: string }>;
+  /** Paid add-ons on top of the plan (organization feature overrides). */
+  addOns?: FeatureKey[];
 }
 
 async function seedOrg(db: PlatformClient, spec: DemoOrg) {
@@ -541,6 +543,9 @@ async function seedOrg(db: PlatformClient, spec: DemoOrg) {
   const organizationId = org.id;
 
   const plan = await db.subscriptionPlan.findUniqueOrThrow({ where: { code: spec.plan } });
+  for (const featureKey of spec.addOns ?? []) {
+    await db.organizationFeature.upsert({ where: { organizationId_featureKey: { organizationId, featureKey } }, create: { organizationId, featureKey, enabled: true, reason: "Demo add-on" }, update: { enabled: true } });
+  }
   if (!(await db.subscription.findFirst({ where: { organizationId } }))) {
     const now = new Date();
     await db.subscription.create({ data: { organizationId, planId: plan.id, status: "ACTIVE", currentPeriodStart: now, currentPeriodEnd: new Date(now.getTime() + 30 * 86_400_000) } });
@@ -633,11 +638,27 @@ async function seedPricingAndCustomers(db: PlatformClient, organizationId: strin
   }
 }
 
+export const SUPER_ADMIN_EMAIL = "super@arenaos.test";
+
+/** Platform Super Admin: a User with a PlatformRoleAssignment and no org membership. Idempotent. */
+async function seedSuperAdmin(db: PlatformClient) {
+  const user =
+    (await db.user.findUnique({ where: { email: SUPER_ADMIN_EMAIL } })) ??
+    (await db.user.create({ data: { email: SUPER_ADMIN_EMAIL, displayName: "Sam Super Admin", passwordHash: await hashSecret(DEMO_PASSWORD), emailVerified: true } }));
+  await db.platformRoleAssignment.upsert({
+    where: { userId_role: { userId: user.id, role: "SUPER_ADMIN" } },
+    update: {},
+    create: { userId: user.id, role: "SUPER_ADMIN" },
+  });
+  console.log(`platform: super admin ${SUPER_ADMIN_EMAIL}`);
+}
+
 export async function seed(url = process.env["DATABASE_URL"]) {
   if (!url) throw new Error("DATABASE_URL (migration/platform role) is required");
   const db = createPlatformClient(url);
   try {
     await seedPlatform(db);
+    await seedSuperAdmin(db);
     await seedOrg(db, {
       slug: "demo",
       name: "Demo Arena",
@@ -654,7 +675,9 @@ export async function seed(url = process.env["DATABASE_URL"]) {
         { email: "waiter@demo.test", name: "Wafa Waiter", code: "E005", role: "waiter", branch: "DXB1" },
         { email: "kitchen@demo.test", name: "Karim Kitchen", code: "E006", role: "kitchen_staff", branch: "DXB1" },
         { email: "inventory@demo.test", name: "Ines Inventory", code: "E007", role: "inventory_manager" },
+        { email: "accountant@demo.test", name: "Adam Accountant", code: "E008", role: "accountant" },
       ],
+      addOns: ["ACCOUNTING"],
     });
     await seedOrg(db, {
       slug: "rival",
@@ -670,6 +693,7 @@ export async function seed(url = process.env["DATABASE_URL"]) {
 
 if (process.argv[1]?.replace(/\\/g, "/").endsWith("scripts/seed.ts")) {
   await seed();
-  console.log(`\nDemo logins (password: ${DEMO_PASSWORD}): owner@demo.test · manager@demo.test · cashier@demo.test · tech@demo.test · waiter@demo.test · kitchen@demo.test · inventory@demo.test · owner@rival.test`);
+  console.log(`\nDemo logins (password: ${DEMO_PASSWORD}): owner@demo.test · manager@demo.test · cashier@demo.test · tech@demo.test · waiter@demo.test · kitchen@demo.test · inventory@demo.test · accountant@demo.test · owner@rival.test`);
+  console.log(`Super Admin (platform role, password: ${DEMO_PASSWORD}): ${SUPER_ADMIN_EMAIL}`);
   console.log("Demo customers (Gaming Shell & app): ahmed / ahmed123 (PIN 1234, 2h prepaid, AED 150 + 20 bonus in wallet) · sara / sara1234 (no time, age 13)");
 }

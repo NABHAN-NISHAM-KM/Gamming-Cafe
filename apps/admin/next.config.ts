@@ -14,10 +14,30 @@ const lanAddresses = Object.values(networkInterfaces())
 
 const extra = (process.env["ADMIN_DEV_ORIGINS"] ?? "").split(",").map((s) => s.trim()).filter(Boolean);
 
+/**
+ * ARENA_DEMO=1 builds the self-contained live demo: a static site (no Next
+ * server, no API) where @arena/demo answers every request in the browser.
+ * Route handlers (*.ts under app/api) are left out by pageExtensions.
+ * DEMO_BASE_PATH is where it will be served, e.g. "/live/admin".
+ */
+const demo = process.env["ARENA_DEMO"] === "1";
+
 const config: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
+  transpilePackages: ["@arena/theme", "@arena/demo"],
   allowedDevOrigins: [...lanAddresses, ...extra],
+  env: { NEXT_PUBLIC_ARENA_DEMO: demo ? "1" : "0" },
+  ...(demo
+    ? {
+        output: "export" as const,
+        distDir: process.env["DEMO_DIST_DIR"] ?? ".next-demo",
+        basePath: process.env["DEMO_BASE_PATH"] ?? "",
+        trailingSlash: true,
+        images: { unoptimized: true },
+        pageExtensions: ["tsx"],
+      }
+    : {}),
 };
 
 export default config;

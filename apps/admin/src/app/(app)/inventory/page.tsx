@@ -46,9 +46,17 @@ export default function InventoryPage() {
     setTab("stock");
   };
 
+  const can = useCan();
+  const [addingStore, setAddingStore] = useState(false);
+
   return (
     <div className="space-y-5">
-      <PageHeader title="Inventory" subtitle="Stock in every store, what's running low, and every movement — sales, deliveries, waste, transfers and counts." />
+      <PageHeader
+        title="Inventory"
+        subtitle="Stock in every store, what's running low, and every movement — sales, deliveries, waste, transfers and counts."
+        actions={can("inventory.manage") && <Button onClick={() => setAddingStore(true)}><Plus className="size-4" /> Add store</Button>}
+      />
+      <AddStore open={addingStore} onClose={() => setAddingStore(false)} onSaved={() => void overview.reload()} />
       <div className="flex gap-1 border-b border-line">
         {(["overview", "stock", "items", "movements"] as Tab[]).map((t) => (
           <button key={t} onClick={() => setTab(t)} className={cx("-mb-px border-b-2 px-4 py-2 text-sm capitalize", tab === t ? "border-accent text-ink" : "border-transparent text-ink-3 hover:text-ink")}>{t}</button>
@@ -70,6 +78,41 @@ export default function InventoryPage() {
         <MovementsTab warehouses={overview.data.warehouses} warehouse={warehouse} onPick={pick} />
       )}
     </div>
+  );
+}
+
+const STORE_TYPES: Array<[string, string]> = [["BRANCH_STORE", "Branch store"], ["KITCHEN", "Kitchen"], ["BAR", "Bar"], ["TECH_STORE", "Tech store (spare parts)"], ["CENTRAL", "Central warehouse"]];
+
+/** A place stock lives: a branch store, kitchen, bar, or a central warehouse that serves every branch. */
+function AddStore({ open, onClose, onSaved }: { open: boolean; onClose: () => void; onSaved: () => void }) {
+  const branches = useApi<Array<{ id: string; code: string; name: string }>>(open ? "/branches" : null);
+  const [f, setF] = useState({ name: "", type: "BRANCH_STORE", branchId: "" });
+  const branchId = f.branchId || branches.data?.[0]?.id || "";
+  const save = useAction(async () => {
+    await api("/warehouses", { method: "POST", body: { name: f.name.trim(), type: f.type, branchId: f.type === "CENTRAL" ? null : branchId } });
+    setF({ name: "", type: "BRANCH_STORE", branchId: "" });
+    onSaved();
+    onClose();
+  });
+  return (
+    <Modal open={open} onClose={onClose} title="Add store">
+      <form className="grid gap-4" onSubmit={(e) => { e.preventDefault(); void save.run(); }}>
+        <Field label="Name"><Input required value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="e.g. Marina kitchen" autoFocus /></Field>
+        <Field label="Type">
+          <Select value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })}>{STORE_TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</Select>
+        </Field>
+        {f.type !== "CENTRAL" && (
+          <Field label="Branch">
+            <Select value={branchId} onChange={(e) => setF({ ...f, branchId: e.target.value })}>{(branches.data ?? []).map((b) => <option key={b.id} value={b.id}>{b.code} · {b.name}</option>)}</Select>
+          </Field>
+        )}
+        <ErrorNote>{save.error}</ErrorNote>
+        <div className="flex justify-end gap-2">
+          <Button type="button" onClick={onClose}>Cancel</Button>
+          <Button type="submit" variant="primary" pending={save.pending}>Add store</Button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 

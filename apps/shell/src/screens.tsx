@@ -20,7 +20,7 @@ function GameTile({ game, playing, onPlay, busy }: { game: ShellGame; playing: b
     <button
       onClick={onPlay}
       disabled={disabled || busy}
-      className={cx("group relative aspect-[3/4] overflow-hidden rounded-2xl border text-left transition", disabled ? "border-rim opacity-50" : "border-rim hover:-translate-y-1 hover:border-glow/70 hover:shadow-2xl hover:shadow-glow/10", playing && "border-good ring-2 ring-good/50")}
+      className={cx("sheen press group relative aspect-[3/4] overflow-hidden rounded-2xl border text-left duration-300", disabled ? "border-rim opacity-50" : "border-rim hover:-translate-y-1.5 hover:border-glow/70 hover:shadow-glow", playing && "border-good ring-2 ring-good/50")}
       style={{ background: game.coverUrl ? `center/cover url(${game.coverUrl})` : `linear-gradient(155deg, ${a}, ${b})` }}
       title={game.locked ? `Rated ${game.minAge}+` : !game.installed ? "Not installed on this PC" : `Play ${game.title}`}
     >
@@ -41,7 +41,7 @@ function GameTile({ game, playing, onPlay, busy }: { game: ShellGame; playing: b
         <div className="absolute inset-0 grid place-items-center"><div className="rounded-full bg-void/80 px-4 py-2 text-sm text-dim">Not on this PC</div></div>
       ) : (
         <div className="absolute inset-0 grid place-items-center opacity-0 transition group-hover:opacity-100">
-          <div className="grid size-16 place-items-center rounded-full bg-glow text-void shadow-lg shadow-glow/40">{busy ? <Loader2 className="size-7 animate-spin" /> : <Play className="ml-1 size-7 fill-current" />}</div>
+          <div className="brand-gradient grid size-16 scale-90 place-items-center rounded-full text-void shadow-glow transition-transform duration-300 group-hover:scale-100">{busy ? <Loader2 className="size-7 animate-spin" /> : <Play className="ml-1 size-7 fill-current" />}</div>
         </div>
       )}
     </button>
@@ -72,17 +72,17 @@ export function GamesScreen({ notify }: { notify: Notify }) {
   return (
     <div className="mx-auto max-w-7xl">
       <div className="mb-6 flex flex-wrap items-center gap-3">
-        <label className="flex min-w-72 flex-1 items-center gap-3 rounded-xl border border-rim bg-deck/80 px-4 py-3 focus-within:border-glow">
+        <label className="flex min-w-72 flex-1 items-center gap-3 rounded-xl border border-rim bg-deck/80 px-4 py-3 transition-colors focus-within:border-glow focus-within:shadow-glow">
           <Search className="size-5 text-dim" />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search games" className="w-full bg-transparent text-lg outline-none" />
         </label>
-        <button onClick={() => setInstalledOnly(!installedOnly)} className={cx("flex items-center gap-2 rounded-xl border px-4 py-3", installedOnly ? "border-glow/60 bg-glow/10 text-glow" : "border-rim text-dim")}>
+        <button onClick={() => setInstalledOnly(!installedOnly)} className={cx("press flex items-center gap-2 rounded-xl border px-4 py-3", installedOnly ? "border-glow/60 bg-glow/10 text-glow" : "border-rim text-dim")}>
           {installedOnly && <Check className="size-4" />} Installed on this PC
         </button>
       </div>
       <div className="mb-6 flex flex-wrap gap-2">
         {[null, ...cats].map((c) => (
-          <button key={c ?? "all"} onClick={() => setCat(c)} className={cx("rounded-full border px-4 py-1.5 text-sm transition", cat === c ? "border-glow bg-glow text-void" : "border-rim text-dim hover:text-text")}>
+          <button key={c ?? "all"} onClick={() => setCat(c)} className={cx("press rounded-full border px-4 py-1.5 text-sm", cat === c ? "border-glow bg-glow font-semibold text-void" : "border-rim text-dim hover:text-text")}>
             {c ? CATEGORY_LABEL[c] : "All"}
           </button>
         ))}
@@ -90,7 +90,7 @@ export function GamesScreen({ notify }: { notify: Notify }) {
       {shown.length === 0 ? (
         <p className="py-24 text-center text-lg text-dim">{games.length === 0 ? "Loading the game library…" : "No games match."}</p>
       ) : (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-5">
+        <div className="animate-enter grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-5">
           {shown.map((g) => (
             <GameTile key={g.id} game={g} playing={playing?.gameId === g.id} busy={busy === g.id} onPlay={() => launch("game", g.id, g.title)} />
           ))}
@@ -134,7 +134,7 @@ export function AppsScreen({ kinds, title, hint, notify }: { kinds: string[] | n
             const Icon = APP_ICON[a.kind] ?? AppWindow;
             const [c1] = tileColors(a.name);
             return (
-              <button key={a.id} onClick={() => launch("app", a.id, a.name)} disabled={busy === a.id} className="glass group flex items-center gap-4 rounded-2xl p-5 text-left transition hover:border-glow/60">
+              <button key={a.id} onClick={() => launch("app", a.id, a.name)} disabled={busy === a.id} className="glass press group flex items-center gap-4 rounded-2xl p-5 text-left hover:-translate-y-0.5 hover:border-glow/60">
                 <div className="grid size-12 place-items-center rounded-xl" style={{ background: c1 }}>
                   {busy === a.id ? <Loader2 className="size-6 animate-spin" /> : <Icon className="size-6" />}
                 </div>
@@ -224,7 +224,7 @@ export function PeripheralsScreen({ notify }: { notify: Notify }) {
                   <p className="font-semibold">{p.name}</p>
                   <p className="text-sm text-mute">{p.type.charAt(0) + p.type.slice(1).toLowerCase().replace("_", " ")}{p.vendor ? ` · ${p.vendor}` : ""}</p>
                 </div>
-                <span className="flex items-center gap-1.5 text-sm text-good"><span className="size-2 rounded-full bg-good" /> Connected</span>
+                <span className="flex items-center gap-1.5 text-sm text-good"><span className="live-dot size-2 rounded-full bg-good" /> Connected</span>
               </div>
             );
           })}
@@ -260,7 +260,7 @@ export function PeripheralsScreen({ notify }: { notify: Notify }) {
             <p className="mt-6 mb-3 text-sm uppercase tracking-[0.2em] text-dim">Presets</p>
             <div className="flex flex-wrap gap-2">
               {presets.map((p) => (
-                <button key={p.id} onClick={() => apply({ mouseSpeed: p.mouseSpeed ?? undefined, enhancePointerPrecision: p.enhancePointerPrecision ?? undefined })} className="rounded-xl border border-rim px-4 py-2 hover:border-glow hover:text-glow">
+                <button key={p.id} onClick={() => apply({ mouseSpeed: p.mouseSpeed ?? undefined, enhancePointerPrecision: p.enhancePointerPrecision ?? undefined })} className="press rounded-xl border border-rim px-4 py-2 hover:border-glow hover:text-glow">
                   {p.name}
                 </button>
               ))}
@@ -299,7 +299,7 @@ export function SupportScreen({ station, notify }: { station: string; notify: No
         <p className="mt-2 text-dim">Pick what's wrong — someone will come to <strong className="text-text">{station}</strong>.</p>
         <div className="mt-6 grid grid-cols-2 gap-3">
           {TOPICS.map((t) => (
-            <button key={t.id} onClick={() => ask(t.id)} disabled={!!sending} className="glass flex items-center gap-4 rounded-2xl p-5 text-left transition hover:border-glow/60 disabled:opacity-60">
+            <button key={t.id} onClick={() => ask(t.id)} disabled={!!sending} className="glass press flex items-center gap-4 rounded-2xl p-5 text-left hover:border-glow/60 disabled:opacity-60">
               {sending === t.id ? <Loader2 className="size-7 animate-spin text-glow" /> : <t.icon className="size-7 text-glow" />}
               <span className="font-display text-lg">{t.label}</span>
             </button>
@@ -327,7 +327,7 @@ function SelfFix({ action, label, notify }: { action: SelfRepair; label: string;
     notify(r.ok ? `${label}: done` : (r.message ?? "That didn't work — please call staff."), r.ok ? "good" : "warn");
   };
   return (
-    <button onClick={run} disabled={busy} className="mt-4 flex w-full items-center gap-3 rounded-2xl border border-rim px-5 py-4 text-left transition hover:border-glow/60 disabled:opacity-60">
+    <button onClick={run} disabled={busy} className="press mt-4 flex w-full items-center gap-3 rounded-2xl border border-rim px-5 py-4 text-left hover:border-glow/60 hover:bg-deck/60 disabled:opacity-60">
       {busy ? <Loader2 className="size-5 animate-spin text-glow" /> : <RefreshCcw className="size-5 text-glow" />}
       <span>{label}</span>
     </button>

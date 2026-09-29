@@ -10,7 +10,7 @@ Multi-tenant SaaS for **gaming cafés, esports arenas, internet cafés, console 
 
 Everything syncs in real time and keeps working at the branch when the internet is down.
 
-> **Status:** Phases 1–10 are complete: database, security and tenancy; API and admin; Windows station agent and Live Floor (verified on real hardware); sessions, pricing and the Gaming Shell; games and station tools; customers, wallet, bookings and the customer app; POS, restaurant, kitchen display, in-seat ordering and cash shifts; inventory, recipes, purchasing and suppliers; consoles, VR, simulators, TV station displays and internet-café printing; **loyalty, promotions, tournaments and CRM**. Phase 11 (reports, accounting, analytics) is next. See [docs/06-roadmap.md](docs/06-roadmap.md).
+> **Status:** Phases 1–11 are complete: database, security and tenancy; API and admin; Windows station agent and Live Floor (verified on real hardware); sessions, pricing and the Gaming Shell; games and station tools; customers, wallet, bookings and the customer app; POS, restaurant, kitchen display, in-seat ordering and cash shifts; inventory, recipes, purchasing and suppliers; consoles, VR, simulators, TV station displays and internet-café printing; loyalty, promotions, tournaments and CRM; **a self-keeping general ledger, reports and dashboard analytics**. Phase 12 (Super Admin, subscriptions, SaaS billing) is next. See [docs/06-roadmap.md](docs/06-roadmap.md).
 
 ## Documentation
 
@@ -32,6 +32,10 @@ Everything syncs in real time and keeps working at the branch when the internet 
 | [14 · Consoles, VR & printing](docs/14-consoles-vr-printing.md) | Agentless stations, player pricing, TV station displays, smart-plug bridge, print control |
 | [15 · Loyalty, promotions, tournaments & CRM](docs/15-loyalty-promotions-tournaments-crm.md) | Points ledger and rewards, promotions engine and codes, brackets and prizes, segments and campaigns |
 | [16 · Full test guide](docs/16-test-guide.md) | Server setup, physical gaming-PC setup, and a checklist for every role and feature |
+| [17 · Super Admin](docs/17-super-admin.md) | Platform service, sign-in with mandatory two-step, roles, organizations, plans, audit |
+| [18 · Live demos & downloads](docs/18-live-demos.md) | In-browser demo venue, live demos on the website, desktop EXEs, APK, station installer |
+| [19 · Accounting, reports & analytics](docs/19-accounting-reports-analytics.md) | Automatic double-entry posting, statements, reconciliation, period lock, reports, dashboard |
+| [20 · End-to-end walkthrough](docs/20-end-to-end-walkthrough.md) | Super Admin → Owner builds a venue from zero → Customer → every staff role, on the real system |
 
 ## Repository
 

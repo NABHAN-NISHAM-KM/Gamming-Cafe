@@ -24,6 +24,17 @@
       "port": 4000
     },
     {
+      "name": "platform",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev:platform",
+        "-w",
+        "@arena/api"
+      ],
+      "port": 4100
+    },
+    {
       "name": "shell",
       "runtimeExecutable": "npm",
       "runtimeArgs": [
