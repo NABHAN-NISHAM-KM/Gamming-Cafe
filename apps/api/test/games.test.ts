@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { launchSpec } from "../src/games/station-config.service.js";
 import { networkHealth } from "../src/stations/station-reports.service.js";
+import { isNewer } from "../src/games/steam-builds.service.js";
 
 const game = (o: Partial<Parameters<typeof launchSpec>[0]>) => ({ launcherGameId: null, executablePath: null, arguments: null, workingDirectory: null, launcher: null, ...o });
 
@@ -34,5 +35,16 @@ describe("networkHealth", () => {
     expect(networkHealth({ targets: [t("1.1.1.1", 20, 25)] })).toEqual({ level: "WARNING", title: "Packet loss 25%" });
     expect(networkHealth({ targets: [t("1.1.1.1", 180), t("8.8.8.8", 210)] })).toEqual({ level: "WARNING", title: "High latency 180 ms" });
     expect(networkHealth({ targets: [t("1.1.1.1", 180), t("8.8.8.8", 12)] }).level).toBe("OK"); // one fast route is enough
+  });
+});
+
+describe("isNewer (Epic build ordering)", () => {
+  it("compares build strings numerically, not alphabetically", () => {
+    expect(isNewer("1.0.3900.0_v1", "1.0.3889.0_v1")).toBe(true);
+    expect(isNewer("++Fortnite+Release-31.10", "++Fortnite+Release-9.20")).toBe(true);
+    expect(isNewer("1.0.3889.0_v1", "1.0.3889.0_v1")).toBe(false);
+    expect(isNewer("1.0", "2.0")).toBe(false);
+    expect(isNewer("1.0", undefined)).toBe(true);
+    expect(isNewer(undefined, "1.0")).toBe(false);
   });
 });

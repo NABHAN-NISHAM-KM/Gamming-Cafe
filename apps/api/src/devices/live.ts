@@ -16,6 +16,8 @@ export type FloorEvent =
   | { type: "activity"; deviceId: string; game: { id: string; title: string; startedAt: string } | null }
   | { type: "network"; deviceId: string; network: NetworkProbe & { at: string } }
   | { type: "game_update"; job: Record<string, unknown> }
+  /** A PC's installed games changed (installed/removed, update found, progress, finished) */
+  | { type: "inventory"; deviceId: string }
   | { type: "booking"; booking: { id: string; status: string; deviceIds?: string[] } }
   | { type: "kitchen"; ticket: { id: string; stationId: string; status: string; orderId: string } }
   | { type: "print"; jobId: string };

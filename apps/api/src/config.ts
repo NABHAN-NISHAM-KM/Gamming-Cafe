@@ -32,6 +32,8 @@ const Env = z.object({
   LOGIN_LOCK_MINUTES: z.coerce.number().int().default(15),
   /** Simulated card payments in the customer app ("Pay now" with no real card). Never on in production. */
   DEMO_PAYMENTS: z.enum(["on", "off"]).optional(),
+  /** Where to read Steam's latest public build per appid ("off" to disable; default api.steamcmd.net, off in tests). */
+  STEAM_BUILDS_URL: z.union([z.literal("off"), z.url()]).optional(),
 }).transform((c) => ({ ...c, demoPayments: c.NODE_ENV !== "production" && c.DEMO_PAYMENTS !== "off" }));
 
 export type AppConfig = z.infer<typeof Env>;

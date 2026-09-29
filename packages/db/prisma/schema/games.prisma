@@ -134,6 +134,37 @@ model GameInstallation {
   @@index([organizationId, gameId, status])
 }
 
+/// Everything a PC's last scan found — catalog or not — so staff can see
+/// what's installed and add titles to the catalog / Shell. Replaced per PC on
+/// every scan; GameInstallation stays the source of truth for catalog games.
+model DetectedTitle {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @db.Uuid
+  deviceId       String   @db.Uuid
+  /// GAME | APP
+  kind           String
+  /// STEAM | EPIC | REGISTRY
+  source         String
+  /// Steam appid, Epic AppName, or the registry uninstall key name
+  key            String
+  name           String
+  version        String?
+  publisher      String?
+  installPath    String?
+  executablePath String?
+  sizeBytes      BigInt?
+  updateRequired Boolean  @default(false)
+  /// The launcher is downloading/applying the update right now
+  updating       Boolean  @default(false)
+  /// 0–100 while updating (Steam byte counters)
+  progressPct    Float?
+  lastSeenAt     DateTime @db.Timestamptz(3)
+  device         Device   @relation(fields: [deviceId, organizationId], references: [id, organizationId], onDelete: Cascade)
+
+  @@unique([deviceId, source, key])
+  @@index([organizationId, kind, source, key])
+}
+
 enum UpdateJobStatus {
   SCHEDULED
   RUNNING

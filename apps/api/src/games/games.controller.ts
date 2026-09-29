@@ -132,7 +132,7 @@ export class GamesController {
     ]);
     const byGame = new Map(settings.map((s) => [s.gameId, s]));
     const installs = branchId && /^[0-9a-f-]{36}$/i.test(branchId)
-      ? await tx().gameInstallation.groupBy({ by: ["gameId", "status"], where: { device: { branchId } }, _count: { _all: true } })
+      ? await tx().gameInstallation.groupBy({ by: ["gameId", "status"], where: { device: { branchId } }, _count: { _all: true }, _avg: { progressPct: true } })
       : [];
     const stations = branchId && /^[0-9a-f-]{36}$/i.test(branchId) ? await tx().device.count({ where: { branchId, isEnabled: true, platform: "WINDOWS" } }) : null;
     return {
@@ -145,7 +145,9 @@ export class GamesController {
           ...g,
           custom: g.organizationId !== null,
           setting: s ? { isEnabled: s.isEnabled, isFeatured: s.isFeatured, sortOrder: s.sortOrder, minAgeOverride: s.minAgeOverride, allowedZoneIds: s.allowedZoneIds } : null,
-          installs: branchId ? { installed: n(["INSTALLED", ...UPDATING]), updateRequired: n(UPDATING) } : undefined,
+          installs: branchId
+            ? { installed: n(["INSTALLED", ...UPDATING]), updateRequired: n(UPDATING), updating: n(["UPDATING"]), progressPct: counts.find((c) => c.status === "UPDATING")?._avg.progressPct ?? null }
+            : undefined,
         };
       }),
     };
@@ -160,6 +162,16 @@ export class GamesController {
     if (await tx().game.findFirst({ where: { organizationId: orgId(), slug } })) throw new ConflictException({ error: "slug_taken" });
     const game = await tx().game.create({ data: { ...data, slug, organizationId: orgId() }, select: gameSelect });
     await tx().orgGameSetting.create({ data: { organizationId: orgId(), gameId: game.id, isEnabled: true, sortOrder: 100, allowedZoneIds: [] } });
+    // PCs whose last scan already saw it are installed now, not at their next scan.
+    if (game.launcher && game.launcherGameId && (game.launcher.key === "STEAM" || game.launcher.key === "EPIC")) {
+      const seen = await tx().detectedTitle.findMany({ where: { kind: "GAME", source: game.launcher.key, key: { equals: game.launcherGameId, mode: "insensitive" } } });
+      if (seen.length) {
+        await tx().gameInstallation.createMany({
+          data: seen.map((d) => ({ organizationId: orgId(), deviceId: d.deviceId, gameId: game.id, status: !d.updateRequired ? "INSTALLED" : d.updating ? "UPDATING" : "UPDATE_REQUIRED", progressPct: d.progressPct, detectedBy: d.source, buildId: d.version, installPath: d.installPath, sizeBytes: d.sizeBytes, lastCheckedAt: d.lastSeenAt })),
+          skipDuplicates: true,
+        });
+      }
+    }
     await this.audit.record({ action: "game.create", entityType: "Game", entityId: game.id, after: game });
     this.config.pushAll(orgId());
     return game;
@@ -217,6 +229,43 @@ export class GamesController {
       orderBy: { device: { name: "asc" } },
     });
     return rows.map((r) => ({ device: r.device, status: r.status, buildId: r.buildId, detectedBy: r.detectedBy, sizeBytes: r.sizeBytes?.toString() ?? null, lastCheckedAt: r.lastCheckedAt, lastPlayedAt: r.lastPlayedAt }));
+  }
+
+  /** Everything PCs' scans found (games and installed apps), grouped across PCs, flagged when already in the catalog / Shell. */
+  @RequirePermissionAnyScope("game.view")
+  @Get("detected-titles")
+  async detected(@Query("branchId") branchId?: string) {
+    const [rows, games, apps] = await Promise.all([
+      tx().detectedTitle.findMany({
+        where: branchId && /^[0-9a-f-]{36}$/i.test(branchId) ? { device: { branchId } } : {},
+        include: { device: { select: { name: true } } },
+        orderBy: { name: "asc" },
+      }),
+      tx().game.findMany({ where: { launcherGameId: { not: null } }, select: { id: true, launcherGameId: true, launcher: { select: { key: true } } } }),
+      tx().shellApp.findMany({ select: { id: true, executablePath: true } }),
+    ]);
+    const gameByStore = new Map(games.map((g) => [`${g.launcher?.key}:${g.launcherGameId!.toLowerCase()}`, g.id]));
+    const appByExe = new Map(apps.map((a) => [a.executablePath.toLowerCase(), a.id]));
+    const groups = new Map<string, { kind: string; source: string; key: string; name: string; publisher: string | null; executablePath: string | null; versions: string[]; devices: string[]; updateRequired: number; updating: number; progressPct: number | null; sizeBytes: string | null; lastSeenAt: Date; catalogId: string | null }>();
+    for (const r of rows) {
+      const id = `${r.source}:${r.key.toLowerCase()}`;
+      let g = groups.get(id);
+      if (!g) {
+        const catalogId = r.kind === "GAME" ? gameByStore.get(id) ?? null : r.executablePath ? appByExe.get(r.executablePath.toLowerCase()) ?? null : null;
+        g = { kind: r.kind, source: r.source, key: r.key, name: r.name, publisher: r.publisher, executablePath: r.executablePath, versions: [], devices: [], updateRequired: 0, updating: 0, progressPct: null, sizeBytes: r.sizeBytes?.toString() ?? null, lastSeenAt: r.lastSeenAt, catalogId };
+        groups.set(id, g);
+      }
+      g.devices.push(r.device.name);
+      if (r.version && !g.versions.includes(r.version)) g.versions.push(r.version);
+      if (r.updateRequired) g.updateRequired++;
+      if (r.updating) {
+        // Average across the PCs downloading it right now.
+        g.progressPct = ((g.progressPct ?? 0) * g.updating + (r.progressPct ?? 0)) / (g.updating + 1);
+        g.updating++;
+      }
+      if (r.lastSeenAt > g.lastSeenAt) g.lastSeenAt = r.lastSeenAt;
+    }
+    return [...groups.values()];
   }
 
   @RequirePermissionAnyScope("game.view")

@@ -56,6 +56,10 @@ public sealed class StationService(
     private CancellationTokenSource? _watch;
     private readonly ConcurrentDictionary<string, bool> _pendingHelp = new();
     private readonly SemaphoreSlim _scanGate = new(1, 1);
+    private readonly List<FileSystemWatcher> _watchers = [];
+    private int _rescanQueued;
+    private string _sentInventory = "";
+    private DateTimeOffset _sentInventoryAt;
 
     public StationConfig? Config => _config;
 
@@ -95,16 +99,62 @@ public sealed class StationService(
         _peripheralsKey = ""; // force a fresh peripherals report
     }
 
-    public async Task<int> ScanGamesAsync(CancellationToken ct)
+    /// <param name="force">Send even if nothing changed (explicit scans, reconnects). Watcher/progress rescans only send changes.</param>
+    public async Task<int> ScanGamesAsync(CancellationToken ct, bool force = true)
     {
         await _scanGate.WaitAsync(ct);
         try
         {
-            _inventory = await Task.Run(() => games.Scan(_config), ct);
-            await server.TrySendAsync(Outgoing.Inventory(_inventory));
+            (_inventory, var apps) = await Task.Run(() => (games.Scan(_config), games.ScanApps()), ct);
+            var msg = Outgoing.Inventory(_inventory, apps);
+            if (!force && msg == _sentInventory && DateTimeOffset.UtcNow - _sentInventoryAt < TimeSpan.FromMinutes(5)) return _inventory.Count;
+            if (await server.TrySendAsync(msg)) (_sentInventory, _sentInventoryAt) = (msg, DateTimeOffset.UtcNow);
             return _inventory.Count;
         }
         finally { _scanGate.Release(); }
+    }
+
+    /// <summary>
+    /// Launchers rewrite their manifests when an update is found, progresses or
+    /// finishes, and when games are installed or removed: rescan shortly after.
+    /// </summary>
+    private void WatchLaunchers()
+    {
+        foreach (var dir in games.WatchFolders())
+        {
+            try
+            {
+                var w = new FileSystemWatcher(dir) { NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.Size };
+                w.Filters.Add("*.acf");
+                w.Filters.Add("*.item");
+                w.Changed += (_, _) => QueueRescan();
+                w.Created += (_, _) => QueueRescan();
+                w.Deleted += (_, _) => QueueRescan();
+                w.Renamed += (_, _) => QueueRescan();
+                w.EnableRaisingEvents = true;
+                _watchers.Add(w);
+            }
+            catch (Exception e) when (e is ArgumentException or IOException or UnauthorizedAccessException) { log.LogWarning("Can't watch {Dir}: {Message}", dir, e.Message); }
+        }
+    }
+
+    /// <summary>Coalesces a burst of manifest writes into one rescan ~2 s later.</summary>
+    private void QueueRescan()
+    {
+        if (Interlocked.Exchange(ref _rescanQueued, 1) == 1) return;
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(TimeSpan.FromSeconds(2));
+            Interlocked.Exchange(ref _rescanQueued, 0);
+            try { await ScanGamesAsync(CancellationToken.None, force: false); }
+            catch (Exception e) { log.LogWarning("Rescan failed: {Message}", e.Message); }
+        });
+    }
+
+    public override void Dispose()
+    {
+        foreach (var w in _watchers) w.Dispose();
+        base.Dispose();
     }
 
     // ── background loops ───────────────────────────────────────────────────
@@ -114,6 +164,17 @@ public sealed class StationService(
         shell.RequestReceived += OnShellRequest;
         shell.ClientReady += SendShellSnapshot;
         sessions.Changed += OnSessionChanged;
+
+        WatchLaunchers();
+        // While a launcher is downloading, report progress every few seconds (manifests aren't rewritten that often).
+        _ = Task.Run(async () =>
+        {
+            using var fast = new PeriodicTimer(TimeSpan.FromSeconds(5));
+            while (await fast.WaitForNextTickAsync(stop).ConfigureAwait(false))
+                if (_inventory.Any(g => g.Updating))
+                    try { await ScanGamesAsync(stop, force: false); }
+                    catch (Exception e) when (e is not OperationCanceledException) { log.LogWarning("Progress scan: {Message}", e.Message); }
+        }, stop);
 
         var nextNetwork = DateTimeOffset.MinValue;
         var nextScan = DateTimeOffset.UtcNow.AddMinutes(30);

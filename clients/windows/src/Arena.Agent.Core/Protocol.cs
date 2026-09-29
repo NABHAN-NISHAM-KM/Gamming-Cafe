@@ -80,11 +80,12 @@ public static class Outgoing
 
     // ── Phase 5: station reports ────────────────────────────────────────────
 
-    public static string Inventory(IEnumerable<Games.DetectedGame> games) =>
+    public static string Inventory(IEnumerable<Games.DetectedGame> games, IEnumerable<Games.DetectedApp>? apps = null) =>
         JsonSerializer.Serialize(new
         {
             type = "inventory",
-            games = games.Select(g => new { source = g.Source, key = g.Key, name = g.Name, installPath = g.InstallPath, buildId = g.BuildId, sizeBytes = g.SizeBytes, updateRequired = g.UpdateRequired }),
+            games = games.Select(g => new { source = g.Source, key = g.Key, name = g.Name, installPath = g.InstallPath, buildId = g.BuildId, sizeBytes = g.SizeBytes, updateRequired = g.UpdateRequired, updating = g.Updating ? true : (bool?)null, progressPct = g.ProgressPct }),
+            apps = apps?.Select(a => new { key = a.Key, name = a.Name, version = a.Version, publisher = a.Publisher, installPath = a.InstallPath, executablePath = a.ExecutablePath, sizeBytes = a.SizeBytes }),
         }, Json.Options);
 
     public static string Peripherals(IEnumerable<Stations.DetectedPeripheral> items) =>

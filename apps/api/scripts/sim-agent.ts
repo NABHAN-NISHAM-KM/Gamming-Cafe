@@ -4,7 +4,7 @@
 import { generateKeyPairSync, randomBytes, randomUUID, createPrivateKey, type KeyObject } from "node:crypto";
 import { SignJWT } from "jose";
 import WebSocket from "ws";
-import { DEVICE_ASSERTION_AUDIENCE, verifyCommand, type CommandAck, type DetectedGame, type DeviceMetrics, type HardwareSnapshot, type PrintQuote, type ServerToDevice, type StationConfig, type UpdateGamePayload } from "@arena/contracts";
+import { DEVICE_ASSERTION_AUDIENCE, verifyCommand, type CommandAck, type DetectedApp, type DetectedGame, type DeviceMetrics, type HardwareSnapshot, type PrintQuote, type ServerToDevice, type StationConfig, type UpdateGamePayload } from "@arena/contracts";
 
 export interface Identity {
   deviceId: string;
@@ -52,6 +52,8 @@ export class SimAgent {
   config: StationConfig | null = null;
   /** Installed games as this PC sees them; UPDATE_GAME flips updateRequired off after a short delay. */
   games: DetectedGame[];
+  /** Installed programs to report; undefined = an older agent that doesn't send apps */
+  apps?: DetectedApp[];
   private beat?: NodeJS.Timeout;
   private key?: KeyObject;
 
@@ -155,7 +157,7 @@ export class SimAgent {
   }
 
   reportInventory() {
-    this.send({ type: "inventory", games: this.games });
+    this.send({ type: "inventory", games: this.games, ...(this.apps ? { apps: this.apps } : {}) });
   }
 
   private seat(msg: Record<string, unknown>): Promise<any> {

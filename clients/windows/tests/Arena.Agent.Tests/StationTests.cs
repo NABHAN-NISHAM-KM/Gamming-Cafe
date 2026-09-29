@@ -62,6 +62,35 @@ public class SteamManifestTests
     }
 
     [Fact]
+    public void Target_build_and_byte_progress_from_a_real_manifest()
+    {
+        // Supermarket Together mid-update, as Steam wrote it on a dev PC.
+        const string updating = """
+            "AppState" { "appid" "2709570" "name" "Supermarket Together" "StateFlags" "1030" "buildid" "24750847"
+              "BytesToDownload" "9450672" "BytesDownloaded" "9450672" "BytesToStage" "9128540736" "BytesStaged" "349047204" "TargetBuildID" "25142728" }
+            """;
+        var g = SteamManifests.FromAppManifest(updating, @"D:\SteamLibrary")!;
+        Assert.True(g.UpdateRequired);
+        Assert.True(g.Updating);
+        Assert.Equal(3.9, g.ProgressPct);
+
+        // Flags say "fully installed" but Steam already knows a newer build: pending, not running, no progress yet.
+        var pending = SteamManifests.FromAppManifest("""
+            "AppState" { "appid" "730" "name" "CS" "StateFlags" "4" "buildid" "100" "TargetBuildID" "200" }
+            """, "D:\\L")!;
+        Assert.Equal((true, false, (double?)null), (pending.UpdateRequired, pending.Updating, pending.ProgressPct));
+
+        // Up to date: TargetBuildID equal to buildid, or "0".
+        var done = SteamManifests.FromAppManifest("""
+            "AppState" { "appid" "730" "name" "CS" "StateFlags" "4" "buildid" "200" "TargetBuildID" "200" "BytesToDownload" "5" "BytesDownloaded" "5" }
+            """, "D:\\L")!;
+        Assert.Equal((false, (double?)null), (done.UpdateRequired, done.ProgressPct));
+        Assert.False(SteamManifests.FromAppManifest("""
+            "AppState" { "appid" "730" "name" "CS" "StateFlags" "4" "buildid" "200" "TargetBuildID" "0" }
+            """, "D:\\L")!.UpdateRequired);
+    }
+
+    [Fact]
     public void Skips_first_time_downloads_and_garbage()
     {
         Assert.Null(SteamManifests.FromAppManifest(Acf("730", "CS", 0), "D:\\L"));
@@ -80,6 +109,31 @@ public class EpicManifestTests
         Assert.Null(EpicManifests.FromItem("""{"AppName":"Sugar","bIsIncompleteInstall":true}"""));
         Assert.Null(EpicManifests.FromItem("""{"DisplayName":"no app name"}"""));
         Assert.Null(EpicManifests.FromItem("{broken"));
+    }
+}
+
+public class InstalledAppsTests
+{
+    private static Func<string, object?> Values(params (string, object)[] kv) => n => kv.FirstOrDefault(p => p.Item1 == n).Item2;
+
+    [Fact]
+    public void Reads_uninstall_keys_and_skips_noise()
+    {
+        var a = InstalledApps.FromUninstallKey("Discord", Values(("DisplayName", "Discord"), ("DisplayVersion", "1.0.9"), ("Publisher", "Discord Inc."),
+            ("InstallLocation", @"C:\Program Files\Discord\"), ("DisplayIcon", "\"C:\\Program Files\\Discord\\Discord.exe\",0"), ("EstimatedSize", 1000)))!;
+        Assert.Equal(("Discord", "1.0.9", @"C:\Program Files\Discord", @"C:\Program Files\Discord\Discord.exe", 1024000L),
+            (a.Name, a.Version, a.InstallPath, a.ExecutablePath, a.SizeBytes!.Value));
+
+        Assert.Null(InstalledApps.FromUninstallKey("Steam App 730", Values(("DisplayName", "Counter-Strike 2"))));
+        Assert.Null(InstalledApps.FromUninstallKey("{GUID}", Values(("DisplayName", "VC++ runtime"), ("SystemComponent", 1))));
+        Assert.Null(InstalledApps.FromUninstallKey("KB123", Values(("DisplayName", "Update"), ("ParentKeyName", "Office"))));
+        Assert.Null(InstalledApps.FromUninstallKey("x", Values()));
+        Assert.Null(InstalledApps.ExeFromIcon(@"C:\App\unins000.exe"));
+        Assert.Null(InstalledApps.ExeFromIcon(@"C:\App\app.ico"));
+        Assert.Null(InstalledApps.ExeFromIcon("app.exe"));
+        Assert.Null(InstalledApps.ExeFromIcon(@"C:\ProgramData\Package Cache\{f4fd}\AuraServiceSetup.exe"));
+        Assert.Null(InstalledApps.ExeFromIcon(@"C:\Program Files (x86)\InstallShield Installation Information\{fd36}\Setup.exe"));
+        Assert.Equal(@"C:\Program Files\7-Zip\7zFM.exe", InstalledApps.ExeFromIcon(@"C:\Program Files\7-Zip\7zFM.exe"));
     }
 }
 

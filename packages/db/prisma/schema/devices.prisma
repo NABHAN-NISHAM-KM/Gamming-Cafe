@@ -120,6 +120,7 @@ model Device {
   bookingResources      BookingResource[]
   customerSessions      CustomerSession[]
   gameInstallations     GameInstallation[]
+  detectedTitles        DetectedTitle[]
   orders                Order[]
   gamingSessions        GamingSession[]
   notifications         Notification[]

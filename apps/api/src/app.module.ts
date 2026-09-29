@@ -35,6 +35,7 @@ import { ShellAuthService } from "./sessions/shell-auth.service.js";
 import { GameUpdatesService } from "./games/game-updates.service.js";
 import { GamesController } from "./games/games.controller.js";
 import { InventoryService } from "./games/inventory.service.js";
+import { SteamBuildsService } from "./games/steam-builds.service.js";
 import { StationConfigService } from "./games/station-config.service.js";
 import { StationReportsService } from "./stations/station-reports.service.js";
 import { BookingsController } from "./bookings/bookings.controller.js";
@@ -153,6 +154,7 @@ export class AppModule {
         ShellAuthService,
         StationConfigService,
         InventoryService,
+        SteamBuildsService,
         GameUpdatesService,
         StationReportsService,
         CommerceService,

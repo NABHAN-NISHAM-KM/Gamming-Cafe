@@ -23,6 +23,7 @@ export const TENANT_MODELS: ReadonlySet<string> = new Set([
   "CustomerSegment",
   "CustomerSegmentMember",
   "CustomerSession",
+  "DetectedTitle",
   "Device",
   "DeviceAccessory",
   "DeviceBootInfo",

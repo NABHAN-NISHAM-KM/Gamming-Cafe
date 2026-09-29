@@ -38,25 +38,60 @@ arguments.
 
 ## Detection
 
-`GameScanner` runs on connect, every 30 minutes, and on `SCAN_GAMES`.
+`GameScanner` runs on connect, every 30 minutes, on `SCAN_GAMES`, and **within
+~2 s of any launcher manifest change** (a `FileSystemWatcher` on every Steam
+library and the Epic manifest folder). While a launcher is downloading, it also
+rescans every 5 s so progress keeps moving. Reports are only sent when
+something changed.
 - **Steam:** `libraryfolders.vdf` → every library → `appmanifest_*.acf`. It
-  reads appid, build and size. `StateFlags` bits 2/256/512/1024 mean an
-  update is needed or running.
+  reads appid, build and size. An update is pending when `TargetBuildID` is
+  set and differs from `buildid`, or `StateFlags` has bit 2/512; it is
+  **running** with bit 256/1024. Progress comes from Steam's own byte counters
+  (`BytesDownloaded/BytesToDownload` + `BytesStaged/BytesToStage`).
+  Steam only learns about a new build while its client runs, so the **server
+  also asks Steam** (`SteamBuildsService`): the public branch's build id per
+  appid, from Steam's app info via the steamcmd PICS mirror
+  (`STEAM_BUILDS_URL`, default `https://api.steamcmd.net/v1/info/`, `off` to
+  disable; off in tests). Cached 15 min per game for the whole platform. A
+  PC's report is checked against it (older build → update required), and a
+  sweep every 15 min flags PCs that aren't reporting — Steam closed or PC
+  off. If Steam's info can't be fetched, the PC's own manifest is trusted.
 - **Epic:** `C:\ProgramData\Epic\EpicGamesLauncher\Data\Manifests\*.item`.
-  Incomplete installs are skipped.
+  Incomplete installs are skipped. The manifest never says "update
+  available", so the server flags a PC when another PC in the organization
+  reports a newer build (numeric-aware compare). No byte progress for Epic.
 - **Catalog executables** (Riot, Battle.net, standalone): installed if the
   signed path exists.
 
+- **Installed apps:** the registry `Uninstall` keys (64- and 32-bit), minus
+  updates, system components and Steam's own entries. The main `.exe` is taken
+  from `DisplayIcon` when it isn't an installer/uninstaller.
+
 On the server, `InventoryService` matches these to the catalog by
 launcher + store id. It keeps `GameInstallation` current: `INSTALLED`,
-`UPDATE_REQUIRED`, `QUEUED`, `UPDATING` or `NOT_INSTALLED`. Unknown titles are
-ignored; a PC can't create catalog entries.
+`UPDATE_REQUIRED`, `QUEUED`, `UPDATING` or `NOT_INSTALLED`. A PC can't create
+catalog entries.
+
+Everything a scan saw — catalog or not — is also kept in `DetectedTitle`
+(replaced per PC on each scan). **Admin → Games → Found on PCs**
+(`GET /detected-titles?branchId=`) lists it across PCs: how many PCs have it,
+build(s), pending updates, and whether it's already in the library / Shell.
+**Add to library** creates a custom Steam/Epic game (and marks it installed on
+the PCs that reported it, without waiting for a rescan); **Add to Shell**
+creates a Shell app from the detected `.exe`.
+
+**Live:** every report publishes an `inventory` event (and jobs a
+`game_update` event) on the branch's `/floor/events` stream. The Games page
+listens and refreshes the Library, Found on PCs and Updates tabs as they
+happen: `UPDATING` rows show the launcher's real progress, and a job's bar
+counts finished PCs plus each downloading PC's partial progress. Without
+access to that stream the page polls every 10 s.
 
 ## Updates (`GameUpdatesService`)
 
 **Admin:** Games → **Update**. This calls `POST /branches/:id/game-updates`.
 
-The orchestrator runs every 10 s for all tenants. It finds due jobs through
+The orchestrator runs every 3 s for all tenants. It finds due jobs through
 the definer function `app.update_jobs_due()`, then processes each job in its
 own tenant transaction.
 - **Targets:** only PCs whose last scan says "update required".

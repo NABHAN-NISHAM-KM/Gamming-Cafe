@@ -48,7 +48,12 @@ const Incoming = z.discriminatedUnion("type", [
     games: z.array(z.object({
       source: z.enum(["STEAM", "EPIC", "PATH"]), key: z.string().min(1).max(128), name: z.string().max(200),
       installPath: z.string().max(400).nullish(), buildId: z.string().max(64).nullish(), sizeBytes: z.number().int().min(0).max(2 ** 50).nullish(), updateRequired: z.boolean().optional(),
+      updating: z.boolean().optional(), progressPct: z.number().min(0).max(100).nullish(),
     })).max(1000),
+    apps: z.array(z.object({
+      key: z.string().min(1).max(200), name: z.string().min(1).max(200), version: z.string().max(64).nullish(), publisher: z.string().max(200).nullish(),
+      installPath: z.string().max(400).nullish(), executablePath: z.string().max(400).nullish(), sizeBytes: z.number().int().min(0).max(2 ** 50).nullish(),
+    })).max(2000).optional(),
   }),
   z.object({
     type: z.literal("peripherals"),

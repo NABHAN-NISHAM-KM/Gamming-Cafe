@@ -29,6 +29,24 @@ public sealed class GameScanner(ILogger<GameScanner> log)
 
     public string? SteamExe() => SteamRoot() is { } root && File.Exists(Path.Combine(root, "steam.exe")) ? Path.Combine(root, "steam.exe") : null;
 
+    /// <summary>Folders whose manifests change when games are installed, removed or updated.</summary>
+    public List<string> WatchFolders()
+    {
+        var dirs = new List<string>();
+        try
+        {
+            if (SteamRoot() is { } root)
+            {
+                var vdfPath = Path.Combine(root, "steamapps", "libraryfolders.vdf");
+                foreach (var lib in SteamManifests.LibraryFolders(root, File.Exists(vdfPath) ? File.ReadAllText(vdfPath) : null))
+                    if (Directory.Exists(Path.Combine(lib, "steamapps"))) dirs.Add(Path.Combine(lib, "steamapps"));
+            }
+        }
+        catch (Exception e) { log.LogWarning("Steam folders: {Message}", e.Message); }
+        if (Directory.Exists(EpicManifestDir)) dirs.Add(EpicManifestDir);
+        return dirs;
+    }
+
     public List<DetectedGame> Scan(StationConfig? config)
     {
         var found = new List<DetectedGame>();
@@ -62,6 +80,27 @@ public sealed class GameScanner(ILogger<GameScanner> log)
             if (g.Launch is { Kind: "PATH", ExecutablePath: { } exe } && LaunchPolicy.IsSafeExecutable(exe) && File.Exists(exe))
                 found.Add(new DetectedGame("PATH", g.Id, g.Title, Path.GetDirectoryName(exe), null, null, false));
         return found;
+    }
+
+    /// <summary>Windows' installed-apps list: machine-wide Uninstall keys, 64- and 32-bit views.</summary>
+    public List<DetectedApp> ScanApps()
+    {
+        var found = new Dictionary<string, DetectedApp>(StringComparer.OrdinalIgnoreCase);
+        foreach (var view in new[] { RegistryView.Registry64, RegistryView.Registry32 })
+        {
+            try
+            {
+                using var hklm = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, view);
+                using var root = hklm.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall");
+                foreach (var name in root?.GetSubKeyNames() ?? [])
+                {
+                    using var k = root!.OpenSubKey(name);
+                    if (k is not null && InstalledApps.FromUninstallKey(name, n => k.GetValue(n)) is { } app) found.TryAdd(app.Key, app);
+                }
+            }
+            catch (Exception e) { log.LogWarning("App scan ({View}) failed: {Message}", view, e.Message); }
+        }
+        return [.. found.Values];
     }
 
     private static string ReadShared(string path)

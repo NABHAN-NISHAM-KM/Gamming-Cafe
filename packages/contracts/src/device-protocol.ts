@@ -191,6 +191,23 @@ export interface DetectedGame {
   buildId?: string | null;
   sizeBytes?: number | null;
   updateRequired?: boolean;
+  /** The launcher is downloading/applying the update right now */
+  updating?: boolean;
+  /** 0–100 while updating, from the launcher's byte counters */
+  progressPct?: number | null;
+}
+
+/** A program from the Windows "installed apps" list (registry Uninstall keys). */
+export interface DetectedApp {
+  /** Uninstall subkey name — stable per install */
+  key: string;
+  name: string;
+  version?: string | null;
+  publisher?: string | null;
+  installPath?: string | null;
+  /** Best-guess main .exe (from DisplayIcon), if any */
+  executablePath?: string | null;
+  sizeBytes?: number | null;
 }
 
 export interface DetectedPeripheral {
@@ -278,7 +295,7 @@ export type DeviceToServer =
   | { type: "hardware"; snapshot: HardwareSnapshot }
   | ({ type: "ack" } & CommandAck)
   // Phase 5
-  | { type: "inventory"; games: DetectedGame[] }
+  | { type: "inventory"; games: DetectedGame[]; apps?: DetectedApp[] }
   | { type: "peripherals"; items: DetectedPeripheral[] }
   | { type: "network"; probe: NetworkProbe }
   | { type: "boot"; report: BootReport }

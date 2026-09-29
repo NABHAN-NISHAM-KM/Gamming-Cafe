@@ -27,7 +27,7 @@ export class GameUpdatesService implements OnModuleInit, OnModuleDestroy {
   private readonly log = new Logger("GameUpdates");
   private timer?: NodeJS.Timeout;
   private running = false;
-  private readonly sweepMs = Number(process.env["UPDATE_SWEEP_MS"] ?? 10_000);
+  private readonly sweepMs = Number(process.env["UPDATE_SWEEP_MS"] ?? 3_000);
 
   constructor(
     @Inject(DB) private readonly db: Db,
@@ -71,7 +71,7 @@ export class GameUpdatesService implements OnModuleInit, OnModuleDestroy {
 
     const outstanding = await t.gameInstallation.findMany({
       where: { gameId: job.gameId, status: { in: [...UPDATING] }, device: { branchId: job.branchId, isEnabled: true } },
-      select: { id: true, deviceId: true, status: true },
+      select: { id: true, deviceId: true, status: true, progressPct: true },
     });
     if (job.status === "SCHEDULED") {
       job = await t.gameUpdateJob.update({ where: { id: job.id }, data: { status: "RUNNING", startedAt: new Date(), devicesTotal: outstanding.length }, include: { game: { include: { launcher: { select: { key: true } } } } } });
@@ -122,7 +122,9 @@ export class GameUpdatesService implements OnModuleInit, OnModuleDestroy {
       }
     }
 
-    const progressPct = job.devicesTotal ? Math.round((done / job.devicesTotal) * 1000) / 10 : 0;
+    // Finished PCs count whole; PCs mid-download count by their launcher's own progress.
+    const partial = outstanding.reduce((a, i) => a + (failed.has(i.deviceId) ? 0 : (i.progressPct ?? 0) / 100), 0);
+    const progressPct = job.devicesTotal ? Math.min(100, Math.round(((done + partial) / job.devicesTotal) * 1000) / 10) : 0;
     if (progressPct !== job.progressPct || done !== job.devicesDone) {
       job = await t.gameUpdateJob.update({ where: { id: job.id }, data: { devicesDone: done, progressPct }, include: { game: { include: { launcher: { select: { key: true } } } } } });
       this.publish(job);

@@ -43,16 +43,17 @@ const DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 function NewPlan({ onDone }: { onDone: () => void }) {
   const me = useMe();
   const branches = useApi<Branch[]>("/branches");
-  const [f, setF] = useState({ name: "", stationClass: "PC", billingMode: "PER_HOUR", paymentTiming: "PREPAID", rate: "", branchId: "", priority: 0, passStart: "00:00", passEnd: "06:00", happy: false, days: ["mon", "tue", "wed", "thu"], from: "14:00", to: "18:00", includedPlayers: "2", extraPlayerRate: "" });
+  const [f, setF] = useState({ name: "", stationClass: "PC", billingMode: "PER_HOUR", paymentTiming: "PREPAID", rate: "", branchId: "", zoneId: "", priority: 0, passStart: "00:00", passEnd: "06:00", happy: false, days: ["mon", "tue", "wed", "thu"], from: "14:00", to: "18:00", includedPlayers: "2", extraPlayerRate: "" });
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF((x) => ({ ...x, [k]: e.target.value }));
   const isPass = f.billingMode === "NIGHT_PASS" || f.billingMode === "DAY_PASS";
+  const zones = useApi<Array<{ id: string; name: string }>>(f.branchId ? `/branches/${f.branchId}/zones` : null);
   const save = useAction(async () => {
     await api("/pricing-plans", {
       method: "POST",
       action: "Create rate",
       body: {
         name: f.name, stationClass: f.stationClass, billingMode: f.billingMode, paymentTiming: isPass ? "PREPAID" : f.paymentTiming, rate: f.rate,
-        branchId: f.branchId || null, priority: Number(f.priority),
+        branchId: f.branchId || null, zoneId: (f.branchId && f.zoneId) || null, priority: Number(f.priority),
         ...(isPass ? { passStartTime: f.passStart, passEndTime: f.passEnd } : {}),
         schedule: f.happy ? [{ days: f.days, from: f.from, to: f.to }] : [],
         ...(f.paymentTiming === "POSTPAID" ? { roundingMinutes: 15, graceMinutes: 3 } : {}),
@@ -101,11 +102,19 @@ function NewPlan({ onDone }: { onDone: () => void }) {
         </>
       )}
       <Field label="Applies to">
-        <Select value={f.branchId} onChange={set("branchId")}>
+        <Select value={f.branchId} onChange={(e) => setF((x) => ({ ...x, branchId: e.target.value, zoneId: "" }))}>
           <option value="">All branches</option>
           {branches.data?.map((b) => <option key={b.id} value={b.id}>{b.code} · {b.name}</option>)}
         </Select>
       </Field>
+      {f.branchId && (
+        <Field label="Zone" hint="A zone rate wins over the branch rate (e.g. VIP)">
+          <Select value={f.zoneId} onChange={set("zoneId")}>
+            <option value="">Whole branch</option>
+            {zones.data?.map((z) => <option key={z.id} value={z.id}>{z.name}</option>)}
+          </Select>
+        </Field>
+      )}
       {isPass ? (
         <>
           <Field label="Pass starts"><Input type="time" value={f.passStart} onChange={set("passStart")} /></Field>
