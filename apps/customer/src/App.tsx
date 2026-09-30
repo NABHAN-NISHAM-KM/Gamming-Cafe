@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type InputHTMLAttributes, type ReactNode } from "react";
 import { CalendarClock, Check, ChevronRight, Clock, Crown, Gamepad2, Gift, Home, Inbox, Loader2, LogOut, ShoppingBag, Sparkles, Trophy, User, Users, Wallet, X } from "lucide-react";
-import { api, ApiError, key, setToken, signedIn, venueSlug, whenSignedOut, type Booking, type LedgerRow, type Me, type Venue } from "./api";
+import { api, ApiError, key, LOCKED_VENUE, setToken, setVenue, signedIn, SLUG_RE, venueSlug, whenSignedOut, type Booking, type LedgerRow, type Me, type Venue } from "./api";
 import { BookScreen } from "./book";
 import { InboxScreen, RewardsScreen, TournamentsScreen } from "./engage";
 import { askConfirm } from "./confirm";
@@ -45,15 +45,76 @@ function Toast({ text, tone, onDone }: { text: string; tone: "good" | "bad"; onD
   );
 }
 
+// ── password field with an animated show/hide eye (.eye-toggle in @arena/theme) ──
+
+function PasswordField({ className, ...rest }: Omit<InputHTMLAttributes<HTMLInputElement>, "type">) {
+  const [shown, setShown] = useState(false);
+  return (
+    <div className="relative">
+      <input type={shown ? "text" : "password"} className={cx(className, "pr-14")} {...rest} />
+      <button
+        type="button"
+        onClick={() => setShown((s) => !s)}
+        onMouseDown={(e) => e.preventDefault()}
+        aria-label={shown ? "Hide password" : "Show password"}
+        aria-pressed={shown}
+        className="eye-toggle absolute inset-y-0 right-1 grid w-12 place-items-center text-mute hover:text-glow focus-visible:text-glow focus-visible:outline-none"
+      >
+        <svg viewBox="0 0 24 24" className="size-[22px]" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <g key={String(shown)} className="eye-lid">
+            <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+            <circle className="eye-pupil" cx={12} cy={12} r={3} />
+          </g>
+          <path className="eye-slash" d="M3 3l18 18" pathLength={1} />
+        </svg>
+      </button>
+    </div>
+  );
+}
+
+// ── venue picker (APK built without a venue) ────────────────────────────────
+
+function VenuePicker({ onPick }: { onPick: (slug: string) => void }) {
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const submit = async () => {
+    const slug = code.trim().toLowerCase();
+    if (!SLUG_RE.test(slug)) return setError("We couldn't find that venue.");
+    setBusy(true);
+    setError(null);
+    try {
+      await api(`/${slug}/venue`, { auth: false });
+      onPick(slug);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "We couldn't find that venue.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <main className="mx-auto flex min-h-dvh max-w-lg flex-col justify-center px-6 py-10">
+      <h1 className="font-display text-4xl font-semibold leading-tight">Find your venue.</h1>
+      <p className="mt-2 text-dim">Enter the venue code from the counter or the café's poster.</p>
+      <form className="mt-8 grid gap-4" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
+        <input className="field" placeholder="Venue code" value={code} onChange={(e) => setCode(e.target.value)} autoCapitalize="none" autoCorrect="off" required />
+        {error && <p role="alert" className="rounded-xl border border-alarm/40 bg-alarm/10 px-4 py-3 text-sm text-alarm">{error}</p>}
+        <button className="btn btn-primary mt-2 py-4 text-lg" disabled={busy}>
+          {busy && <Loader2 className="size-5 animate-spin" />} Continue
+        </button>
+      </form>
+    </main>
+  );
+}
+
 // ── sign in / sign up ───────────────────────────────────────────────────────
 
-function Auth({ venue, onIn }: { venue: Venue | undefined; onIn: () => void }) {
+function Auth({ slug, venue, onIn, onChangeVenue }: { slug: string; venue: Venue | undefined; onIn: () => void; onChangeVenue?: () => void }) {
   const [mode, setMode] = useState<"in" | "up">("in");
   const [f, setF] = useState({ username: "", password: "", displayName: "", phone: "", dateOfBirth: "", marketingConsent: false, referralCode: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF((x) => ({ ...x, [k]: e.target.value }));
-  const slug = venueSlug();
 
   const submit = async () => {
     setBusy(true);
@@ -94,7 +155,7 @@ function Auth({ venue, onIn }: { venue: Venue | undefined; onIn: () => void }) {
       <form className="mt-8 grid gap-4" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
         {mode === "up" && <input className="field" placeholder="Your name" value={f.displayName} onChange={set("displayName")} autoComplete="name" />}
         <input className="field" placeholder={mode === "in" ? "Username, email or phone" : "Username"} value={f.username} onChange={set("username")} autoComplete="username" autoCapitalize="none" required />
-        <input className="field" type="password" placeholder="Password" value={f.password} onChange={set("password")} autoComplete={mode === "in" ? "current-password" : "new-password"} required minLength={mode === "up" ? 8 : 1} />
+        <PasswordField className="field" placeholder="Password" value={f.password} onChange={set("password")} autoComplete={mode === "in" ? "current-password" : "new-password"} required minLength={mode === "up" ? 8 : 1} />
         {mode === "up" && (
           <>
             <input className="field" type="tel" placeholder="Phone (optional)" value={f.phone} onChange={set("phone")} autoComplete="tel" />
@@ -117,6 +178,11 @@ function Auth({ venue, onIn }: { venue: Venue | undefined; onIn: () => void }) {
       <button onClick={() => { setMode(mode === "in" ? "up" : "in"); setError(null); }} className="mt-6 min-h-11 text-center text-sm text-dim">
         {mode === "in" ? <>New here? <span className="text-glow">Create an account</span></> : <>Have an account? <span className="text-glow">Sign in</span></>}
       </button>
+      {onChangeVenue && (
+        <button onClick={onChangeVenue} className="min-h-11 text-center text-sm text-mute">
+          Not {venue?.name ?? "this venue"}? <span className="text-glow">Change venue</span>
+        </button>
+      )}
     </main>
   );
 }
@@ -389,7 +455,11 @@ export function App() {
   const [tab, setTab] = useState<Tab>("home");
   const [toast, setToastState] = useState<{ text: string; tone: "good" | "bad" } | null>(null);
   const showToast = useCallback((text: string, ok = true) => setToastState({ text, tone: ok ? "good" : "bad" }), []);
-  const venue = useLoad(() => api<Venue>(`/${venueSlug()}/venue`, { auth: false }));
+  const [slug] = useState(venueSlug);
+  // Only the app (hosted API, no venue built in) can switch; on the web the venue is the URL.
+  const pick = (s: string | null) => { setVenue(s); location.reload(); };
+  const changeVenue = import.meta.env.VITE_ARENA_API && !LOCKED_VENUE ? () => pick(null) : undefined;
+  const venue = useLoad(() => (slug ? api<Venue>(`/${slug}/venue`, { auth: false }) : new Promise<Venue>(() => {})));
   const [me, setMe] = useState<Me | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [unread, setUnread] = useState(0);
@@ -422,8 +492,15 @@ export function App() {
     return () => removeEventListener("focus", onFocus);
   }, [refresh]);
 
-  if (venue.error) return <main className="grid min-h-dvh place-items-center p-8 text-center text-dim">{venue.error}</main>;
-  if (!authed) return <Auth venue={venue.data} onIn={() => setAuthed(true)} />;
+  if (!slug) return <VenuePicker onPick={pick} />;
+  if (venue.error)
+    return (
+      <main className="grid min-h-dvh place-content-center gap-4 p-8 text-center text-dim">
+        {venue.error}
+        {changeVenue && <button onClick={changeVenue} className="text-glow">Change venue</button>}
+      </main>
+    );
+  if (!authed) return <Auth slug={slug} venue={venue.data} onIn={() => setAuthed(true)} onChangeVenue={changeVenue} />;
   if (!me || !venue.data) return <main className="grid min-h-dvh place-items-center"><Loader2 className="size-8 animate-spin text-glow" /></main>;
 
   const signOut = async () => {

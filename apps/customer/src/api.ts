@@ -1,5 +1,8 @@
-// Talks to /v1/app/* on the same origin. The venue is the first path segment
-// (arena.example.com/demo), remembered for the next visit.
+// Talks to /v1/app/* on the same origin, or on VITE_ARENA_API when set (the
+// Android app, whose page origin is https://localhost). The venue is the first
+// path segment (arena.example.com/demo), remembered for the next visit;
+// the APK has no path, so it falls back to VITE_ARENA_VENUE.
+const API = import.meta.env.VITE_ARENA_API ?? "";
 
 const TOKEN = "arena.customer.token";
 const VENUE = "arena.customer.venue";
@@ -22,11 +25,22 @@ const store = {
   },
 };
 
-export function venueSlug(): string {
+export const SLUG_RE = /^[a-z0-9-]{2,64}$/;
+/** Set when the APK was built for one venue: it can't be switched in the app. */
+export const LOCKED_VENUE: string | undefined = import.meta.env.VITE_ARENA_VENUE || undefined;
+
+/** The venue in the URL, the one this build is locked to, or the one the customer picked (null: not picked yet). */
+export function venueSlug(): string | null {
   const fromPath = location.pathname.split("/").filter(Boolean)[0];
-  const slug = fromPath && /^[a-z0-9-]{2,64}$/.test(fromPath) ? fromPath : (store.get(VENUE) ?? "demo");
-  store.set(VENUE, slug);
+  const slug = (fromPath && SLUG_RE.test(fromPath) ? fromPath : null) ?? LOCKED_VENUE ?? store.get(VENUE) ?? (import.meta.env.VITE_ARENA_API ? null : "demo");
+  if (slug) store.set(VENUE, slug);
   return slug;
+}
+
+/** Accounts belong to one venue, so switching venue signs out. */
+export function setVenue(slug: string | null) {
+  store.set(VENUE, slug);
+  setToken(null);
 }
 
 let token = store.get(TOKEN);
@@ -89,7 +103,7 @@ function explain(status: number, body: any) {
 export async function api<T = any>(path: string, opts: { method?: string; body?: unknown; auth?: boolean } = {}): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(`/v1/app${path}`, {
+    res = await fetch(`${API}/v1/app${path}`, {
       method: opts.method ?? "GET",
       headers: { "content-type": "application/json", ...(opts.auth !== false && token ? { authorization: `Bearer ${token}` } : {}) },
       body: opts.body === undefined ? undefined : JSON.stringify(opts.body),

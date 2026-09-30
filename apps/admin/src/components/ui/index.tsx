@@ -47,6 +47,38 @@ export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputE
   return <input ref={ref} className={cx(control, className)} {...rest} />;
 });
 
+/** Eye icon for show/hide password; animations live in @arena/theme (.eye-toggle). */
+export function EyeIcon({ shown }: { shown: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" className="size-[18px]" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <g key={String(shown)} className="eye-lid">
+        <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+        <circle className="eye-pupil" cx={12} cy={12} r={3} />
+      </g>
+      <path className="eye-slash" d="M3 3l18 18" pathLength={1} />
+    </svg>
+  );
+}
+
+export const PasswordInput = forwardRef<HTMLInputElement, Omit<InputHTMLAttributes<HTMLInputElement>, "type">>(function PasswordInput({ className, ...rest }, ref) {
+  const [shown, setShown] = useState(false);
+  return (
+    <span className="relative block">
+      <input ref={ref} type={shown ? "text" : "password"} className={cx(control, "pr-10", className)} {...rest} />
+      <button
+        type="button"
+        onClick={() => setShown((s) => !s)}
+        onMouseDown={(e) => e.preventDefault()}
+        aria-label={shown ? "Hide password" : "Show password"}
+        aria-pressed={shown}
+        className="eye-toggle absolute inset-y-0 right-0 grid w-10 place-items-center text-ink-3 hover:text-accent focus-visible:text-accent focus-visible:outline-none"
+      >
+        <EyeIcon shown={shown} />
+      </button>
+    </span>
+  );
+});
+
 export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSelectElement>>(function Select({ className, children, ...rest }, ref) {
   return (
     <span className="relative block">

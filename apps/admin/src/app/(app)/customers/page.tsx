@@ -9,7 +9,7 @@ import { useCan } from "@/lib/client/me";
 import { fmtCountdown, idem } from "@/lib/client/sessions";
 import type { Branch } from "@/lib/client/types";
 import { QuickEdit, RecordActions } from "@/components/records";
-import { Badge, Button, Card, Empty, ErrorNote, Field, Input, Modal, PageHeader, Select, Spinner, Table, askConfirm, toast } from "@/components/ui";
+import { Badge, Button, Card, Empty, ErrorNote, Field, Input, PasswordInput, Modal, PageHeader, Select, Spinner, Table, askConfirm, toast } from "@/components/ui";
 
 interface Customer {
   id: string;
@@ -69,7 +69,7 @@ function NewCustomer({ open, onClose, onDone }: { open: boolean; onClose: () => 
           <Input type="email" value={f.email} onChange={set("email")} />
         </Field>
         <Field label="Password" hint="6+ characters">
-          <Input type="password" value={f.password} onChange={set("password")} minLength={6} />
+          <PasswordInput value={f.password} onChange={set("password")} minLength={6} />
         </Field>
         <Field label="PIN (optional)" hint="4–8 digits, quick PC login">
           <Input inputMode="numeric" value={f.pin} onChange={(e) => setF((x) => ({ ...x, pin: e.target.value.replace(/\D/g, "") }))} maxLength={8} />
@@ -158,7 +158,7 @@ function SetCredentials({ customer, onDone }: { customer: Customer; onDone: () =
   return (
     <form className="grid gap-4" onSubmit={(e) => { e.preventDefault(); void save.run(); }}>
       <Field label="New password" hint="Leave empty to keep">
-        <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} minLength={6} />
+        <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} minLength={6} />
       </Field>
       <Field label="New PIN" hint="4–8 digits, leave empty to keep">
         <Input inputMode="numeric" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))} maxLength={8} />

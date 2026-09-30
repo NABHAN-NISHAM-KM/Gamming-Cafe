@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Building2, Gamepad2, KeyRound, ShieldCheck } from "lucide-react";
 import { describeError, session } from "@/lib/client/api";
 import { describePlatformError, platformSession } from "@/lib/client/platform";
-import { Button, ErrorNote, Field, Input } from "@/components/ui";
+import { Button, ErrorNote, Field, Input, PasswordInput } from "@/components/ui";
 import { CodeInput, MfaEnrol } from "@/components/mfa";
 import { DEMO_ACCOUNTS, DEMO_PASSWORD, IS_DEMO } from "@/components/demo";
 
@@ -128,7 +128,7 @@ function LoginForm() {
             <Input type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} autoFocus />
           </Field>
           <Field label="Password">
-            <Input type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+            <PasswordInput autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
           </Field>
           <ErrorNote>{error}</ErrorNote>
           <Button type="submit" variant="primary" pending={pending} className="mt-2">

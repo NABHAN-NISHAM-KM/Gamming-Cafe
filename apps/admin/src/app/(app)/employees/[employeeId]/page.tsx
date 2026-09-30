@@ -7,7 +7,7 @@ import { api } from "@/lib/client/api";
 import { useAction, useApi } from "@/lib/client/hooks";
 import { useCan, useMe } from "@/lib/client/me";
 import { EMP_TONE, statusLabel, type Branch, type Employee, type Role } from "@/lib/client/types";
-import { Badge, Button, Card, ErrorNote, Field, Input, Modal, PageHeader, Select, Spinner, askConfirm } from "@/components/ui";
+import { Badge, Button, Card, ErrorNote, Field, PasswordInput, Modal, PageHeader, Select, Spinner, askConfirm } from "@/components/ui";
 import { useRouteId } from "@/lib/client/route-id";
 
 function GrantRole({ employeeId, branches, onDone }: { employeeId: string; branches: Branch[]; onDone: () => void }) {
@@ -77,7 +77,7 @@ function SetPin({ employeeId, onDone }: { employeeId: string; onDone: () => void
       }}
     >
       <Field label="New PIN" hint="4–8 digits. Used at the POS and for maintenance mode on stations.">
-        <Input inputMode="numeric" type="password" pattern="\d{4,8}" maxLength={8} required value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))} />
+        <PasswordInput inputMode="numeric" pattern="\d{4,8}" maxLength={8} required value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))} />
       </Field>
       <ErrorNote>{save.error}</ErrorNote>
       <div className="flex justify-end">

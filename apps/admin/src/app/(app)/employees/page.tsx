@@ -8,7 +8,7 @@ import { useAction, useApi } from "@/lib/client/hooks";
 import { useCan } from "@/lib/client/me";
 import { EMP_TONE, statusLabel, type Branch, type Employee, type Role } from "@/lib/client/types";
 import { QuickEdit, RecordActions } from "@/components/records";
-import { Badge, Button, Card, Empty, ErrorNote, Field, Input, Modal, PageHeader, Select, Spinner, Table } from "@/components/ui";
+import { Badge, Button, Card, Empty, ErrorNote, Field, Input, PasswordInput, Modal, PageHeader, Select, Spinner, Table } from "@/components/ui";
 
 function InviteModal({ open, onClose, onDone, branches }: { open: boolean; onClose: () => void; onDone: () => void; branches: Branch[] }) {
   const roles = useApi<Role[]>(open ? "/roles" : null);
@@ -76,7 +76,7 @@ function InviteModal({ open, onClose, onDone, branches }: { open: boolean; onClo
           </Select>
         </Field>
         <Field label="Initial password" className="sm:col-span-2" hint="At least 12 characters. Share it privately; email invitations arrive with notifications.">
-          <Input type="password" autoComplete="new-password" required minLength={12} value={f.initialPassword} onChange={set("initialPassword")} />
+          <PasswordInput autoComplete="new-password" required minLength={12} value={f.initialPassword} onChange={set("initialPassword")} />
         </Field>
         <div className="sm:col-span-2">
           <ErrorNote>{invite.error}</ErrorNote>

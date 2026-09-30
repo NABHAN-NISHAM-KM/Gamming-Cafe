@@ -1,15 +1,23 @@
 <#
-  Builds the Android APK of the customer app with the live demo venue inside
-  (runs offline on the phone; nothing to host).
+  Builds the Android APK of the customer app.
 
+  Demo (the live demo venue runs inside the app, offline; nothing to host):
     .\apps\customer\build-apk.ps1
   Output: apps\customer\android\app\build\outputs\apk\debug\app-debug.apk
           -> apps\website\downloads\ArenaOS-Customer.apk
+
+  Real venues, talking to a hosted API (it must allow https://localhost in CORS_ORIGINS):
+    .\apps\customer\build-apk.ps1 -Api https://arena-prod.duckdns.org
+      one app for every venue: customers enter their venue code once
+    .\apps\customer\build-apk.ps1 -Api https://arena-prod.duckdns.org -Venue exe-gamming-cafe
+      locked to one venue (a venue's own branded app)
+  Output: apps\customer\Arena.apk
 
   Needs Node 22+, JDK 17+ and the Android SDK (ANDROID_HOME or ANDROID_SDK_ROOT).
   The APK is debug-signed: fine for trying the demo (Android asks to allow the
   install). A Play Store release needs your own signing key.
 #>
+param([string]$Api, [string]$Venue)
 $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.Drawing
 $app = $PSScriptRoot
@@ -43,11 +51,16 @@ function New-LauncherPng([string]$path, [int]$size, [bool]$round) {
 
 Push-Location $app
 try {
-    Write-Host "Building the customer app (demo mode)..." -ForegroundColor Cyan
-    $env:VITE_ARENA_DEMO = "1"
-    npx vite build --base / --outDir dist-demo --emptyOutDir
+    if ($Api) {
+        Write-Host "Building the customer app for $Api (venue: $(if ($Venue) { $Venue } else { 'customer picks' }))..." -ForegroundColor Cyan
+        $env:VITE_ARENA_API = $Api.TrimEnd("/"); if ($Venue) { $env:VITE_ARENA_VENUE = $Venue }
+    } else {
+        Write-Host "Building the customer app (demo mode)..." -ForegroundColor Cyan
+        $env:VITE_ARENA_DEMO = "1"
+    }
+    npx vite build --base / --outDir www --emptyOutDir
     if ($LASTEXITCODE) { throw "Web build failed" }
-    Remove-Item Env:VITE_ARENA_DEMO
+    Remove-Item Env:VITE_ARENA_DEMO, Env:VITE_ARENA_API, Env:VITE_ARENA_VENUE -ErrorAction SilentlyContinue
 
     if (-not (Test-Path "android")) {
         Write-Host "Creating the Android project..." -ForegroundColor Cyan
@@ -74,9 +87,14 @@ try {
     } finally { Pop-Location }
 
     $apk = "android\app\build\outputs\apk\debug\app-debug.apk"
-    New-Item -ItemType Directory -Force $downloads | Out-Null
-    Copy-Item $apk (Join-Path $downloads "ArenaOS-Customer.apk") -Force
-    Write-Host ("ArenaOS-Customer.apk  {0:N1} MB -> {1}" -f ((Get-Item $apk).Length / 1MB), $downloads) -ForegroundColor Green
+    if ($Api) {
+        Copy-Item $apk (Join-Path $app "Arena.apk") -Force
+        Write-Host ("Arena.apk  {0:N1} MB -> {1}" -f ((Get-Item $apk).Length / 1MB), $app) -ForegroundColor Green
+    } else {
+        New-Item -ItemType Directory -Force $downloads | Out-Null
+        Copy-Item $apk (Join-Path $downloads "ArenaOS-Customer.apk") -Force
+        Write-Host ("ArenaOS-Customer.apk  {0:N1} MB -> {1}" -f ((Get-Item $apk).Length / 1MB), $downloads) -ForegroundColor Green
+    }
 } finally {
     Pop-Location
 }

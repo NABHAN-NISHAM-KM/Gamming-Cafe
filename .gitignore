@@ -33,6 +33,8 @@ apps/website/live/
 
 # Android APK build (apps/customer/build-apk.ps1 regenerates these)
 apps/customer/dist-demo/
+apps/customer/www/
+apps/customer/Arena.apk
 apps/customer/android/
 apps/website/downloads/*.apk
 clients/windows/dist/

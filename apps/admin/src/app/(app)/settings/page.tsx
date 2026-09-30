@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import QRCode from "qrcode";
-import { CheckCircle2, Smartphone } from "lucide-react";
+import { Check, CheckCircle2, Copy, Smartphone, Store } from "lucide-react";
 import { api } from "@/lib/client/api";
 import { useAction } from "@/lib/client/hooks";
 import { useMe } from "@/lib/client/me";
@@ -13,6 +13,7 @@ export default function SettingsPage() {
   const [enrol, setEnrol] = useState<{ secret: string; qr: string } | null>(null);
   const [code, setCode] = useState("");
   const [enabled, setEnabled] = useState(me.user.mfaEnabled);
+  const [copied, setCopied] = useState(false);
 
   const start = useAction(async () => {
     const r = await api<{ secret: string; otpauthUrl: string }>("/auth/mfa/totp/setup", { method: "POST" });
@@ -28,7 +29,25 @@ export default function SettingsPage() {
 
   return (
     <>
-      <PageHeader title="Settings" subtitle="Your account security." />
+      <PageHeader title="Settings" subtitle="Your venue and account security." />
+      <Card className="mb-4 max-w-2xl p-6">
+        <div className="flex items-start gap-3">
+          <Store className="mt-0.5 size-5 text-accent" />
+          <div className="flex-1">
+            <h2 className="font-semibold">Venue code</h2>
+            <p className="mt-1 text-sm text-ink-2">Customers enter this code in the Arena app to find {me.organization.displayName}. Accounts they create belong to this venue only.</p>
+            <div className="mt-4 flex items-center gap-2">
+              <span className="select-all rounded-lg border border-line bg-panel-2 px-4 py-2 font-mono text-lg">{me.organization.slug}</span>
+              <Button variant="secondary" onClick={() => void navigator.clipboard.writeText(me.organization.slug).then(() => setCopied(true))}>
+                {copied ? <Check className="size-4" /> : <Copy className="size-4" />} {copied ? "Copied" : "Copy"}
+              </Button>
+            </div>
+            {me.organization.status !== "ACTIVE" && (
+              <p className="mt-3 text-sm text-reserved">The app only opens active venues — this one is {me.organization.status.toLowerCase()}. Ask ArenaOS to activate it.</p>
+            )}
+          </div>
+        </div>
+      </Card>
       <Card className="max-w-2xl p-6">
         <div className="flex items-start gap-3">
           <Smartphone className="mt-0.5 size-5 text-accent" />
