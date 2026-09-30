@@ -359,7 +359,13 @@ Then:
 & "C:\Program Files\ArenaOS\Agent\ArenaAgent.exe" safe-mode off; Restart-Service ArenaAgent
 ```
 
-2. Create a player account: **Settings → Accounts → Other users → Add account → "I don't have this person's sign-in info" → "Add a user without a Microsoft account"** → user name `Player`, a password → **Next**. Leave its type as **Standard User** (the Shell never starts for administrators, so your own account stays normal).
+2. Create the `Player` account, sign Windows in to it automatically, and give it the Gaming Shell instead of Explorer (no Start menu or taskbar). Same Administrator PowerShell:
+
+```powershell
+& "C:\Program Files\ArenaOS\Agent\setup-player.ps1" -Password <a password for Player>
+```
+
+Administrator accounts always keep the normal desktop, which is how staff do maintenance. Undo with `setup-player.ps1 -Off`; hold **Shift** while Windows starts to skip the automatic sign-in once.
 
 ⚠️ With Test mode off, **Restart / Shut down / Lock** from the admin really do that to your laptop. Save your work first.
 
@@ -367,7 +373,7 @@ Then:
 
 | # | Do | Expect |
 |---|---|---|
-| - [ ] 3B.1 | Sign out of Windows (Start → your picture → Sign out), sign in as **Player** | Within a few seconds the Gaming Shell opens **full-screen** on its lock screen: My Arena, Main Hall, big clock, **Station PC-01**, sign-in box |
+| - [ ] 3B.1 | Restart Windows | It signs in to **Player** by itself and the Gaming Shell opens **full-screen** with no taskbar (the Windows key does nothing) on its lock screen: My Arena, Main Hall, big clock, **Station PC-01**, sign-in box |
 | - [ ] 3B.2 | Press **Alt+F4** | Nothing happens |
 | - [ ] 3B.3 | Sign in: **sam** / **player1234** | Countdown starts at about **3:15:00** (Sam's prepaid time). Owner → Live Floor: PC-01 turns **in use** by Sam |
 | - [ ] 3B.4 | **Home** | Welcome, Sam; featured games from 2D.5 |

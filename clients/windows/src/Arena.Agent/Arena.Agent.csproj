@@ -22,6 +22,6 @@
     <ProjectReference Include="..\Arena.Agent.Core\Arena.Agent.Core.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="install-agent.ps1;uninstall-agent.ps1" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="install-agent.ps1;uninstall-agent.ps1;setup-player.ps1" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

@@ -2,7 +2,7 @@
   Builds the station package to copy to every gaming PC:
 
     clients\windows\dist\ArenaOS-Station\
-      Agent\   ArenaAgent.exe, install-agent.ps1, uninstall-agent.ps1
+      Agent\   ArenaAgent.exe, install-agent.ps1, uninstall-agent.ps1, setup-player.ps1
       Shell\   ArenaShell.exe, wwwroot\ (the Gaming Shell UI)
 
   Self-contained by default, so gaming PCs don't need the .NET runtime (only
