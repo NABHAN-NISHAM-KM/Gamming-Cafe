@@ -31,6 +31,8 @@ public sealed class MainWindow : Window
     private readonly WebView2 _web = new() { DefaultBackgroundColor = System.Drawing.Color.FromArgb(255, 7, 6, 13) };
     private readonly AgentPipe _pipe;
     private readonly DesktopHost _desktop;
+    private readonly ArtLoader _art;
+    private JsonElement? _artSources; // replayed when the page (re)loads
     private string? _lastState;
     private bool _pageReady;
 
@@ -61,6 +63,7 @@ public sealed class MainWindow : Window
             // A game is in front: let WebView2 trim its memory until the desktop comes back.
             if (_web.CoreWebView2 is { } core) core.MemoryUsageTargetLevel = low ? CoreWebView2MemoryUsageTargetLevel.Low : CoreWebView2MemoryUsageTargetLevel.Normal;
         });
+        _art = new ArtLoader(Post);
         _pipe = new AgentPipe(requireServiceServer: !dev);
         _pipe.LineReceived += line => Dispatcher.InvokeAsync(() => FromAgent(line));
         _pipe.ConnectionChanged += connected => Dispatcher.InvokeAsync(() => AgentConnectionChanged(connected));
@@ -138,6 +141,7 @@ public sealed class MainWindow : Window
                 _pageReady = true;
                 // Answer at once with what we know, even before the agent replies.
                 Post(_lastState ?? OfflineState());
+                if (_artSources is { } art && _web.CoreWebView2 is { } core) _art.Load(core, art);
             }
             if (!_pipe.TrySend(json) && type == "login" && doc.RootElement.TryGetProperty("requestId", out var id))
                 Post(JsonSerializer.Serialize(new { type = "login_result", requestId = id.GetString(), ok = false, error = "agent_unavailable", message = "This station isn't ready yet. Please ask staff." }));
@@ -154,6 +158,12 @@ public sealed class MainWindow : Window
             using var doc = JsonDocument.Parse(line);
             var type = doc.RootElement.TryGetProperty("type", out var t) ? t.GetString() : null;
             if (type == "reload") { _web.CoreWebView2?.Reload(); return; } // RESTART_SHELL repair
+            if (type == "art_sources") // paths stay in the host
+            {
+                _artSources = doc.RootElement.Clone();
+                if (_pageReady && _web.CoreWebView2 is { } core) _art.Load(core, _artSources.Value);
+                return;
+            }
             if (type == "state")
             {
                 _lastState = line;

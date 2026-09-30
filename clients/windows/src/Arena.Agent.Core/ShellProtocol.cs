@@ -205,6 +205,19 @@ public static partial class ShellProtocol
         }, StateOptions);
     }
 
+    /// <summary>
+    /// Where each library item's art lives on this PC: its .exe (icon) or its Steam app id (cover
+    /// and icon from Steam's library cache). For the Shell's host process, which turns them into
+    /// images for the page; it is not forwarded, so the page still never sees a path.
+    /// </summary>
+    public static string ArtSources(string? steamLibraryCache, IEnumerable<(string Id, string? Exe, string? SteamAppId)> items) =>
+        JsonSerializer.Serialize(new
+        {
+            type = "art_sources",
+            steamLibraryCache,
+            items = items.Select(i => new { id = i.Id, exe = i.Exe, steamAppId = i.SteamAppId }),
+        }, StateOptions);
+
     public static string Result(string type, string requestId, bool ok, string? error = null, string? message = null) =>
         JsonSerializer.Serialize(new { type, requestId, ok, error, message }, Json.Options);
 

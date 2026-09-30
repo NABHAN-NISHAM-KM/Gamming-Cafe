@@ -29,6 +29,23 @@ public sealed class GameScanner(ILogger<GameScanner> log)
 
     public string? SteamExe() => SteamRoot() is { } root && File.Exists(Path.Combine(root, "steam.exe")) ? Path.Combine(root, "steam.exe") : null;
 
+    /// <summary>Steam's local art (covers, icons) for installed games: appcache\librarycache\&lt;appid&gt;\.</summary>
+    public string? SteamLibraryCache() => SteamRoot() is { } root && Directory.Exists(Path.Combine(root, "appcache", "librarycache")) ? Path.Combine(root, "appcache", "librarycache") : null;
+
+    /// <summary>Epic AppName → the game's .exe (for its icon).</summary>
+    public Dictionary<string, string> EpicExes()
+    {
+        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            if (Directory.Exists(EpicManifestDir))
+                foreach (var item in Directory.EnumerateFiles(EpicManifestDir, "*.item"))
+                    if (EpicManifests.LaunchExe(ReadShared(item)) is { } e) map[e.AppName] = e.Exe;
+        }
+        catch (Exception e) { log.LogDebug("Epic manifests: {Message}", e.Message); }
+        return map;
+    }
+
     /// <summary>Folders whose manifests change when games are installed, removed or updated.</summary>
     public List<string> WatchFolders()
     {

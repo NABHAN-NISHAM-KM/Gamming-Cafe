@@ -331,7 +331,7 @@ function SessionScreen({ state, t }: { state: ShellState; t: Strings }) {
     <main className="relative flex h-full flex-col">
       {!bar ? <Desktop wm={wm} areaRef={areaRef} home={home} notify={notify} station={state.station.name} /> : bridge.mock ? <PreviewFrontWindow /> : null}
       <Taskbar state={state} t={t} wm={wm} startOpen={startOpen && !bar} onStart={() => setStartOpen((o) => !o)} className={bar && !bridge.mock ? "h-full" : "h-[max(44px,5vh)]"} />
-      {startOpen && !bar && <StartMenu state={state} t={t} onOpen={wm.open} onClose={() => setStartOpen(false)} />}
+      {startOpen && !bar && <StartMenu state={state} t={t} notify={notify} onOpen={wm.open} onClose={() => setStartOpen(false)} />}
 
       {note && (
         <div role="status" key={note.text} className={cx("glass animate-pop fixed bottom-[calc(max(44px,5vh)+1rem)] left-1/2 z-50 -translate-x-1/2 rounded-2xl border px-6 py-3 shadow-2xl", note.tone === "good" ? "border-good/40 bg-deck text-good" : note.tone === "warn" ? "border-warn/50 bg-deck text-warn" : "border-alarm bg-deck text-alarm")}>

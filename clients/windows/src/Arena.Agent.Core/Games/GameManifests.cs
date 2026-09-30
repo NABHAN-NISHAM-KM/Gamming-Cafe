@@ -166,6 +166,23 @@ public static class EpicManifests
             return null;
         }
     }
+
+    /// <summary>AppName and the game's own .exe (InstallLocation + LaunchExecutable), for its icon.</summary>
+    public static (string AppName, string Exe)? LaunchExe(string json)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var r = doc.RootElement;
+            string? S(string n) => r.TryGetProperty(n, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+            if (S("AppName") is not { Length: > 0 } app || S("InstallLocation") is not { Length: > 0 } dir || S("LaunchExecutable") is not { Length: > 0 } exe) return null;
+            return exe.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? (app, Path.Combine(dir, exe)) : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
 }
 
 /// <summary>A program from Windows' installed-apps list (mirrors DetectedApp in the contracts).</summary>

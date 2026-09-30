@@ -87,6 +87,7 @@ public sealed class StationService(
         }
         catch (IOException e) { log.LogWarning("Could not cache station config: {Message}", e.Message); }
         shell.Broadcast(ShellProtocol.Library(config, sessions.Current));
+        shell.Broadcast(ArtSources());
         if (first) _ = Task.Run(() => ScanGamesAsync(CancellationToken.None)); // PATH games can only be checked once we know them
     }
 
@@ -220,9 +221,27 @@ public sealed class StationService(
     private void SendShellSnapshot()
     {
         shell.Broadcast(ShellProtocol.Library(_config, sessions.Current));
+        shell.Broadcast(ArtSources());
         shell.Broadcast(ShellProtocol.Peripherals(_peripherals));
         if (_network is not null) shell.Broadcast(ShellProtocol.Network(_network));
         shell.Broadcast(ShellProtocol.Playing(_playing?.Id, _playing?.Title));
+    }
+
+    /// <summary>Where the library's icons and covers are on this PC, for the Shell's host (see ShellProtocol.ArtSources).</summary>
+    private string ArtSources()
+    {
+        var epic = games.EpicExes();
+        var items = new List<(string, string?, string?)>();
+        foreach (var g in _config?.Games ?? [])
+            items.Add(g.Launch switch
+            {
+                { Kind: "STEAM", AppId: { } id } => (g.Id, null, id),
+                { Kind: "EPIC", AppName: { } name } => (g.Id, epic.GetValueOrDefault(name), null),
+                { Kind: "PATH", ExecutablePath: { } exe } => (g.Id, exe, null),
+                _ => (g.Id, null, null),
+            });
+        foreach (var a in _config?.Apps ?? []) items.Add((a.Id, a.ExecutablePath, null));
+        return ShellProtocol.ArtSources(games.SteamLibraryCache(), items);
     }
 
     private void OnSessionChanged(SessionEvent e, SessionState? s)

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { bridge, type Peripheral, type PointerPreset, type Probe, type ShellAppItem, type ShellGame } from "./bridge";
+import { bridge, type Art, type Peripheral, type PointerPreset, type Probe, type ShellAppItem, type ShellGame } from "./bridge";
 
 export interface StationData {
   games: ShellGame[];
@@ -9,9 +9,11 @@ export interface StationData {
   probe: Probe | null;
   peripherals: Peripheral[];
   pointer: { mouseSpeed: number; enhancePointerPrecision: boolean } | null;
+  /** Real icons and covers by game/app id (from the Windows host). */
+  art: Record<string, Art>;
 }
 
-const empty: StationData = { games: [], apps: [], presets: [], playing: null, probe: null, peripherals: [], pointer: null };
+const empty: StationData = { games: [], apps: [], presets: [], playing: null, probe: null, peripherals: [], pointer: null, art: {} };
 let current = empty;
 const subs = new Set<(d: StationData) => void>();
 const set = (patch: Partial<StationData>) => {
@@ -30,6 +32,8 @@ bridge.subscribe((m) => {
       return set({ probe: m.probe });
     case "peripherals":
       return set({ peripherals: m.items });
+    case "art":
+      return set({ art: { ...current.art, ...Object.fromEntries(m.items.map((a) => [a.id, a])) } });
     case "pointer":
       return set({ pointer: { mouseSpeed: m.mouseSpeed, enhancePointerPrecision: m.enhancePointerPrecision } });
   }

@@ -2,7 +2,8 @@ import { memo, useEffect, useRef, useState, type PointerEvent as ReactPointerEve
 import { AppWindow, Gamepad2, Globe, Layers, LifeBuoy, LogOut, Maximize2, Minimize2, Minus, Mouse, Signal, UtensilsCrossed, WifiOff, X } from "lucide-react";
 import { bridge, type OpenWindow, type ShellMode, type ShellState, type WindowAction } from "./bridge";
 import type { Strings } from "./i18n";
-import { AppsScreen, ConnectivityScreen, GamesScreen, PeripheralsScreen, SupportScreen, type Notify } from "./screens";
+import { AppIcon, AppsScreen, ConnectivityScreen, GamesScreen, PeripheralsScreen, SupportScreen, useLauncher, type Notify } from "./screens";
+import { useStation } from "./station";
 import { FoodScreen } from "./food";
 import { askConfirm } from "./confirm";
 
@@ -172,20 +173,52 @@ function ChromeButton({ label, onClick, danger, children }: { label: string; onC
   );
 }
 
-/** The desktop: wallpaper, section icons, the home widget, and the open section windows. */
+/** A desktop icon: picture above a label, like a Windows shortcut. */
+function DesktopIcon({ label, onOpen, children }: { label: string; onOpen: () => void; children: ReactNode }) {
+  return (
+    <button onClick={onOpen} title={label} className="press group flex w-24 flex-col items-center gap-2 rounded-2xl p-3 text-center hover:bg-white/5 focus-visible:bg-white/10">
+      <span className="grid size-14 place-items-center transition-transform group-hover:-translate-y-0.5">{children}</span>
+      <span className="line-clamp-2 text-sm leading-tight text-text/90 drop-shadow">{label}</span>
+    </button>
+  );
+}
+
+/** The desktop: wallpaper, section icons and program shortcuts, the home widget, and the open section windows. */
 export function Desktop({ wm, areaRef, home, notify, station }: { wm: WM; areaRef: React.RefObject<HTMLDivElement | null>; home: ReactNode; notify: Notify; station: string }) {
   const area = () => areaRef.current?.getBoundingClientRect();
+  const { apps } = useStation();
+  const { busy, launch } = useLauncher(notify);
+  // Icons fill a column top to bottom, then start the next one (like Windows). The row count must be
+  // explicit: with "auto-fill" the browser sizes the column area as if everything were in one row.
+  const [rows, setRows] = useState(8);
+  useEffect(() => {
+    const el = areaRef.current;
+    if (!el) return;
+    const fit = () => {
+      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+      setRows(Math.max(1, Math.floor((el.clientHeight - 2.5 * rem) / (7.5 * rem))));
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [areaRef]);
   return (
     <div ref={areaRef} className="relative min-h-0 flex-1 overflow-hidden">
-      <div className="absolute inset-0 grid grid-cols-[auto_1fr]">
-        <nav aria-label="Desktop" className="flex h-full flex-col flex-wrap content-start gap-2 p-5">
+      <div className="absolute inset-0 grid grid-cols-[auto_1fr] grid-rows-1">
+        <nav aria-label="Desktop" className="grid auto-cols-max grid-flow-col content-start gap-x-2 p-5" style={{ gridTemplateRows: `repeat(${rows}, 7.5rem)` }}>
           {SECTIONS.map((s) => (
-            <button key={s.id} onClick={() => wm.open(s.id)} className="press group flex w-24 flex-col items-center gap-2 rounded-2xl p-3 text-center hover:bg-white/5 focus-visible:bg-white/10">
-              <span className={cx("grid size-14 place-items-center rounded-2xl bg-gradient-to-br text-white shadow-lg shadow-black/40 transition-transform group-hover:-translate-y-0.5", s.tint)}>
+            <DesktopIcon key={s.id} label={s.label} onOpen={() => wm.open(s.id)}>
+              <span className={cx("grid size-14 place-items-center rounded-2xl bg-gradient-to-br text-white shadow-lg shadow-black/40", s.tint)}>
                 <s.icon className="size-7" />
               </span>
-              <span className="text-sm text-text/90 drop-shadow">{s.label}</span>
-            </button>
+            </DesktopIcon>
+          ))}
+          {/* The PC's programs (browsers, launchers, apps) as shortcuts with their own icons. */}
+          {apps.map((a) => (
+            <DesktopIcon key={a.id} label={a.name} onOpen={() => launch("app", a.id, a.name)}>
+              <AppIcon app={a} className="size-12" busy={busy === a.id} />
+            </DesktopIcon>
           ))}
         </nav>
         <div className="min-w-0 overflow-y-auto p-10">{home}</div>
@@ -339,8 +372,10 @@ function WindowMenu({ win, x, onClose }: { win: OpenWindow; x: number; onClose: 
   );
 }
 
-export function StartMenu({ state, t, onOpen, onClose }: { state: ShellState; t: Strings; onOpen: (id: Section) => void; onClose: () => void }) {
+export function StartMenu({ state, t, notify, onOpen, onClose }: { state: ShellState; t: Strings; notify: Notify; onOpen: (id: Section) => void; onClose: () => void }) {
   const s = state.session!;
+  const { apps } = useStation();
+  const { launch } = useLauncher(notify);
   useEffect(() => {
     const k = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     addEventListener("keydown", k);
@@ -357,7 +392,21 @@ export function StartMenu({ state, t, onOpen, onClose }: { state: ShellState; t:
             <p className="truncate text-xs text-dim">{s.tier ?? state.venue.name} · {t.station} {state.station.name}</p>
           </div>
         </div>
-        <div className="mt-5 grid grid-cols-4 gap-2">
+        {apps.length > 0 && (
+          <>
+            <p className="mt-5 mb-2 text-xs uppercase tracking-[0.2em] text-dim">Pinned</p>
+            <div className="grid grid-cols-4 gap-2">
+              {apps.slice(0, 8).map((a) => (
+                <button key={a.id} onClick={() => { launch("app", a.id, a.name); onClose(); }} title={a.name} className="press flex flex-col items-center gap-2 rounded-xl p-3 hover:bg-white/10">
+                  <AppIcon app={a} className="size-10" />
+                  <span className="w-full truncate text-center text-xs">{a.name}</span>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+        <p className="mt-5 mb-2 text-xs uppercase tracking-[0.2em] text-dim">ArenaOS</p>
+        <div className="grid grid-cols-4 gap-2">
           {SECTIONS.map((x) => (
             <button key={x.id} onClick={() => { onOpen(x.id); onClose(); }} className="press flex flex-col items-center gap-2 rounded-xl p-3 hover:bg-white/10">
               <span className={cx("grid size-11 place-items-center rounded-xl bg-gradient-to-br text-white", x.tint)}><x.icon className="size-5" /></span>

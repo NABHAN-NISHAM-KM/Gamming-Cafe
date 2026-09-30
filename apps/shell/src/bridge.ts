@@ -78,6 +78,13 @@ export interface OrderLine {
   modifierIds: string[];
 }
 
+/** The real icon / cover of a library game or app, found on this PC by the Windows host. */
+export interface Art {
+  id: string;
+  icon: string | null;
+  cover: string | null;
+}
+
 /** A game/app window open on this PC (from the Windows host; id = its window handle). */
 export interface OpenWindow {
   id: string;
@@ -106,6 +113,7 @@ export type HostMessage =
   | { type: "order_status"; orderId: string; number: string; status: "PREPARING" | "READY" | "SERVED"; message: string }
   | { type: "print_quote"; quote: PrintQuote }
   | { type: "windows"; items: OpenWindow[] }
+  | { type: "art"; items: Art[] }
   | { type: "shell_mode"; mode: ShellMode }
   | { type: "print_status"; jobKey: string; status: "WAITING_STAFF" | "PRINTING" | "COMPLETED" | "CANCELLED" | "FAILED"; message: string };
 

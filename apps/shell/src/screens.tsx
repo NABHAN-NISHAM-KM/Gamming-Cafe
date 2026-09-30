@@ -16,16 +16,23 @@ export type Notify = (text: string, tone?: "good" | "warn" | "alarm") => void;
 function GameTile({ game, playing, onPlay, busy }: { game: ShellGame; playing: boolean; onPlay: () => void; busy: boolean }) {
   const [a, b] = tileColors(game.title);
   const disabled = game.locked || !game.installed;
+  const art = useStation().art[game.id];
+  const cover = game.coverUrl ?? art?.cover ?? null;
+  const icon = !cover ? art?.icon : null;
   return (
     <button
       onClick={onPlay}
       disabled={disabled || busy}
       className={cx("sheen press group relative aspect-[3/4] overflow-hidden rounded-2xl border text-left duration-300", disabled ? "border-rim opacity-50" : "border-rim hover:-translate-y-1.5 hover:border-glow/70 hover:shadow-glow", playing && "border-good ring-2 ring-good/50")}
-      style={{ background: game.coverUrl ? `center/cover url(${game.coverUrl})` : `linear-gradient(155deg, ${a}, ${b})` }}
+      style={{ background: cover ? `center/cover url("${cover}")` : `linear-gradient(155deg, ${a}, ${b})` }}
       title={game.locked ? `Rated ${game.minAge}+` : !game.installed ? "Not installed on this PC" : `Play ${game.title}`}
     >
       <div className="absolute inset-0 bg-gradient-to-t from-void/95 via-void/20 to-transparent" />
-      {!game.coverUrl && <span className="absolute -right-3 top-2 font-display text-[7rem] font-bold leading-none text-white/10 select-none">{game.title.slice(0, 1)}</span>}
+      {icon ? (
+        <img src={icon} alt="" className="absolute left-1/2 top-[38%] size-20 -translate-x-1/2 -translate-y-1/2 drop-shadow-[0_8px_20px_rgba(0,0,0,0.55)]" />
+      ) : (
+        !cover && <span className="absolute -right-3 top-2 font-display text-[7rem] font-bold leading-none text-white/10 select-none">{game.title.slice(0, 1)}</span>
+      )}
       <div className="absolute left-3 top-3 flex flex-wrap gap-1.5">
         {game.featured && <span className="rounded-full bg-glow/90 px-2 py-0.5 text-[0.6875rem] font-semibold text-void">Featured</span>}
         {game.updateRequired && game.installed && <span className="rounded-full bg-warn/90 px-2 py-0.5 text-[0.6875rem] font-semibold text-void">Update pending</span>}
@@ -118,6 +125,19 @@ export function FeaturedRow({ notify }: { notify: Notify }) {
 
 const APP_ICON: Record<string, typeof Globe> = { BROWSER: Globe, PLATFORM_LAUNCHER: Gamepad2, COMMUNICATION: Headphones, MEDIA: Volume2 };
 
+/** A program's own icon (from its .exe on this PC), like Windows shows it; a tinted glyph until it's known. */
+export function AppIcon({ app, className = "size-12", busy }: { app: ShellAppItem; className?: string; busy?: boolean }) {
+  const icon = useStation().art[app.id]?.icon;
+  if (busy) return <div className={cx("grid place-items-center", className)}><Loader2 className="size-1/2 animate-spin" /></div>;
+  if (icon) return <img src={icon} alt="" className={cx("object-contain drop-shadow-[0_4px_10px_rgba(0,0,0,0.45)]", className)} />;
+  const Icon = APP_ICON[app.kind] ?? AppWindow;
+  return (
+    <div className={cx("grid place-items-center rounded-xl", className)} style={{ background: tileColors(app.name)[0] }}>
+      <Icon className="size-1/2" />
+    </div>
+  );
+}
+
 export function AppsScreen({ kinds, title, hint, notify }: { kinds: string[] | null; title: string; hint: string; notify: Notify }) {
   const { apps } = useStation();
   const { busy, launch } = useLauncher(notify);
@@ -130,18 +150,12 @@ export function AppsScreen({ kinds, title, hint, notify }: { kinds: string[] | n
         <p className="py-24 text-center text-dim">Nothing here yet.</p>
       ) : (
         <div className="mt-8 grid grid-cols-[repeat(auto-fill,minmax(13.75rem,1fr))] gap-4">
-          {shown.map((a) => {
-            const Icon = APP_ICON[a.kind] ?? AppWindow;
-            const [c1] = tileColors(a.name);
-            return (
-              <button key={a.id} onClick={() => launch("app", a.id, a.name)} disabled={busy === a.id} className="glass press group flex items-center gap-4 rounded-2xl p-5 text-left hover:-translate-y-0.5 hover:border-glow/60">
-                <div className="grid size-12 place-items-center rounded-xl" style={{ background: c1 }}>
-                  {busy === a.id ? <Loader2 className="size-6 animate-spin" /> : <Icon className="size-6" />}
-                </div>
-                <span className="font-display text-lg">{a.name}</span>
-              </button>
-            );
-          })}
+          {shown.map((a) => (
+            <button key={a.id} onClick={() => launch("app", a.id, a.name)} disabled={busy === a.id} className="glass press group flex items-center gap-4 rounded-2xl p-5 text-left hover:-translate-y-0.5 hover:border-glow/60">
+              <AppIcon app={a} busy={busy === a.id} />
+              <span className="font-display text-lg">{a.name}</span>
+            </button>
+          ))}
         </div>
       )}
     </div>
