@@ -10,6 +10,13 @@ addEventListener("keydown", (e) => {
   if ((e.ctrlKey && ["p", "s", "o", "u", "f", "r", "+", "-", "=", "0"].includes(e.key.toLowerCase())) || e.key === "F5" || e.key === "F12") e.preventDefault();
 });
 
+// On the PC the Shell window is sometimes only the taskbar strip, so size text from the monitor
+// (same formula as styles.css, which uses the window: fine for full-screen and the browser preview).
+if (window.chrome?.webview) {
+  const px = Math.min(24, Math.max(12, Math.min(screen.width * 0.01111, screen.height * 0.01778)));
+  document.documentElement.style.fontSize = `${px}px`;
+}
+
 // Demo build (VITE_ARENA_DEMO=1): install the in-browser demo venue first, so
 // the Shell runs as a station on the shared demo floor instead of a real PC.
 async function boot() {

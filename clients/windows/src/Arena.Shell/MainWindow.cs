@@ -1,10 +1,8 @@
 using System.ComponentModel;
 using System.IO;
-using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Input;
-using System.Windows.Interop;
 using System.Windows.Media;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
@@ -23,7 +21,7 @@ public sealed class MainWindow : Window
     /// <summary>Forwarded to the agent (which validates again).</summary>
     private static readonly HashSet<string> AllowedFromPage = ["ready", "login", "logout", "launch", "launch_app", "help", "repair", "menu_request", "place_order", "print_confirm", "print_cancel", "staff_exit"];
     /// <summary>Handled here, in the customer's desktop session.</summary>
-    private static readonly HashSet<string> HandledByHost = ["pointer_get", "pointer_apply"];
+    private static readonly HashSet<string> HandledByHost = ["pointer_get", "pointer_apply", "window_action", "desktop_show"];
     /// <summary>The venue's pointer settings, restored when a session ends or the Shell closes.</summary>
     private readonly Pointer.Settings _venuePointer = Pointer.Read();
     private bool _inSession;
@@ -32,6 +30,7 @@ public sealed class MainWindow : Window
     private readonly bool _kiosk;
     private readonly WebView2 _web = new() { DefaultBackgroundColor = System.Drawing.Color.FromArgb(255, 7, 6, 13) };
     private readonly AgentPipe _pipe;
+    private readonly DesktopHost _desktop;
     private string? _lastState;
     private bool _pageReady;
 
@@ -57,6 +56,11 @@ public sealed class MainWindow : Window
             WindowStartupLocation = WindowStartupLocation.CenterScreen;
         }
 
+        _desktop = new DesktopHost(this, Post, low =>
+        {
+            // A game is in front: let WebView2 trim its memory until the desktop comes back.
+            if (_web.CoreWebView2 is { } core) core.MemoryUsageTargetLevel = low ? CoreWebView2MemoryUsageTargetLevel.Low : CoreWebView2MemoryUsageTargetLevel.Normal;
+        });
         _pipe = new AgentPipe(requireServiceServer: !dev);
         _pipe.LineReceived += line => Dispatcher.InvokeAsync(() => FromAgent(line));
         _pipe.ConnectionChanged += connected => Dispatcher.InvokeAsync(() => AgentConnectionChanged(connected));
@@ -119,12 +123,16 @@ public sealed class MainWindow : Window
             if (doc.RootElement.ValueKind != JsonValueKind.Object
                 || !doc.RootElement.TryGetProperty("type", out var t)
                 || t.GetString() is not { } type) return;
-            if (HandledByHost.Contains(type)) { PointerRequest(type, doc.RootElement); return; }
+            if (HandledByHost.Contains(type))
+            {
+                if (!_desktop.FromPage(type, doc.RootElement)) PointerRequest(type, doc.RootElement);
+                return;
+            }
             if (!AllowedFromPage.Contains(type)) return;
 
             // The game/app is started by the agent (SYSTEM), so it can't take the foreground on its own:
-            // the Shell, which has it, lets the next window come to the front.
-            if (type is "launch" or "launch_app") AllowSetForegroundWindow(ASFW_ANY);
+            // the Shell, which has it, lets the new window come to the front.
+            if (type is "launch" or "launch_app" && _kiosk) _desktop.OnLaunch();
             if (type == "ready")
             {
                 _pageReady = true;
@@ -151,17 +159,11 @@ public sealed class MainWindow : Window
                 _lastState = line;
                 var inSession = doc.RootElement.TryGetProperty("session", out var s) && s.ValueKind == JsonValueKind.Object;
                 if (_inSession && !inSession) Pointer.Apply(_venuePointer.MouseSpeed, _venuePointer.EnhancePointerPrecision); // next customer starts clean
-                if (_inSession && !inSession && _kiosk) Activate(); // session over: back in front of whatever was open
                 _inSession = inSession;
-                // Locked: always on top, nothing covers the sign-in. In a session: games and apps go in front.
-                Topmost = _kiosk && !inSession;
+                // Locked: full-screen and topmost. In a session: the desktop with its taskbar (DesktopHost).
+                if (_kiosk) _desktop.SetSession(inSession);
             }
-            else if (type == "launch_result" && _kiosk && doc.RootElement.TryGetProperty("ok", out var ok) && ok.ValueKind == JsonValueKind.True)
-            {
-                // Step behind everything, so the game shows as soon as its window opens (even if it
-                // didn't get the focus). With no other window open the Shell is still what you see.
-                SetWindowPos(new WindowInteropHelper(this).Handle, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
-            }
+            else if (type is "message" or "print_quote") _desktop.Attention(); // staff message / print to approve: show it
         }
         catch (JsonException) { return; }
         Post(line);
@@ -229,19 +231,10 @@ public sealed class MainWindow : Window
         base.OnClosing(e);
     }
 
-    private const int ASFW_ANY = -1;
-    private static readonly IntPtr HWND_BOTTOM = new(1);
-    private const uint SWP_NOSIZE = 0x1, SWP_NOMOVE = 0x2, SWP_NOACTIVATE = 0x10;
-
-    [DllImport("user32.dll")]
-    private static extern bool AllowSetForegroundWindow(int processId);
-
-    [DllImport("user32.dll")]
-    private static extern bool SetWindowPos(IntPtr hWnd, IntPtr insertAfter, int x, int y, int cx, int cy, uint flags);
-
     protected override void OnClosed(EventArgs e)
     {
         Pointer.Apply(_venuePointer.MouseSpeed, _venuePointer.EnhancePointerPrecision);
+        _desktop.Dispose();
         _pipe.Dispose();
         base.OnClosed(e);
     }

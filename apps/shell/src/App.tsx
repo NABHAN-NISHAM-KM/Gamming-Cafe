@@ -1,12 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { AppWindow, Gamepad2, Globe, Home, Languages, Layers, LifeBuoy, Loader2, LogOut, Monitor, Mouse, Signal, UtensilsCrossed, Wifi, WifiOff } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AppWindow, Gamepad2, Languages, Loader2, Monitor, Wifi, WifiOff } from "lucide-react";
 import { bridge, type HostMessage, type ShellState } from "./bridge";
 import { strings, type Lang, type Strings } from "./i18n";
-import { AppsScreen, ConnectivityScreen, FeaturedRow, GamesScreen, PeripheralsScreen, SupportScreen, type Notify } from "./screens";
+import { FeaturedRow, type Notify } from "./screens";
 import { useStation } from "./station";
-import { FoodScreen } from "./food";
 import { PrintApproval } from "./print";
-import { askConfirm } from "./confirm";
+import { Desktop, StartMenu, Taskbar, useHost, useWindowManager } from "./desktop";
 import { StaffExit } from "./staff-exit";
 
 const cx = (...c: Array<string | false | null | undefined>) => c.filter(Boolean).join(" ");
@@ -181,20 +180,7 @@ function ConnectionBanner({ t }: { t: Strings }) {
   );
 }
 
-// ── Session ─────────────────────────────────────────────────────────────────
-
-type Tab = "home" | "games" | "platforms" | "apps" | "internet" | "connectivity" | "peripherals" | "food" | "support";
-const TABS: Array<{ id: Tab; label: string; icon: typeof Home }> = [
-  { id: "home", label: "Home", icon: Home },
-  { id: "games", label: "Games", icon: Gamepad2 },
-  { id: "platforms", label: "Platforms", icon: Layers },
-  { id: "apps", label: "Apps", icon: AppWindow },
-  { id: "internet", label: "Internet", icon: Globe },
-  { id: "connectivity", label: "Connection", icon: Signal },
-  { id: "peripherals", label: "Peripherals", icon: Mouse },
-  { id: "food", label: "Food", icon: UtensilsCrossed },
-  { id: "support", label: "Support", icon: LifeBuoy },
-];
+// ── Session: a small desktop OS ─────────────────────────────────────────────
 
 function TimeRing({ remainingMs, totalMs }: { remainingMs: number; totalMs: number }) {
   const r = 120;
@@ -202,7 +188,7 @@ function TimeRing({ remainingMs, totalMs }: { remainingMs: number; totalMs: numb
   const frac = Math.max(0, Math.min(1, remainingMs / Math.max(1, totalMs)));
   const low = remainingMs <= 5 * 60_000;
   return (
-    <svg viewBox="0 0 280 280" className="size-72" aria-hidden>
+    <svg viewBox="0 0 280 280" className="size-64" aria-hidden>
       <circle cx="140" cy="140" r={r} fill="none" stroke="var(--color-rim)" strokeWidth="10" />
       <circle
         cx="140" cy="140" r={r} fill="none" strokeWidth="10" strokeLinecap="round"
@@ -219,41 +205,49 @@ function TimeRing({ remainingMs, totalMs }: { remainingMs: number; totalMs: numb
   );
 }
 
-function Placeholder({ icon: Icon, title, text }: { icon: typeof Home; title: string; text: string }) {
+/** The desktop's home widget: time left, welcome, featured games. Ticks on its own. */
+function HomeWidget({ state, t, notify, openGames }: { state: ShellState; t: Strings; notify: Notify; openGames: () => void }) {
+  const s = state.session!;
+  const serverNow = useNow(1000) + state.serverOffsetMs;
+  const remaining = s.expiresAt ? new Date(s.expiresAt).getTime() - serverNow : null;
+  const total = s.expiresAt ? new Date(s.expiresAt).getTime() - new Date(s.startedAt).getTime() : 1;
+  const { playing } = useStation();
   return (
-    <div className="grid h-full place-items-center">
-      <div className="max-w-lg text-center">
-        <Icon className="mx-auto size-14 text-glow opacity-70" />
-        <h2 className="mt-6 font-display text-3xl font-semibold">{title}</h2>
-        <p className="mt-3 text-lg text-dim">{text}</p>
+    <div className="mx-auto grid min-h-full max-w-6xl items-center gap-12 xl:grid-cols-[auto_1fr]">
+      <div className="relative grid place-items-center">
+        {remaining !== null && <TimeRing remainingMs={remaining} totalMs={total} />}
+        <div className={cx("text-center", remaining !== null && "absolute")}>
+          <p className="text-sm uppercase tracking-[0.3em] text-dim">{remaining === null ? t.openSession : t.timeLeft}</p>
+          <p className="tabular mt-2 font-mono text-5xl font-semibold">{remaining === null ? hms(serverNow - new Date(s.startedAt).getTime()) : hms(remaining)}</p>
+        </div>
+      </div>
+      <div className="min-w-0">
+        <VenueMark state={state} />
+        <p className="mt-8 text-xl text-dim">{t.welcome},</p>
+        <h1 className="mt-1 font-display text-6xl font-semibold tracking-tight">{s.customerName}</h1>
+        {playing && (
+          <p className="mt-4 inline-flex items-center gap-2 rounded-full border border-good/40 bg-good/10 px-4 py-1.5 text-sm text-good">
+            <span className="live-dot size-2 rounded-full bg-good" /> Playing {playing.title}
+          </p>
+        )}
+        <p className="mt-10 mb-4 text-sm uppercase tracking-[0.25em] text-dim">Featured</p>
+        <FeaturedRow notify={notify} />
+        <button onClick={openGames} className="mt-6 flex items-center gap-2 text-glow hover:underline">
+          <Gamepad2 className="size-5" /> All games
+        </button>
       </div>
     </div>
   );
 }
 
-function SessionScreen({ state, t }: { state: ShellState; t: Strings }) {
+/** Minute warnings and the time's-up screen. The server's clock decides; this only shows it. */
+function SessionAlerts({ state, t }: { state: ShellState; t: Strings }) {
   const s = state.session!;
-  const now = useNow();
-  const serverNow = now + state.serverOffsetMs;
+  const serverNow = useNow(1000) + state.serverOffsetMs;
   const remaining = s.expiresAt ? new Date(s.expiresAt).getTime() - serverNow : null;
-  const total = s.expiresAt ? new Date(s.expiresAt).getTime() - new Date(s.startedAt).getTime() : 1;
-  const [tab, setTab] = useState<Tab>("home");
   const [toast, setToast] = useState<string | null>(null);
-  const [note, setNote] = useState<{ text: string; tone: "good" | "warn" | "alarm" } | null>(null);
-  const noteTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const notify: Notify = (text, tone = "good") => {
-    clearTimeout(noteTimer.current);
-    setNote({ text, tone });
-    noteTimer.current = setTimeout(() => setNote(null), 5000);
-  };
-  const { playing } = useStation();
-  // Kitchen progress on food orders shows up wherever the customer is.
-  useEffect(() => bridge.subscribe((m) => {
-    if (m.type === "order_status") notify(`Order ${m.number}: ${m.message}`, "good");
-  }), []); // eslint-disable-line react-hooks/exhaustive-deps
   const shown = useRef(new Set<number>());
 
-  // Warnings at the configured thresholds (30/15/10/5/1 min). The server's clock decides.
   useEffect(() => {
     if (remaining === null) return;
     for (const m of s.warningMinutes) {
@@ -272,95 +266,15 @@ function SessionScreen({ state, t }: { state: ShellState; t: Strings }) {
 
   const lastMinute = remaining !== null && remaining <= 60_000 && remaining > 0;
   const timesUp = remaining !== null && remaining <= 0;
-
   return (
-    <main className="relative flex h-full flex-col">
-      <header className="glass relative z-10 flex h-20 shrink-0 items-center gap-6 border-x-0 border-t-0 px-8">
-        <VenueMark state={state} />
-        {playing && (
-          <button onClick={() => setTab("games")} className="ml-4 flex items-center gap-2 rounded-full border border-good/40 bg-good/10 px-4 py-1.5 text-sm text-good">
-            <span className="live-dot size-2 rounded-full bg-good" /> Playing {playing.title}
-          </button>
-        )}
-        <div className="ml-auto flex items-center gap-5">
-          {!state.connected && <WifiOff className="size-5 text-warn" aria-label={t.offline} />}
-          <div className={cx("rounded-2xl border px-5 py-2 text-right", lastMinute ? "border-alarm/60 bg-alarm/15" : remaining !== null && remaining <= 5 * 60_000 ? "border-warn/50 bg-warn/10" : "border-rim bg-deck-2")}>
-            <p className="text-[0.6875rem] uppercase tracking-[0.2em] text-dim">{remaining === null ? t.openSession : t.timeLeft}</p>
-            <p className={cx("tabular font-mono text-2xl font-semibold", lastMinute && "text-alarm pulse")}>{remaining === null ? hms(serverNow - new Date(s.startedAt).getTime()) : hms(remaining)}</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="brand-gradient grid size-11 place-items-center rounded-full font-display text-lg font-bold text-void">{s.customerName.slice(0, 1)}</div>
-            <div className="leading-tight">
-              <p className="font-semibold">{s.customerName}</p>
-              {s.tier && <p className="text-xs text-glow-2">{s.tier}</p>}
-            </div>
-          </div>
-          <button onClick={async () => (await askConfirm(t.logoutConfirm, { ok: t.logout })) && bridge.send({ type: "logout" })} className="press rounded-xl border border-rim p-3 text-dim hover:border-alarm hover:text-alarm" aria-label={t.logout} title={t.logout}>
-            <LogOut className="size-5" />
-          </button>
-        </div>
-      </header>
-
-      <div className="relative flex min-h-0 flex-1">
-      <nav className="glass flex w-56 shrink-0 flex-col gap-1 border-y-0 border-l-0 p-3">
-        {TABS.map((x) => (
-          <button
-            key={x.id}
-            onClick={() => setTab(x.id)}
-            className={cx("press relative flex items-center gap-3 rounded-xl px-4 py-3 font-display text-base tracking-wide", tab === x.id ? "bg-glow/12 text-text" : "text-dim hover:bg-deck-2 hover:text-text")}
-          >
-            {tab === x.id && <span className="absolute inset-y-2 left-0 w-1 rounded-full bg-glow shadow-[0_0_12px_var(--color-glow)]" />}
-            <x.icon className={cx("size-5", tab === x.id && "text-glow")} />
-            {x.label}
-          </button>
-        ))}
-      </nav>
-      <section key={tab} className="animate-enter relative min-w-0 flex-1 overflow-y-auto p-10">
-        {tab === "home" && (
-          <div className="mx-auto grid min-h-full max-w-6xl items-center gap-12 lg:grid-cols-[auto_1fr]">
-            <div className="relative grid place-items-center">
-              {remaining !== null && <TimeRing remainingMs={remaining} totalMs={total} />}
-              <div className="absolute text-center">
-                <p className="text-sm uppercase tracking-[0.3em] text-dim">{remaining === null ? t.openSession : t.timeLeft}</p>
-                <p className="tabular mt-2 font-mono text-5xl font-semibold">{remaining === null ? hms(serverNow - new Date(s.startedAt).getTime()) : hms(remaining)}</p>
-              </div>
-            </div>
-            <div>
-              <p className="text-xl text-dim">{t.welcome},</p>
-              <h1 className="mt-1 font-display text-6xl font-semibold tracking-tight">{s.customerName}</h1>
-              <p className="mt-10 mb-4 text-sm uppercase tracking-[0.25em] text-dim">Featured</p>
-              <FeaturedRow notify={notify} />
-              <button onClick={() => setTab("games")} className="mt-6 flex items-center gap-2 text-glow hover:underline">
-                <Gamepad2 className="size-5" /> All games
-              </button>
-            </div>
-          </div>
-        )}
-        {tab === "games" && <GamesScreen notify={notify} />}
-        {tab === "platforms" && <AppsScreen kinds={["PLATFORM_LAUNCHER"]} title="Game platforms" hint="Sign in with your own account. You're signed out automatically when your session ends." notify={notify} />}
-        {tab === "apps" && <AppsScreen kinds={null} title="Apps" hint="Chat, music and tools." notify={notify} />}
-        {tab === "internet" && <AppsScreen kinds={["BROWSER"]} title="Internet" hint="Private browsing: nothing is kept after you log out." notify={notify} />}
-        {tab === "connectivity" && <ConnectivityScreen notify={notify} />}
-        {tab === "peripherals" && <PeripheralsScreen notify={notify} />}
-        {tab === "food" && <FoodScreen notify={notify} station={state.station.name} />}
-        {tab === "support" && <SupportScreen station={state.station.name} notify={notify} />}
-      </section>
-      </div>
-
-      {note && (
-        <div role="status" key={note.text} className={cx("glass animate-pop fixed bottom-8 left-1/2 z-20 -translate-x-1/2 rounded-2xl border px-6 py-3 shadow-2xl", note.tone === "good" ? "border-good/40 bg-deck text-good" : note.tone === "warn" ? "border-warn/50 bg-deck text-warn" : "border-alarm bg-deck text-alarm")}>
-          {note.text}
-        </div>
-      )}
-
-      <PrintApproval notify={notify} />
+    <>
       {toast && !timesUp && (
-        <div role="status" className={cx("fixed left-1/2 top-24 z-20 -translate-x-1/2 rounded-2xl border px-8 py-4 font-display text-xl shadow-2xl", lastMinute ? "border-alarm bg-alarm/20 text-alarm" : "border-warn/50 bg-deck text-warn")}>
+        <div role="status" className={cx("fixed left-1/2 top-8 z-50 -translate-x-1/2 rounded-2xl border px-8 py-4 font-display text-xl shadow-2xl", lastMinute ? "border-alarm bg-alarm/20 text-alarm" : "border-warn/50 bg-deck text-warn")}>
           {toast}
         </div>
       )}
       {timesUp && (
-        <div className="fixed inset-0 z-30 grid place-items-center bg-void/90 backdrop-blur">
+        <div className="fixed inset-0 z-50 grid place-items-center bg-void/90 backdrop-blur">
           <div className="text-center">
             <p className="font-display text-5xl font-semibold">{t.timesUp}</p>
             <p className="mt-4 flex items-center justify-center gap-2 text-dim">
@@ -369,6 +283,63 @@ function SessionScreen({ state, t }: { state: ShellState; t: Strings }) {
           </div>
         </div>
       )}
+    </>
+  );
+}
+
+/** Preview only: stands in for the real game/app window that would be in front in bar mode. */
+function PreviewFrontWindow() {
+  const { windows } = useHost();
+  const w = windows.find((x) => x.active);
+  return (
+    <div className="grid min-h-0 flex-1 place-items-center bg-[repeating-linear-gradient(45deg,#0d0c17,#0d0c17_12px,#100f1c_12px,#100f1c_24px)] text-center text-dim">
+      <div>
+        <AppWindow className="mx-auto size-12 opacity-60" />
+        <p className="mt-3 font-display text-2xl text-text">{w?.title ?? "A game or app"}</p>
+        <p className="mt-1 text-sm">is in front (preview). On the PC the Shell shrinks to just this taskbar.</p>
+      </div>
+    </div>
+  );
+}
+
+function SessionScreen({ state, t }: { state: ShellState; t: Strings }) {
+  const [note, setNote] = useState<{ text: string; tone: "good" | "warn" | "alarm" } | null>(null);
+  const noteTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const notify: Notify = useCallback((text, tone = "good") => {
+    clearTimeout(noteTimer.current);
+    setNote({ text, tone });
+    noteTimer.current = setTimeout(() => setNote(null), 5000);
+  }, []);
+  // Kitchen progress on food orders shows up wherever the customer is.
+  useEffect(() => bridge.subscribe((m) => {
+    if (m.type === "order_status") notify(`Order ${m.number}: ${m.message}`, "good");
+  }), [notify]);
+
+  const areaRef = useRef<HTMLDivElement>(null);
+  const wm = useWindowManager(() => areaRef.current?.getBoundingClientRect());
+  const [startOpen, setStartOpen] = useState(false);
+  const { mode } = useHost();
+  const bar = mode === "bar";
+  const openGames = wm.open;
+  const home = useMemo(
+    () => <HomeWidget state={state} t={t} notify={notify} openGames={() => openGames("games")} />,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [state, t, notify],
+  );
+
+  return (
+    <main className="relative flex h-full flex-col">
+      {!bar ? <Desktop wm={wm} areaRef={areaRef} home={home} notify={notify} station={state.station.name} /> : bridge.mock ? <PreviewFrontWindow /> : null}
+      <Taskbar state={state} t={t} wm={wm} startOpen={startOpen && !bar} onStart={() => setStartOpen((o) => !o)} className={bar && !bridge.mock ? "h-full" : "h-[max(44px,5vh)]"} />
+      {startOpen && !bar && <StartMenu state={state} t={t} onOpen={wm.open} onClose={() => setStartOpen(false)} />}
+
+      {note && (
+        <div role="status" key={note.text} className={cx("glass animate-pop fixed bottom-[calc(max(44px,5vh)+1rem)] left-1/2 z-50 -translate-x-1/2 rounded-2xl border px-6 py-3 shadow-2xl", note.tone === "good" ? "border-good/40 bg-deck text-good" : note.tone === "warn" ? "border-warn/50 bg-deck text-warn" : "border-alarm bg-deck text-alarm")}>
+          {note.text}
+        </div>
+      )}
+      <PrintApproval notify={notify} />
+      <SessionAlerts state={state} t={t} />
     </main>
   );
 }

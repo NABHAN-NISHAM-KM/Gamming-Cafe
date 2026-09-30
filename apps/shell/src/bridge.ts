@@ -78,6 +78,19 @@ export interface OrderLine {
   modifierIds: string[];
 }
 
+/** A game/app window open on this PC (from the Windows host; id = its window handle). */
+export interface OpenWindow {
+  id: string;
+  title: string;
+  icon: string | null; // data: URL
+  minimized: boolean;
+  maximized: boolean;
+  active: boolean;
+}
+export type WindowAction = "focus" | "minimize" | "maximize" | "restore" | "close";
+/** desktop: the Shell fills the screen. bar: a game/app is in front and only the taskbar shows. */
+export type ShellMode = "desktop" | "bar";
+
 export type HostMessage =
   | ({ type: "state" } & ShellState)
   | { type: "login_result"; requestId: string; ok: boolean; error?: string; message?: string }
@@ -92,6 +105,8 @@ export type HostMessage =
   | { type: "order_result"; requestId: string; ok: boolean; orderId?: string; number?: string; total?: string; currency?: string; error?: string; message?: string }
   | { type: "order_status"; orderId: string; number: string; status: "PREPARING" | "READY" | "SERVED"; message: string }
   | { type: "print_quote"; quote: PrintQuote }
+  | { type: "windows"; items: OpenWindow[] }
+  | { type: "shell_mode"; mode: ShellMode }
   | { type: "print_status"; jobKey: string; status: "WAITING_STAFF" | "PRINTING" | "COMPLETED" | "CANCELLED" | "FAILED"; message: string };
 
 /** A paused print job the customer is asked to approve (priced by the venue). */
@@ -128,7 +143,9 @@ export type ShellMessage =
   | { type: "place_order"; requestId: string; lines: OrderLine[]; notes?: string; payWith: "BILL" | "WALLET" }
   | { type: "print_confirm"; jobKey: string; payWith: "BILL" | "WALLET" }
   | { type: "print_cancel"; jobKey: string }
-  | { type: "staff_exit"; requestId: string; username: string; password: string };
+  | { type: "staff_exit"; requestId: string; username: string; password: string }
+  | { type: "window_action"; id: string; action: WindowAction }
+  | { type: "desktop_show" };
 
 type Listener = (m: HostMessage) => void;
 
@@ -327,6 +344,14 @@ function mockBridge(): Bridge {
     emit({ type: "print_quote", quote: { jobKey: `${Math.floor(Math.random() * 1e5)}:${Date.now()}`, jobId: crypto.randomUUID(), document: "Boarding pass.pdf", pages, copies: 1, color, unitPrice: color ? "2.00" : "0.50", total: (pages * (color ? 2 : 0.5)).toFixed(2), currency: "AED", canPayWithWallet: age >= 18, needsStaff: false, expiresAt: new Date(Date.now() + 180_000).toISOString() } });
   };
   (window as unknown as { arenaMockPrint: typeof mockPrint }).arenaMockPrint = mockPrint;
+  // Preview "windows": launching a game/app opens a pretend window the taskbar can switch, minimize and close.
+  let mockWindows: OpenWindow[] = [];
+  const pushWindows = () => emit({ type: "windows", items: mockWindows });
+  const focusMock = (id: string | null) => {
+    mockWindows = mockWindows.map((w) => ({ ...w, active: w.id === id, minimized: w.id === id ? false : w.minimized }));
+    pushWindows();
+    emit({ type: "shell_mode", mode: id ? "bar" : "desktop" });
+  };
   if (params.get("print")) setTimeout(() => mockPrint(params.get("print") === "color"), 2500);
   return {
     mock: true,
@@ -376,9 +401,13 @@ function mockBridge(): Bridge {
         case "launch":
         case "launch_app": {
           const game = m.type === "launch" ? MOCK_GAMES.find((x) => x.id === m.gameId) : undefined;
+          const app = m.type === "launch_app" ? mockLibrary(age).apps.find((x) => x.id === m.appId) : undefined;
           setTimeout(() => {
             emit({ type: "launch_result", requestId: m.requestId, ok: true });
             if (game) setTimeout(() => emit({ type: "playing", gameId: game.id, title: game.title }), 1500);
+            const id = String(Date.now());
+            mockWindows = [...mockWindows, { id, title: game?.title ?? app?.name ?? "App", icon: null, minimized: false, maximized: true, active: false }];
+            setTimeout(() => focusMock(id), 900);
           }, 400);
           break;
         }
@@ -388,6 +417,24 @@ function mockBridge(): Bridge {
           break;
         case "repair":
           setTimeout(() => emit({ type: "repair_result", requestId: m.requestId, ok: true, message: "Done." }), 900);
+          break;
+        case "window_action": {
+          const w = mockWindows.find((x) => x.id === m.id);
+          if (!w) break;
+          if (m.action === "close") {
+            mockWindows = mockWindows.filter((x) => x.id !== m.id);
+            focusMock(null);
+          } else if (m.action === "minimize") {
+            mockWindows = mockWindows.map((x) => (x.id === m.id ? { ...x, minimized: true, active: false } : x));
+            focusMock(null);
+          } else {
+            if (m.action !== "focus") mockWindows = mockWindows.map((x) => (x.id === m.id ? { ...x, maximized: m.action === "maximize" } : x));
+            focusMock(m.id);
+          }
+          break;
+        }
+        case "desktop_show":
+          focusMock(null);
           break;
         case "staff_exit":
           setTimeout(() => emit({ type: "staff_exit_result", requestId: m.requestId, ok: false, error: "preview", message: "Only on a gaming PC. (Preview: nothing to exit to.)" }), 400);

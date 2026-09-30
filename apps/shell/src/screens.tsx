@@ -90,7 +90,7 @@ export function GamesScreen({ notify }: { notify: Notify }) {
       {shown.length === 0 ? (
         <p className="py-24 text-center text-lg text-dim">{games.length === 0 ? "Loading the game library…" : "No games match."}</p>
       ) : (
-        <div className="animate-enter grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-5">
+        <div className="animate-enter grid grid-cols-[repeat(auto-fill,minmax(11.25rem,1fr))] gap-5">
           {shown.map((g) => (
             <GameTile key={g.id} game={g} playing={playing?.gameId === g.id} busy={busy === g.id} onPlay={() => launch("game", g.id, g.title)} />
           ))}
@@ -129,7 +129,7 @@ export function AppsScreen({ kinds, title, hint, notify }: { kinds: string[] | n
       {shown.length === 0 ? (
         <p className="py-24 text-center text-dim">Nothing here yet.</p>
       ) : (
-        <div className="mt-8 grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
+        <div className="mt-8 grid grid-cols-[repeat(auto-fill,minmax(13.75rem,1fr))] gap-4">
           {shown.map((a) => {
             const Icon = APP_ICON[a.kind] ?? AppWindow;
             const [c1] = tileColors(a.name);
@@ -210,7 +210,7 @@ export function PeripheralsScreen({ notify }: { notify: Notify }) {
   const apply = (s: { mouseSpeed?: number; enhancePointerPrecision?: boolean }) => bridge.send({ type: "pointer_apply", ...s });
 
   return (
-    <div className="mx-auto grid max-w-6xl gap-8 lg:grid-cols-2">
+    <div className="mx-auto grid max-w-6xl gap-8 @3xl:grid-cols-2">
       <section>
         <h2 className="font-display text-3xl font-semibold">Your gear</h2>
         <p className="mt-2 text-dim">What this PC can see right now.</p>
@@ -293,7 +293,7 @@ export function SupportScreen({ station, notify }: { station: string; notify: No
     notify(r.message ?? (r.ok ? "Staff have been notified." : "Couldn't reach staff."), r.ok ? "good" : "warn");
   };
   return (
-    <div className="mx-auto grid max-w-6xl gap-8 lg:grid-cols-[1.3fr_1fr]">
+    <div className="mx-auto grid max-w-6xl gap-8 @3xl:grid-cols-[1.3fr_1fr]">
       <section>
         <h2 className="font-display text-3xl font-semibold">Call staff</h2>
         <p className="mt-2 text-dim">Pick what's wrong — someone will come to <strong className="text-text">{station}</strong>.</p>

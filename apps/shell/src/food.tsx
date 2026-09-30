@@ -115,7 +115,7 @@ export function FoodScreen({ notify, station }: { notify: Notify; station: strin
   if (menu === null) return <div className="grid h-full place-items-center text-center text-dim"><div><ChefHat className="mx-auto size-12 opacity-60" /><p className="mt-4 text-lg">The menu isn't available right now.</p><p>Please order at the counter.</p></div></div>;
 
   return (
-    <div className="mx-auto grid h-full max-w-7xl gap-8 lg:grid-cols-[1fr_23.75rem]">
+    <div className="mx-auto grid h-full max-w-7xl gap-8 @3xl:grid-cols-[1fr_23.75rem]">
       <section className="min-w-0">
         {orders.length > 0 && (
           <div className="mb-6 grid gap-3">
@@ -145,7 +145,7 @@ export function FoodScreen({ notify, station }: { notify: Notify; station: strin
             <button key={c.id} onClick={() => setCat(c.id)} className={cx("rounded-full border px-5 py-2", cat === c.id ? "border-glow bg-glow text-void" : "border-rim text-dim hover:text-text")}>{c.name}</button>
           ))}
         </div>
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(210px,1fr))] gap-4">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(13rem,1fr))] gap-4">
           {current?.products.map((p) => (
             <button
               key={p.id}
@@ -164,7 +164,7 @@ export function FoodScreen({ notify, station }: { notify: Notify; station: strin
         </div>
       </section>
 
-      <aside className="glass flex flex-col rounded-3xl p-6 lg:sticky lg:top-0 lg:max-h-[calc(100vh-10rem)]">
+      <aside className="glass flex flex-col rounded-3xl p-6 @3xl:sticky @3xl:top-0 @3xl:max-h-full">
         <p className="flex items-center gap-2 font-display text-xl font-semibold"><ShoppingBag className="size-5 text-glow" /> Your order</p>
         <p className="mt-1 text-sm text-dim">Brought to {station}</p>
         <div className="mt-4 flex-1 space-y-3 overflow-y-auto">
