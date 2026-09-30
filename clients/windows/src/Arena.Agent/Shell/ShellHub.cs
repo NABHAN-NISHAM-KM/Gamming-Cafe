@@ -152,7 +152,7 @@ public sealed class ShellHub(SessionManager sessions, ILogger<ShellHub> log) : B
                 case ShellRequest.StaffExit exit:
                     if (StaffExitRequested is { } onExit) await onExit(exit);
                     break;
-                case ShellRequest.Launch or ShellRequest.LaunchApp or ShellRequest.Help or ShellRequest.Repair or ShellRequest.MenuRequest or ShellRequest.PlaceOrder:
+                case ShellRequest.Launch or ShellRequest.LaunchApp or ShellRequest.Help or ShellRequest.Repair or ShellRequest.MenuRequest or ShellRequest.PlaceOrder or ShellRequest.TimeOffers or ShellRequest.BuyTime:
                     if (RequestReceived is { } onRequest) await onRequest(request!);
                     break;
                 default:

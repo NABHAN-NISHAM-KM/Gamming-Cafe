@@ -292,6 +292,15 @@ public sealed class StationService(
                 if (!await server.TrySendAsync(Outgoing.MenuRequest(m.RequestId)))
                     shell.Broadcast(JsonSerializer.Serialize(new { type = "menu", requestId = m.RequestId, menu = (object?)null, error = "offline" }, Json.Options));
                 return;
+            case ShellRequest.TimeOffers to:
+                if (!await server.TrySendAsync(Outgoing.TimeOffers(to.RequestId)))
+                    shell.Broadcast(ShellProtocol.Result("time_offers", to.RequestId, false, "offline", "The venue is offline. Please ask at the counter."));
+                return;
+            case ShellRequest.BuyTime bt:
+                if (sessions.Current is null) { shell.Broadcast(ShellProtocol.Result("buy_time_result", bt.RequestId, false, "no_session", "Sign in first.")); return; }
+                if (!await server.TrySendAsync(Outgoing.BuyTime(bt.RequestId, bt.PackageId, bt.SavedMinutes)))
+                    shell.Broadcast(ShellProtocol.Result("buy_time_result", bt.RequestId, false, "offline", "The venue is offline. Please ask at the counter."));
+                return;
             case ShellRequest.PlaceOrder o:
                 if (sessions.Current is null) { shell.Broadcast(ShellProtocol.Result("order_result", o.RequestId, false, "no_session", "Sign in to order.")); return; }
                 if (!await server.TrySendAsync(Outgoing.PlaceOrder(o.RequestId, o.Lines, o.Notes, o.PayWith)))

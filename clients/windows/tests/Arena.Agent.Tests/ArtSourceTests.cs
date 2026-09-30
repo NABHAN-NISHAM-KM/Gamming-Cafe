@@ -26,3 +26,20 @@ public class ArtSourceTests
         Assert.Contains("chrome.exe", json);
     }
 }
+
+public class BuyTimeProtocolTests
+{
+    [Theory]
+    [InlineData("""{"type":"buy_time","requestId":"abcd1234","packageId":"0190a3b2-1c2d-7e8f-9a0b-1c2d3e4f5a6b"}""", true)]
+    [InlineData("""{"type":"buy_time","requestId":"abcd1234","savedMinutes":60}""", true)]
+    [InlineData("""{"type":"buy_time","requestId":"abcd1234"}""", false)]
+    [InlineData("""{"type":"buy_time","requestId":"abcd1234","savedMinutes":45}""", false)]
+    [InlineData("""{"type":"buy_time","requestId":"abcd1234","savedMinutes":60,"packageId":"0190a3b2-1c2d-7e8f-9a0b-1c2d3e4f5a6b"}""", false)]
+    [InlineData("""{"type":"buy_time","requestId":"abcd1234","packageId":"not-a-uuid"}""", false)]
+    public void Buy_time_needs_exactly_one_way_to_pay(string line, bool valid)
+    {
+        var r = ShellProtocol.Parse(line);
+        if (valid) Assert.IsType<ShellRequest.BuyTime>(r);
+        else Assert.Null(r);
+    }
+}

@@ -99,11 +99,18 @@ internal sealed class DesktopHost(Window window, Action<string> post, Action<boo
         if (_active && _mode == "bar") EnterDesktop();
     }
 
-    /// <summary>window_action / desktop_show from the page. True when handled here.</summary>
+    /// <summary>window_action / desktop_show / show_desktop from the page. True when handled here.</summary>
     public bool FromPage(string type, JsonElement msg)
     {
-        if (!_active) return type is "window_action" or "desktop_show";
+        if (!_active) return type is "window_action" or "desktop_show" or "show_desktop";
         if (type == "desktop_show") { EnterDesktop(); return true; }
+        if (type == "show_desktop")
+        {
+            foreach (var w in _listed) ShowWindow(w, SW_MINIMIZE); // Windows' "show desktop": everything down
+            EnterDesktop();
+            window.Dispatcher.BeginInvoke(Refresh, DispatcherPriority.Background);
+            return true;
+        }
         if (type != "window_action") return false;
         if (!msg.TryGetProperty("id", out var idEl) || !long.TryParse(idEl.GetString(), out var raw)) return true;
         var h = new IntPtr(raw);
@@ -115,6 +122,8 @@ internal sealed class DesktopHost(Window window, Action<string> post, Action<boo
             case "maximize": ShowWindow(h, SW_MAXIMIZE); Focus(h); break;
             case "restore": ShowWindow(h, SW_RESTORE); Focus(h); break;
             case "close": PostMessage(h, WM_CLOSE, IntPtr.Zero, IntPtr.Zero); break;
+            case "snap_left": Snap(h, left: true); break;
+            case "snap_right": Snap(h, left: false); break;
         }
         window.Dispatcher.BeginInvoke(Refresh, DispatcherPriority.Background);
         return true;
@@ -256,6 +265,17 @@ internal sealed class DesktopHost(Window window, Action<string> post, Action<boo
         }
     }
 
+    /// <summary>Left or right half of the work area (above the taskbar), like Windows' snap.</summary>
+    private static void Snap(IntPtr h, bool left)
+    {
+        var area = new RECT();
+        SystemParametersInfo(SPI_GETWORKAREA, 0, ref area, 0);
+        var half = (area.Right - area.Left) / 2;
+        ShowWindow(h, SW_RESTORE);
+        SetWindowPos(h, IntPtr.Zero, left ? area.Left : area.Left + half, area.Top, half, area.Bottom - area.Top, SWP_NOZORDER);
+        Focus(h);
+    }
+
     private static void Focus(IntPtr h)
     {
         if (IsIconic(h)) ShowWindow(h, SW_RESTORE);
@@ -337,7 +357,7 @@ internal sealed class DesktopHost(Window window, Action<string> post, Action<boo
     private const int ICON_BIG = 1, ICON_SMALL2 = 2, GCLP_HICON = -14, GCLP_HICONSM = -34;
     private const uint EVENT_SYSTEM_FOREGROUND = 3, WINEVENT_OUTOFCONTEXT = 0;
     private const int WH_KEYBOARD_LL = 13, WM_KEYUP = 0x101, WM_SYSKEYUP = 0x105, VK_LWIN = 0x5B, VK_RWIN = 0x5C;
-    private const uint SPI_SETWORKAREA = 0x2F, SPIF_SENDCHANGE = 2;
+    private const uint SPI_SETWORKAREA = 0x2F, SPI_GETWORKAREA = 0x30, SPIF_SENDCHANGE = 2;
     private const int SM_CXSCREEN = 0, SM_CYSCREEN = 1;
     private static readonly IntPtr HWND_BOTTOM = new(1);
     private const uint SWP_NOSIZE = 0x1, SWP_NOMOVE = 0x2, SWP_NOZORDER = 0x4, SWP_NOACTIVATE = 0x10;

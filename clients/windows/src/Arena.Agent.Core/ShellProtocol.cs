@@ -8,7 +8,7 @@ namespace Arena.Agent.Core;
 // only ask for ready / login / logout — it never tells the agent what the
 // session is. Session state flows one way, from verified server commands.
 
-public sealed record VenueInfo(string Name, string BranchName, string? LogoUrl)
+public sealed record VenueInfo(string Name, string BranchName, string? LogoUrl, string? WallpaperUrl = null)
 {
     public static readonly VenueInfo Unknown = new("ArenaOS", "", null);
 }
@@ -26,6 +26,10 @@ public abstract record ShellRequest
     public sealed record PlaceOrder(string RequestId, OrderLine[] Lines, string? Notes, string PayWith) : ShellRequest;
     public sealed record PrintConfirm(string JobKey, string PayWith) : ShellRequest;
     public sealed record PrintCancel(string JobKey) : ShellRequest;
+    /// <summary>"Add time": what the customer can buy for their running session.</summary>
+    public sealed record TimeOffers(string RequestId) : ShellRequest;
+    /// <summary>"Add time": a package paid from the wallet, or saved (prepaid) minutes. The server checks and charges.</summary>
+    public sealed record BuyTime(string RequestId, string? PackageId, int? SavedMinutes) : ShellRequest;
     /// <summary>Shift+F12 on the Shell: staff leave for the Windows desktop. The agent checks the
     /// Windows account (must be an administrator on this PC).</summary>
     public sealed record StaffExit(string RequestId, string Username, string Password) : ShellRequest;
@@ -126,6 +130,22 @@ public static partial class ShellProtocol
                     if (key is null || !JobKeyPattern().IsMatch(key) || payWith is not ("BILL" or "WALLET")) return null;
                     return new ShellRequest.PrintConfirm(key, payWith);
                 }
+                case "time_offers":
+                {
+                    var rid = Str(root, "requestId");
+                    return rid is not null && RequestIdPattern().IsMatch(rid) ? new ShellRequest.TimeOffers(rid) : null;
+                }
+                case "buy_time":
+                {
+                    var rid = Str(root, "requestId");
+                    var pkg = Str(root, "packageId");
+                    int? saved = root.TryGetProperty("savedMinutes", out var sm) && sm.TryGetInt32(out var n) ? n : null;
+                    if (rid is null || !RequestIdPattern().IsMatch(rid)) return null;
+                    if ((pkg is null) == (saved is null)) return null; // exactly one way to pay
+                    if (pkg is not null && !UuidPattern().IsMatch(pkg)) return null;
+                    if (saved is not (null or 30 or 60 or 120)) return null;
+                    return new ShellRequest.BuyTime(rid, pkg, saved);
+                }
                 case "print_cancel":
                 {
                     var key = Str(root, "jobKey");
@@ -164,7 +184,7 @@ public static partial class ShellProtocol
             type = "state",
             connected,
             station = new { name = stationName },
-            venue = new { name = venue.Name, branchName = venue.BranchName, logoUrl = venue.LogoUrl },
+            venue = new { name = venue.Name, branchName = venue.BranchName, logoUrl = venue.LogoUrl, wallpaperUrl = venue.WallpaperUrl },
             session = session is null ? null : new
             {
                 id = session.SessionId,
@@ -230,6 +250,7 @@ public static partial class ShellProtocol
 
     /// <summary>Tells the host to reload the Shell page (RESTART_SHELL repair).</summary>
     public const string Reload = """{"type":"reload"}""";
+
 
     // session:null and logoUrl:null must be sent explicitly — the Shell treats a missing session as unknown.
     private static readonly JsonSerializerOptions StateOptions = new(JsonSerializerDefaults.Web);

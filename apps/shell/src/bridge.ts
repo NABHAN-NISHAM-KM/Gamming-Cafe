@@ -6,6 +6,8 @@ export interface Venue {
   name: string;
   branchName: string;
   logoUrl: string | null;
+  /** The venue's own desktop background (admin: Settings → Gaming Shell look). */
+  wallpaperUrl?: string | null;
 }
 
 export interface ShellSession {
@@ -94,9 +96,22 @@ export interface OpenWindow {
   maximized: boolean;
   active: boolean;
 }
-export type WindowAction = "focus" | "minimize" | "maximize" | "restore" | "close";
+export type WindowAction = "focus" | "minimize" | "maximize" | "restore" | "close" | "snap_left" | "snap_right";
 /** desktop: the Shell is in front. bar: a game/app is in front and the Shell is the desktop behind it. */
 export type ShellMode = "desktop" | "bar";
+
+/** "Add time": what the signed-in customer can buy for their running session. */
+export interface TimeOffers {
+  requestId: string;
+  ok: boolean;
+  error?: string;
+  message?: string;
+  currency: string;
+  wallet: string | null; // null = wallet on hold
+  savedMinutes: number;
+  savedSteps: Array<30 | 60 | 120>;
+  packages: Array<{ id: string; name: string; minutes: number; bonusMinutes: number; price: string }>;
+}
 
 export type HostMessage =
   | ({ type: "state" } & ShellState)
@@ -114,6 +129,9 @@ export type HostMessage =
   | { type: "print_quote"; quote: PrintQuote }
   | { type: "windows"; items: OpenWindow[] }
   | { type: "art"; items: Art[] }
+  | { type: "volume"; level: number; muted: boolean }
+  | ({ type: "time_offers" } & TimeOffers)
+  | ({ type: "buy_time_result" } & RequestResult)
   | { type: "shell_mode"; mode: ShellMode }
   | { type: "print_status"; jobKey: string; status: "WAITING_STAFF" | "PRINTING" | "COMPLETED" | "CANCELLED" | "FAILED"; message: string };
 
@@ -153,7 +171,12 @@ export type ShellMessage =
   | { type: "print_cancel"; jobKey: string }
   | { type: "staff_exit"; requestId: string; username: string; password: string }
   | { type: "window_action"; id: string; action: WindowAction }
-  | { type: "desktop_show" };
+  | { type: "desktop_show" }
+  | { type: "show_desktop" }
+  | { type: "volume_get" }
+  | { type: "volume_set"; level?: number; muted?: boolean }
+  | { type: "time_offers"; requestId: string }
+  | { type: "buy_time"; requestId: string; packageId?: string; savedMinutes?: 30 | 60 | 120 };
 
 type Listener = (m: HostMessage) => void;
 
@@ -354,6 +377,7 @@ function mockBridge(): Bridge {
   (window as unknown as { arenaMockPrint: typeof mockPrint }).arenaMockPrint = mockPrint;
   // Preview "windows": launching a game/app opens a pretend window the taskbar can switch, minimize and close.
   let mockWindows: OpenWindow[] = [];
+  let mockVolume = { level: 60, muted: false };
   const pushWindows = () => emit({ type: "windows", items: mockWindows });
   const focusMock = (id: string | null) => {
     mockWindows = mockWindows.map((w) => ({ ...w, active: w.id === id, minimized: w.id === id ? false : w.minimized }));
@@ -444,6 +468,35 @@ function mockBridge(): Bridge {
         case "desktop_show":
           focusMock(null);
           break;
+        case "show_desktop":
+          mockWindows = mockWindows.map((x) => ({ ...x, minimized: true, active: false }));
+          focusMock(null);
+          break;
+        case "time_offers":
+          setTimeout(() => emit({
+            type: "time_offers", requestId: m.requestId, ok: true, currency: "AED", wallet: "85.00", savedMinutes: 75, savedSteps: [30, 60],
+            packages: [
+              { id: "00000000-0000-4000-8000-0000000000a1", name: "1 hour", minutes: 60, bonusMinutes: 0, price: "15.00" },
+              { id: "00000000-0000-4000-8000-0000000000a2", name: "3 hours", minutes: 195, bonusMinutes: 15, price: "40.00" },
+            ],
+          }), 300);
+          break;
+        case "buy_time": {
+          const add = (m.savedMinutes ?? (m.packageId?.endsWith("a2") ? 195 : 60)) * 60_000;
+          setTimeout(() => {
+            if (state.session?.expiresAt) state = { ...state, session: { ...state.session, expiresAt: new Date(new Date(state.session.expiresAt).getTime() + add).toISOString() } };
+            push();
+            emit({ type: "buy_time_result", requestId: m.requestId, ok: true });
+          }, 500);
+          break;
+        }
+        case "volume_get":
+          emit({ type: "volume", ...mockVolume });
+          break;
+        case "volume_set":
+          mockVolume = { level: m.level ?? mockVolume.level, muted: m.muted ?? mockVolume.muted };
+          emit({ type: "volume", ...mockVolume });
+          break;
         case "staff_exit":
           setTimeout(() => emit({ type: "staff_exit_result", requestId: m.requestId, ok: false, error: "preview", message: "Only on a gaming PC. (Preview: nothing to exit to.)" }), 400);
           break;
@@ -493,7 +546,7 @@ function mockBridge(): Bridge {
 export const bridge: Bridge = window.chrome?.webview ? webviewBridge() : mockBridge();
 
 /** Sends a request and resolves with the matching *_result (or a timeout failure). */
-export function request(m: Extract<ShellMessage, { requestId: string }>, resultType: "launch_result" | "help_result" | "repair_result" | "login_result" | "order_result", timeoutMs = 15_000): Promise<RequestResult & Record<string, any>> {
+export function request(m: Extract<ShellMessage, { requestId: string }>, resultType: "launch_result" | "help_result" | "repair_result" | "login_result" | "order_result" | "time_offers" | "buy_time_result", timeoutMs = 15_000): Promise<RequestResult & Record<string, any>> {
   return new Promise((resolve) => {
     const t = setTimeout(() => {
       off();

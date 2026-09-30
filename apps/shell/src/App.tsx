@@ -6,6 +6,8 @@ import { FeaturedRow, type Notify } from "./screens";
 import { useStation } from "./station";
 import { PrintApproval } from "./print";
 import { Desktop, StartMenu, Taskbar, useHost, useWindowManager } from "./desktop";
+import { addNotice, clearNotices } from "./tray";
+import { AddTime } from "./add-time";
 import { StaffExit } from "./staff-exit";
 
 const cx = (...c: Array<string | false | null | undefined>) => c.filter(Boolean).join(" ");
@@ -25,7 +27,15 @@ function hms(ms: number) {
   return `${pad(Math.floor(s / 3600))}:${pad(Math.floor((s % 3600) / 60))}:${pad(s % 60)}`;
 }
 
-function Backdrop() {
+function Backdrop({ wallpaper }: { wallpaper?: string | null }) {
+  if (wallpaper)
+    return (
+      <div aria-hidden className="pointer-events-none fixed inset-0">
+        <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url("${wallpaper}")` }} />
+        {/* Darkened so the Shell's text and icons stay readable on any picture. */}
+        <div className="absolute inset-0 bg-gradient-to-t from-void/85 via-void/45 to-void/60" />
+      </div>
+    );
   return (
     <div aria-hidden className="pointer-events-none fixed inset-0 overflow-hidden">
       <div className="aurora absolute -left-[20%] -top-[30%] h-[80vh] w-[80vw] rounded-full opacity-30 blur-[120px]" style={{ background: "radial-gradient(circle, var(--color-glow-2), transparent 60%)" }} />
@@ -206,7 +216,7 @@ function TimeRing({ remainingMs, totalMs }: { remainingMs: number; totalMs: numb
 }
 
 /** The desktop's home widget: time left, welcome, featured games. Ticks on its own. */
-function HomeWidget({ state, t, notify, openGames }: { state: ShellState; t: Strings; notify: Notify; openGames: () => void }) {
+function HomeWidget({ state, t, notify, openGames, addTime }: { state: ShellState; t: Strings; notify: Notify; openGames: () => void; addTime: () => void }) {
   const s = state.session!;
   const serverNow = useNow(1000) + state.serverOffsetMs;
   const remaining = s.expiresAt ? new Date(s.expiresAt).getTime() - serverNow : null;
@@ -219,6 +229,9 @@ function HomeWidget({ state, t, notify, openGames }: { state: ShellState; t: Str
         <div className={cx("text-center", remaining !== null && "absolute")}>
           <p className="text-sm uppercase tracking-[0.3em] text-dim">{remaining === null ? t.openSession : t.timeLeft}</p>
           <p className="tabular mt-2 font-mono text-4xl font-semibold tracking-tight">{remaining === null ? hms(serverNow - new Date(s.startedAt).getTime()) : hms(remaining)}</p>
+          {remaining !== null && (
+            <button onClick={addTime} className="press mt-3 rounded-full border border-glow/50 bg-glow/10 px-4 py-1 text-sm text-glow hover:bg-glow/20">+ Add time</button>
+          )}
         </div>
       </div>
       <div className="min-w-0">
@@ -254,6 +267,7 @@ function SessionAlerts({ state, t }: { state: ShellState; t: Strings }) {
       if (remaining <= m * 60_000 && remaining > (m - 1) * 60_000 && !shown.current.has(m)) {
         shown.current.add(m);
         setToast(t.minutesLeft(m));
+        addNotice(t.timeLeft, t.minutesLeft(m), m <= 5 ? "alarm" : "warn");
         setTimeout(() => setToast(null), m === 1 ? 60_000 : 9_000);
       }
     }
@@ -315,14 +329,19 @@ function SessionScreen({ state, t }: { state: ShellState; t: Strings }) {
     if (m.type === "order_status") notify(`Order ${m.number}: ${m.message}`, "good");
   }), [notify]);
 
+  // A new customer starts with an empty notification list.
+  const sessionId = state.session!.id;
+  useEffect(() => clearNotices(), [sessionId]);
+
   const areaRef = useRef<HTMLDivElement>(null);
   const wm = useWindowManager(() => areaRef.current?.getBoundingClientRect());
   const [startOpen, setStartOpen] = useState(false);
+  const [addingTime, setAddingTime] = useState(false);
   const { mode } = useHost();
   const bar = mode === "bar";
   const openGames = wm.open;
   const home = useMemo(
-    () => <HomeWidget state={state} t={t} notify={notify} openGames={() => openGames("games")} />,
+    () => <HomeWidget state={state} t={t} notify={notify} openGames={() => openGames("games")} addTime={() => setAddingTime(true)} />,
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [state, t, notify],
   );
@@ -331,7 +350,8 @@ function SessionScreen({ state, t }: { state: ShellState; t: Strings }) {
     <main className="relative flex h-full flex-col">
       {/* On the PC the desktop stays drawn behind the game/app windows, like Windows'. The preview has no real windows, so it shows a stand-in. */}
       {bar && bridge.mock ? <PreviewFrontWindow /> : <Desktop wm={wm} areaRef={areaRef} home={home} notify={notify} station={state.station.name} />}
-      <Taskbar state={state} t={t} wm={wm} startOpen={startOpen && !bar} onStart={() => setStartOpen((o) => !o)} className="h-[max(44px,5vh)]" />
+      <Taskbar state={state} t={t} wm={wm} startOpen={startOpen && !bar} onStart={() => setStartOpen((o) => !o)} onAddTime={() => setAddingTime(true)} className="h-[max(44px,5vh)]" />
+      {addingTime && <AddTime onClose={() => setAddingTime(false)} onDone={(text) => notify(text, "good")} />}
       {startOpen && !bar && <StartMenu state={state} t={t} notify={notify} onOpen={wm.open} onClose={() => setStartOpen(false)} />}
 
       {note && (
@@ -382,7 +402,7 @@ export function App() {
 
   return (
     <div className="relative h-full">
-      <Backdrop />
+      <Backdrop wallpaper={state?.venue.wallpaperUrl} />
       {!state ? (
         <div className="grid h-full place-items-center text-dim">
           <Loader2 className="size-8 animate-spin" />

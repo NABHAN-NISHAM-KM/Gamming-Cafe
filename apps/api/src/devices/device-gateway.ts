@@ -11,6 +11,7 @@ import { DB } from "../common/db.module.js";
 import { CommandsService } from "./commands.service.js";
 import { DeviceRuntimeService } from "./device-runtime.service.js";
 import { DeviceHub, type Connection } from "./live.js";
+import { buyTimeMessage } from "../sessions/buy-time-message.js";
 
 export const DEVICE_WS_PATH = "/v1/device/ws";
 
@@ -99,11 +100,27 @@ const Incoming = z.discriminatedUnion("type", [
   }),
   z.object({ type: z.literal("print_confirm"), jobKey: z.string().regex(/^[\w:.-]{3,80}$/), payWith: z.enum(["BILL", "WALLET"]) }),
   z.object({ type: z.literal("print_cancel"), jobKey: z.string().regex(/^[\w:.-]{3,80}$/) }),
+  // "Add time" on the Shell: the signed-in customer extends their own session (wallet package or saved minutes).
+  z.object({ type: z.literal("time_offers"), requestId: z.string().min(8).max(64) }),
+  z.object({
+    type: z.literal("buy_time"),
+    requestId: z.string().min(8).max(64),
+    packageId: z.uuid().nullish(),
+    savedMinutes: z.union([z.literal(30), z.literal(60), z.literal(120)]).nullish(),
+  }).refine((m) => (m.packageId ? 1 : 0) + (m.savedMinutes ? 1 : 0) === 1, "packageId or savedMinutes"),
   z.object({ type: z.literal("print_done"), jobKey: z.string().regex(/^[\w:.-]{3,80}$/), ok: z.boolean(), detail: z.string().max(300).nullish() }),
 ]);
 
 type Incoming = z.infer<typeof Incoming>;
-export type StationMessage = Extract<Incoming, { type: "inventory" | "peripherals" | "network" | "boot" | "game_event" | "help_request" | "self_repair" | "menu_request" | "place_order" | "print_job" | "print_confirm" | "print_cancel" | "print_done" }>;
+
+type Venue = { name: string; branchName: string; logoUrl: string | null; wallpaperUrl: string | null };
+
+/** Brand.shellTheme.wallpaperUrl, only if it's an https image link (the Shell's CSP allows nothing else). */
+export function shellWallpaper(theme: unknown): string | null {
+  const url = theme && typeof theme === "object" ? (theme as Record<string, unknown>)["wallpaperUrl"] : null;
+  return typeof url === "string" && url.length <= 500 && /^https:\/\/[^\s"'()<>]+$/.test(url) ? url : null;
+}
+export type StationMessage = Extract<Incoming, { type: "inventory" | "peripherals" | "network" | "boot" | "game_event" | "help_request" | "self_repair" | "menu_request" | "place_order" | "time_offers" | "buy_time" | "print_job" | "print_confirm" | "print_cancel" | "print_done" }>;
 
 /**
  * WebSocket endpoint for Windows agents. Each connection authenticates with a
@@ -157,7 +174,7 @@ export class DeviceGateway implements OnModuleDestroy {
     this.wss.close();
   }
 
-  private async authenticate(req: IncomingMessage): Promise<{ deviceId: string; organizationId: string; branchId: string; name: string; venue: { name: string; branchName: string; logoUrl: string | null } }> {
+  private async authenticate(req: IncomingMessage): Promise<{ deviceId: string; organizationId: string; branchId: string; name: string; venue: Venue }> {
     const header = req.headers.authorization ?? "";
     const assertion = header.startsWith("Bearer ") ? header.slice(7) : null;
     if (!assertion) throw new Error("missing assertion");
@@ -173,7 +190,7 @@ export class DeviceGateway implements OnModuleDestroy {
     return this.db.withTenant({ organizationId, actorType: "DEVICE", actorId: deviceId }, async (tx) => {
       const device = await tx.device.findUnique({
         where: { id: deviceId },
-        select: { id: true, branchId: true, name: true, isEnabled: true, branch: { select: { name: true, brand: { select: { name: true, logoUrl: true } } } } },
+        select: { id: true, branchId: true, name: true, isEnabled: true, branch: { select: { name: true, brand: { select: { name: true, logoUrl: true, shellTheme: true } } } } },
       });
       const creds = await tx.deviceCredential.findMany({ where: { deviceId, revokedAt: null, expiresAt: { gt: new Date() } } });
       if (!device?.isEnabled || creds.length === 0) throw new Error("no active credential");
@@ -203,11 +220,12 @@ export class DeviceGateway implements OnModuleDestroy {
       if (this.seenJti.has(jti)) throw new Error("replayed assertion");
       this.seenJti.set(jti, now + 5 * 60_000);
 
-      return { deviceId, organizationId, branchId: device.branchId, name: device.name, venue: { name: device.branch.brand.name, branchName: device.branch.name, logoUrl: device.branch.brand.logoUrl } };
+      const brand = device.branch.brand;
+      return { deviceId, organizationId, branchId: device.branchId, name: device.name, venue: { name: brand.name, branchName: device.branch.name, logoUrl: brand.logoUrl, wallpaperUrl: shellWallpaper(brand.shellTheme) } };
     });
   }
 
-  private onConnection(ws: WebSocket, who: { deviceId: string; organizationId: string; branchId: string; name: string; venue: { name: string; branchName: string; logoUrl: string | null } }) {
+  private onConnection(ws: WebSocket, who: { deviceId: string; organizationId: string; branchId: string; name: string; venue: Venue }) {
     const now = Date.now();
     const { venue, ...ids } = who;
     const conn: Connection = { socket: ws, ...ids, connectedAt: now, lastMessageAt: now, lastPersistAt: 0, metrics: null, metricsAt: null, alerts: null };
@@ -255,6 +273,17 @@ export class DeviceGateway implements OnModuleDestroy {
               return handler(conn, msg).then(
                 (r) => reply(r as Record<string, unknown>),
                 (e) => reply({ ok: false, error: e?.response?.error ?? "failed", message: e?.response?.message ?? e?.response?.hint }),
+              );
+            }
+            case "time_offers":
+            case "buy_time": {
+              const handler = this.stationHandlers.get(msg.type);
+              const replyType = msg.type === "time_offers" ? "time_offers" : "buy_time_result";
+              const reply = (r: Record<string, unknown>) => ws.send(JSON.stringify({ type: replyType, requestId: msg.requestId, ...r }));
+              if (!handler) return reply({ ok: false, error: "unavailable", message: buyTimeMessage(undefined) });
+              return handler(conn, msg).then(
+                (r) => reply(r as Record<string, unknown>),
+                (e) => { const error = e?.response?.error ?? "failed"; return reply({ ok: false, error, message: e?.response?.message ?? buyTimeMessage(error) }); },
               );
             }
             case "help_request": {

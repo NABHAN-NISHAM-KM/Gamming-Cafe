@@ -19,9 +19,9 @@ public sealed class MainWindow : Window
 {
     private const string Origin = "https://shell.arena/";
     /// <summary>Forwarded to the agent (which validates again).</summary>
-    private static readonly HashSet<string> AllowedFromPage = ["ready", "login", "logout", "launch", "launch_app", "help", "repair", "menu_request", "place_order", "print_confirm", "print_cancel", "staff_exit"];
+    private static readonly HashSet<string> AllowedFromPage = ["ready", "login", "logout", "launch", "launch_app", "help", "repair", "menu_request", "place_order", "print_confirm", "print_cancel", "staff_exit", "time_offers", "buy_time"];
     /// <summary>Handled here, in the customer's desktop session.</summary>
-    private static readonly HashSet<string> HandledByHost = ["pointer_get", "pointer_apply", "window_action", "desktop_show"];
+    private static readonly HashSet<string> HandledByHost = ["pointer_get", "pointer_apply", "window_action", "desktop_show", "show_desktop", "volume_get", "volume_set"];
     /// <summary>The venue's pointer settings, restored when a session ends or the Shell closes.</summary>
     private readonly Pointer.Settings _venuePointer = Pointer.Read();
     private bool _inSession;
@@ -128,7 +128,8 @@ public sealed class MainWindow : Window
                 || t.GetString() is not { } type) return;
             if (HandledByHost.Contains(type))
             {
-                if (!_desktop.FromPage(type, doc.RootElement)) PointerRequest(type, doc.RootElement);
+                if (type is "volume_get" or "volume_set") VolumeRequest(type, doc.RootElement);
+                else if (!_desktop.FromPage(type, doc.RootElement)) PointerRequest(type, doc.RootElement);
                 return;
             }
             if (!AllowedFromPage.Contains(type)) return;
@@ -177,6 +178,18 @@ public sealed class MainWindow : Window
         }
         catch (JsonException) { return; }
         Post(line);
+    }
+
+    /// <summary>The taskbar's volume control: the PC's default speakers.</summary>
+    private void VolumeRequest(string type, JsonElement msg)
+    {
+        if (type == "volume_set")
+        {
+            int? level = msg.TryGetProperty("level", out var l) && l.TryGetInt32(out var v) ? v : null;
+            bool? muted = msg.TryGetProperty("muted", out var m) && m.ValueKind is JsonValueKind.True or JsonValueKind.False ? m.GetBoolean() : null;
+            Volume.Set(level, muted);
+        }
+        if (Volume.Get() is { } now) Post(JsonSerializer.Serialize(new { type = "volume", level = now.Level, muted = now.Muted }));
     }
 
     private void PointerRequest(string type, JsonElement msg)

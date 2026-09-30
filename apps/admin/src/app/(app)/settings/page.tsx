@@ -7,6 +7,7 @@ import { api } from "@/lib/client/api";
 import { useAction } from "@/lib/client/hooks";
 import { useMe } from "@/lib/client/me";
 import { Badge, Button, Card, ErrorNote, Field, Input, PageHeader } from "@/components/ui";
+import { ShellLook } from "@/components/shell-look";
 
 export default function SettingsPage() {
   const me = useMe();
@@ -48,6 +49,7 @@ export default function SettingsPage() {
           </div>
         </div>
       </Card>
+      <ShellLook />
       <Card className="max-w-2xl p-6">
         <div className="flex items-start gap-3">
           <Smartphone className="mt-0.5 size-5 text-accent" />
