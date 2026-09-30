@@ -2,8 +2,9 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { z } from "zod";
 
-const rootEnv = resolve(import.meta.dirname, "../../../../.env");
-if (existsSync(rootEnv)) process.loadEnvFile(rootEnv);
+// Repo-root .env: four levels up from src/platform (tsx), three from the bundled apps/api/dist.
+const rootEnv = ["../../../../.env", "../../../.env"].map((p) => resolve(import.meta.dirname, p)).find(existsSync);
+if (rootEnv) process.loadEnvFile(rootEnv);
 
 const pem = (name: string) =>
   z
