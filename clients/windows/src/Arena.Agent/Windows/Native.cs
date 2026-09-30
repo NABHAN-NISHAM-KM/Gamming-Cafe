@@ -106,10 +106,36 @@ internal static partial class Native
         try
         {
             using var identity = new System.Security.Principal.WindowsIdentity(token);
-            var sid = identity.User!.Value;
-            if (GetTokenInformation(token, TokenElevationType, out var type, sizeof(int), out _) && type != TokenElevationTypeDefault)
-                return (session, true, sid);
-            return (session, new System.Security.Principal.WindowsPrincipal(identity).IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator), sid);
+            return (session, IsAdminToken(token, identity), identity.User!.Value);
+        }
+        finally
+        {
+            CloseHandle(token);
+        }
+    }
+
+    private static bool IsAdminToken(IntPtr token, System.Security.Principal.WindowsIdentity identity) =>
+        (GetTokenInformation(token, TokenElevationType, out var type, sizeof(int), out _) && type != TokenElevationTypeDefault)
+        || new System.Security.Principal.WindowsPrincipal(identity).IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
+
+    private const int LOGON32_LOGON_INTERACTIVE = 2, LOGON32_PROVIDER_DEFAULT = 0;
+
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool LogonUserW(string user, string? domain, string password, int logonType, int provider, out IntPtr token);
+
+    /// <summary>
+    /// True when the Windows username and password are right AND the account is an
+    /// administrator on this PC. Accepts "name", ".\name", "PC\name" or "user@domain".
+    /// </summary>
+    public static bool IsWindowsAdmin(string username, string password)
+    {
+        var slash = username.IndexOf('\\');
+        var (domain, user) = slash >= 0 ? (username[..slash], username[(slash + 1)..]) : (username.Contains('@') ? null : ".", username);
+        if (!LogonUserW(user, domain, password, LOGON32_LOGON_INTERACTIVE, LOGON32_PROVIDER_DEFAULT, out var token)) return false;
+        try
+        {
+            using var identity = new System.Security.Principal.WindowsIdentity(token);
+            return IsAdminToken(token, identity);
         }
         finally
         {

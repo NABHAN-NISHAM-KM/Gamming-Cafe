@@ -10,7 +10,6 @@ public sealed class AgentPaths(string dataDir)
     public string Session => Path.Combine(DataDir, "session.json");
     public string Venue => Path.Combine(DataDir, "venue.json");
     public string Config => Path.Combine(DataDir, "station-config.json");
-    public string StaffPin => Path.Combine(DataDir, "staff-pin.txt");
 
     /// <summary>--data-dir, then ARENA_AGENT_DATA, then %ProgramData%\ArenaOS\Agent.</summary>
     public static AgentPaths Resolve(string[] args)

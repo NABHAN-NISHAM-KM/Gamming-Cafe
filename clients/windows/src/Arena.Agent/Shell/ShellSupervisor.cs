@@ -14,8 +14,9 @@ namespace Arena.Agent.Shell;
 /// administrators, and a back-off if the Shell keeps crashing.
 ///
 /// Also the kiosk lock for that user (<see cref="Kiosk"/>) and the staff exit:
-/// Shift+F12 plus the staff PIN closes the Shell and opens the normal Windows
-/// desktop in the same account, until that user signs out or the PC restarts.
+/// Shift+F12 plus the username and password of a Windows administrator account on
+/// this PC closes the Shell and opens the normal Windows desktop in the same
+/// (customer) account, until that user signs out or the PC restarts. No server needed.
 ///
 /// Only runs as the Windows service: in a console (`ArenaAgent run`) the agent
 /// isn't SYSTEM and can't start programs on another user's desktop.
@@ -23,7 +24,7 @@ namespace Arena.Agent.Shell;
 public sealed class ShellSupervisor(AgentPaths paths, ShellHub hub, ILogger<ShellSupervisor> log) : BackgroundService
 {
     private static readonly TimeSpan Tick = TimeSpan.FromSeconds(3);
-    private readonly StaffPinGuard _pinGuard = new();
+    private readonly StaffExitGuard _guard = new();
     private readonly SemaphoreSlim _exitGate = new(1, 1);
     private long _desktopSession = -1; // staff unlocked the desktop in this Windows session
     private long _lockedSession = -1;  // kiosk lock applied for this Windows session
@@ -97,19 +98,18 @@ public sealed class ShellSupervisor(AgentPaths paths, ShellHub hub, ILogger<Shel
         try
         {
             var now = DateTimeOffset.UtcNow;
-            if (_pinGuard.IsLocked(now)) { Reply(false, "locked", "Too many wrong PINs. Try again in 5 minutes."); return; }
-            if (!File.Exists(paths.StaffPin)) { Reply(false, "not_set", "No staff PIN is set on this PC. Run setup-player.ps1 as administrator."); return; }
-            var ok = StaffPin.Verify(await File.ReadAllTextAsync(paths.StaffPin), request.Pin);
-            _pinGuard.Record(ok, now);
+            if (_guard.IsLocked(now)) { Reply(false, "locked", "Too many wrong tries. Try again in 5 minutes."); return; }
+            var ok = await Task.Run(() => Native.IsWindowsAdmin(request.Username, request.Password));
+            _guard.Record(ok, now);
             if (!ok)
             {
-                log.LogWarning("Wrong staff PIN entered on the Gaming Shell.");
-                Reply(false, "wrong_pin", "Wrong PIN.");
+                log.LogWarning("Staff exit refused for Windows account {User}: wrong password or not an administrator.", request.Username);
+                Reply(false, "denied", "Wrong username or password, or that account isn't an administrator on this PC.");
                 return;
             }
             if (Native.ConsoleUser() is not { } user) { Reply(false, "no_user", "Nobody is signed in to Windows."); return; }
 
-            log.LogWarning("Staff PIN accepted: leaving the Gaming Shell for the Windows desktop (session {Session}).", user.SessionId);
+            log.LogWarning("Staff exit by Windows administrator {User}: leaving the Gaming Shell for the desktop (session {Session}).", request.Username, user.SessionId);
             Reply(true);
             Interlocked.Exchange(ref _desktopSession, user.SessionId);
             Kiosk.SetLockdown(user.Sid, false);

@@ -4,12 +4,13 @@
   menu, no taskbar, the Windows key does nothing). The agent also empties the
   Ctrl+Alt+Del screen for Player (no sign out, lock, switch user, Task Manager).
 
-  Staff leave the Shell with Shift+F12 and the staff PIN: the Shell closes and
-  the normal Windows desktop opens in the same account, until the next sign-in
-  or restart. Administrator accounts are never locked down.
+  Staff leave the Shell with Shift+F12 and the username and password of a
+  Windows administrator account on this PC: the Shell closes and the normal
+  Windows desktop opens in the same (Player) account, until the next sign-in or
+  restart. Administrator accounts are never locked down.
 
   Run as Administrator, after install-agent.ps1:
-    .\setup-player.ps1               # asks for the Player password and the staff PIN
+    .\setup-player.ps1               # asks for the Player password
     .\setup-player.ps1 -Password <player password>
     .\setup-player.ps1 -Off          # stop signing in automatically, give Player Explorer back
 
@@ -20,7 +21,6 @@ param([string]$User = "Player", [string]$Password, [switch]$Off)
 $ErrorActionPreference = "Stop"
 $winlogon = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon"
 $shellExe = Join-Path $env:ProgramFiles "ArenaOS\Shell\ArenaShell.exe"
-$agentExe = Join-Path $env:ProgramFiles "ArenaOS\Agent\ArenaAgent.exe"
 $machinePolicies = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"
 
 # Runs $action against the user's registry hive (HKU\<sid> or a temporarily loaded NTUSER.DAT).
@@ -57,13 +57,6 @@ if (-not $Password) {
     if (-not $Password) { throw "A password is required for the $User account." }
 }
 if (-not (Test-Path $shellExe)) { throw "Gaming Shell not found at $shellExe. Run install-agent.ps1 first." }
-
-# Staff PIN for Shift+F12. The agent keeps only a salted hash, readable by SYSTEM and Administrators.
-$pin = [Net.NetworkCredential]::new("", (Read-Host "Staff PIN for Shift+F12 (4-12 digits, Enter keeps the current one)" -AsSecureString)).Password
-if ($pin) {
-    $pin | & $agentExe staff-pin
-    if ($LASTEXITCODE) { throw "Couldn't save the staff PIN." }
-}
 
 $secure = ConvertTo-SecureString $Password -AsPlainText -Force
 
@@ -105,4 +98,4 @@ if (-not (Test-Path $machinePolicies)) { New-Item $machinePolicies | Out-Null }
 Set-ItemProperty $machinePolicies HideFastUserSwitching 1 -Type DWord
 
 Write-Host "Done. After a restart Windows signs in to $User and shows only the Gaming Shell." -ForegroundColor Green
-Write-Host "Staff: press Shift+F12 on the Shell and enter the staff PIN for the Windows desktop." -ForegroundColor Green
+Write-Host "Staff: press Shift+F12 on the Shell and sign in with a Windows administrator account for the desktop." -ForegroundColor Green

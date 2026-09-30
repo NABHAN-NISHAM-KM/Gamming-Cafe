@@ -128,7 +128,7 @@ export type ShellMessage =
   | { type: "place_order"; requestId: string; lines: OrderLine[]; notes?: string; payWith: "BILL" | "WALLET" }
   | { type: "print_confirm"; jobKey: string; payWith: "BILL" | "WALLET" }
   | { type: "print_cancel"; jobKey: string }
-  | { type: "staff_exit"; requestId: string; pin: string };
+  | { type: "staff_exit"; requestId: string; username: string; password: string };
 
 type Listener = (m: HostMessage) => void;
 
