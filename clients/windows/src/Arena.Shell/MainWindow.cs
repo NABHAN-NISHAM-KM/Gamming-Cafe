@@ -1,8 +1,10 @@
 using System.ComponentModel;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
@@ -120,6 +122,9 @@ public sealed class MainWindow : Window
             if (HandledByHost.Contains(type)) { PointerRequest(type, doc.RootElement); return; }
             if (!AllowedFromPage.Contains(type)) return;
 
+            // The game/app is started by the agent (SYSTEM), so it can't take the foreground on its own:
+            // the Shell, which has it, lets the next window come to the front.
+            if (type is "launch" or "launch_app") AllowSetForegroundWindow(ASFW_ANY);
             if (type == "ready")
             {
                 _pageReady = true;
@@ -146,7 +151,16 @@ public sealed class MainWindow : Window
                 _lastState = line;
                 var inSession = doc.RootElement.TryGetProperty("session", out var s) && s.ValueKind == JsonValueKind.Object;
                 if (_inSession && !inSession) Pointer.Apply(_venuePointer.MouseSpeed, _venuePointer.EnhancePointerPrecision); // next customer starts clean
+                if (_inSession && !inSession && _kiosk) Activate(); // session over: back in front of whatever was open
                 _inSession = inSession;
+                // Locked: always on top, nothing covers the sign-in. In a session: games and apps go in front.
+                Topmost = _kiosk && !inSession;
+            }
+            else if (type == "launch_result" && _kiosk && doc.RootElement.TryGetProperty("ok", out var ok) && ok.ValueKind == JsonValueKind.True)
+            {
+                // Step behind everything, so the game shows as soon as its window opens (even if it
+                // didn't get the focus). With no other window open the Shell is still what you see.
+                SetWindowPos(new WindowInteropHelper(this).Handle, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
             }
         }
         catch (JsonException) { return; }
@@ -214,6 +228,16 @@ public sealed class MainWindow : Window
         if (_kiosk) e.Cancel = true;
         base.OnClosing(e);
     }
+
+    private const int ASFW_ANY = -1;
+    private static readonly IntPtr HWND_BOTTOM = new(1);
+    private const uint SWP_NOSIZE = 0x1, SWP_NOMOVE = 0x2, SWP_NOACTIVATE = 0x10;
+
+    [DllImport("user32.dll")]
+    private static extern bool AllowSetForegroundWindow(int processId);
+
+    [DllImport("user32.dll")]
+    private static extern bool SetWindowPos(IntPtr hWnd, IntPtr insertAfter, int x, int y, int cx, int cy, uint flags);
 
     protected override void OnClosed(EventArgs e)
     {
