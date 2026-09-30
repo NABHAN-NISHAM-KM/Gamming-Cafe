@@ -188,7 +188,7 @@ function TimeRing({ remainingMs, totalMs }: { remainingMs: number; totalMs: numb
   const frac = Math.max(0, Math.min(1, remainingMs / Math.max(1, totalMs)));
   const low = remainingMs <= 5 * 60_000;
   return (
-    <svg viewBox="0 0 280 280" className="size-64" aria-hidden>
+    <svg viewBox="0 0 280 280" className="size-80" aria-hidden>
       <circle cx="140" cy="140" r={r} fill="none" stroke="var(--color-rim)" strokeWidth="10" />
       <circle
         cx="140" cy="140" r={r} fill="none" strokeWidth="10" strokeLinecap="round"
@@ -218,7 +218,7 @@ function HomeWidget({ state, t, notify, openGames }: { state: ShellState; t: Str
         {remaining !== null && <TimeRing remainingMs={remaining} totalMs={total} />}
         <div className={cx("text-center", remaining !== null && "absolute")}>
           <p className="text-sm uppercase tracking-[0.3em] text-dim">{remaining === null ? t.openSession : t.timeLeft}</p>
-          <p className="tabular mt-2 font-mono text-5xl font-semibold">{remaining === null ? hms(serverNow - new Date(s.startedAt).getTime()) : hms(remaining)}</p>
+          <p className="tabular mt-2 font-mono text-4xl font-semibold tracking-tight">{remaining === null ? hms(serverNow - new Date(s.startedAt).getTime()) : hms(remaining)}</p>
         </div>
       </div>
       <div className="min-w-0">
