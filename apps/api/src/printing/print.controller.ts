@@ -10,7 +10,8 @@ import { PRINT_SKU, PrintService } from "./print.service.js";
 
 const Release = z.object({ payWith: z.enum(["BILL", "WALLET"]).optional() }).strict();
 const Cancel = z.object({ reason: z.string().min(3).max(200) }).strict();
-const Settings = z.object({ requireApproval: z.boolean(), maxPages: z.number().int().min(1).max(2000) }).partial().strict();
+const money = z.string().regex(/^\d{1,6}(\.\d{1,4})?$/, "use a price like 0.50");
+const Settings = z.object({ requireApproval: z.boolean(), maxPages: z.number().int().min(1).max(2000), bwPrice: money, colorPrice: money }).partial().strict();
 
 const me = () => ({ type: "EMPLOYEE" as const, id: principal().employeeId });
 
@@ -65,15 +66,31 @@ export class PrintController {
     return { requireApproval: !!print.requireApproval, maxPages: print.maxPages ?? 100, bw: priceOf(PRINT_SKU.bw), color: priceOf(PRINT_SKU.color) };
   }
 
-  /** Per-page prices are the PRINT-BW / PRINT-COLOR products (Restaurant → Menu, or a branch price there). */
+  /** Rules live in branch settings; per-page prices are the PRINT-BW / PRINT-COLOR products, priced for this branch. */
   @RequirePermission("settings.manage")
   @Put("branches/:branchId/print-settings")
   async saveSettings(@Param("branchId") branchId: string, @Body(new ZodPipe(Settings)) body: z.infer<typeof Settings>) {
-    const b = await tx().branch.findUniqueOrThrow({ where: { id: branchId }, select: { settings: true } });
+    const { bwPrice, colorPrice, ...rules } = body;
+    const b = await tx().branch.findUniqueOrThrow({ where: { id: branchId }, select: { settings: true, currency: true } });
+    for (const [sku, price, name] of [[PRINT_SKU.bw, bwPrice, "Printing — black & white page"], [PRINT_SKU.color, colorPrice, "Printing — colour page"]] as const) {
+      if (price === undefined) continue;
+      const p = await tx().product.findFirst({ where: { sku }, select: { id: true } });
+      if (p) {
+        await tx().product.update({ where: { id: p.id }, data: { isActive: true } });
+        await tx().productBranchPrice.upsert({
+          where: { productId_branchId: { productId: p.id, branchId } },
+          create: { organizationId: orgId(), productId: p.id, branchId, price },
+          update: { price, isAvailable: true },
+        });
+      } else {
+        const cat = (await tx().productCategory.findFirst({ where: { name: "Services" }, select: { id: true } })) ?? (await tx().productCategory.create({ data: { organizationId: orgId(), name: "Services", sortOrder: 90, showInShell: false } }));
+        await tx().product.create({ data: { organizationId: orgId(), categoryId: cat.id, sku, name, type: "SERVICE", price, currency: b.currency, taxAppliesTo: "SERVICE", availableInShell: false, availableOnline: false } });
+      }
+    }
     const current = (b.settings as Record<string, unknown> | null) ?? {};
-    const print = { ...((current["print"] as object) ?? {}), ...body };
+    const print = { ...((current["print"] as object) ?? {}), ...rules };
     await tx().branch.update({ where: { id: branchId }, data: { settings: { ...current, print } as Prisma.InputJsonValue } });
-    await this.audit.record({ action: "branch.print_settings", entityType: "Branch", entityId: branchId, branchId, after: print });
+    await this.audit.record({ action: "branch.print_settings", entityType: "Branch", entityId: branchId, branchId, after: { ...print, bwPrice, colorPrice } });
     return this.settings(branchId);
   }
 }

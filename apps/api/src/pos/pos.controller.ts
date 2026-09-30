@@ -115,17 +115,22 @@ export class PosController {
   @Get("menu/manage")
   async manage() {
     authorizeFor("restaurant.menu_manage", { organizationId: orgId() });
-    const [categories, products, groups, stations] = await Promise.all([
+    const [categories, products, groups, stations, counts] = await Promise.all([
       tx().productCategory.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
       tx().product.findMany({
-        where: { type: { in: ["STOCK_ITEM", "RECIPE_ITEM", "COMBO", "SERVICE"] } },
+        // Tournament fees (TRN-), print prices (PRINT-) and built-in items (SYS-) are managed on their own pages.
+        where: { type: { in: ["STOCK_ITEM", "RECIPE_ITEM", "COMBO", "SERVICE"] }, NOT: [{ sku: { startsWith: "TRN-" } }, { sku: { startsWith: "PRINT-" } }, { sku: { startsWith: "SYS-" } }] },
         orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
         include: { productModifierGroups: { select: { modifierGroupId: true } }, productBranchPrices: { select: { branchId: true, price: true, isAvailable: true } }, kitchenStation: { select: { id: true, name: true } } },
       }),
       tx().modifierGroup.findMany({ include: { modifiers: { orderBy: { sortOrder: "asc" } } }, orderBy: { name: "asc" } }),
       tx().kitchenStation.findMany({ select: { id: true, name: true, branchId: true }, orderBy: { name: "asc" } }),
+      tx().product.groupBy({ by: ["categoryId"], _count: true }),
     ]);
-    return { categories, products: products.map(({ productModifierGroups, ...p }) => ({ ...p, modifierGroupIds: productModifierGroups.map((g) => g.modifierGroupId) })), modifierGroups: groups, stations };
+    // Hide categories that only hold those system items (e.g. "Services", "Gaming"); empty ones you made still show.
+    const shown = new Set(products.map((p) => p.categoryId));
+    const used = new Set(counts.map((c) => c.categoryId));
+    return { categories: categories.filter((c) => shown.has(c.id) || !used.has(c.id)), products: products.map(({ productModifierGroups, ...p }) => ({ ...p, modifierGroupIds: productModifierGroups.map((g) => g.modifierGroupId) })), modifierGroups: groups, stations };
   }
 
   @AnyStaff()

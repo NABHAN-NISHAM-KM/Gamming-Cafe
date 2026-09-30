@@ -124,19 +124,24 @@ export default function PrintingPage() {
 }
 
 function PrintSettings({ branchId, s, canEdit, onSaved }: { branchId: string; s: Settings; canEdit: boolean; onSaved: () => void }) {
-  const [f, setF] = useState({ requireApproval: s.requireApproval, maxPages: String(s.maxPages) });
+  const [f, setF] = useState({ requireApproval: s.requireApproval, maxPages: String(s.maxPages), bwPrice: s.bw?.price ?? "", colorPrice: s.color?.price ?? "" });
   const save = useAction(async () => {
-    await api(`/branches/${branchId}/print-settings`, { method: "PUT", body: { requireApproval: f.requireApproval, maxPages: Number(f.maxPages) || 100 } });
+    const prices = { ...(f.bwPrice.trim() ? { bwPrice: f.bwPrice.trim() } : {}), ...(f.colorPrice.trim() ? { colorPrice: f.colorPrice.trim() } : {}) };
+    await api(`/branches/${branchId}/print-settings`, { method: "PUT", body: { requireApproval: f.requireApproval, maxPages: Number(f.maxPages) || 100, ...prices }, done: "Print settings saved." });
     onSaved();
   });
   return (
     <Card className="p-5">
-      <h2 className="mb-3 flex items-center gap-2 font-semibold"><Settings2 className="size-4 text-accent" /> Print rules</h2>
+      <h2 className="mb-3 flex items-center gap-2 font-semibold"><Settings2 className="size-4 text-accent" /> Print prices & rules</h2>
       <div className="grid gap-4 text-sm sm:grid-cols-3">
-        <div>
-          <p className="text-ink-3">Price per page</p>
-          <p className="mt-1">Black & white <strong className="tabular-nums">{s.bw?.price ?? "—"}</strong> · colour <strong className="tabular-nums">{s.color?.price ?? "—"}</strong></p>
-          <p className="mt-1 text-xs text-ink-3">Change them in Restaurant → Menu (Services: “Printing”). {(!s.bw || !s.color) && <span className="text-danger">Missing — printing is refused until both exist.</span>}</p>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="B&W price / page">
+            <Input inputMode="decimal" pattern="\d{1,6}(\.\d{1,4})?" disabled={!canEdit} value={f.bwPrice} onChange={(e) => setF({ ...f, bwPrice: e.target.value })} placeholder="0.50" />
+          </Field>
+          <Field label="Colour price / page">
+            <Input inputMode="decimal" pattern="\d{1,6}(\.\d{1,4})?" disabled={!canEdit} value={f.colorPrice} onChange={(e) => setF({ ...f, colorPrice: e.target.value })} placeholder="1.50" />
+          </Field>
+          {(!s.bw || !s.color) && <p className="col-span-2 text-xs text-danger">Set both prices — printing is refused until they exist.</p>}
         </div>
         <label className={cx("flex items-start gap-2", !canEdit && "opacity-60")}>
           <input type="checkbox" className="mt-1" disabled={!canEdit} checked={f.requireApproval} onChange={(e) => setF({ ...f, requireApproval: e.target.checked })} />
@@ -147,7 +152,7 @@ function PrintSettings({ branchId, s, canEdit, onSaved }: { branchId: string; s:
         </Field>
       </div>
       <ErrorNote>{save.error}</ErrorNote>
-      {canEdit && <div className="mt-3 flex justify-end"><Button variant="primary" pending={save.pending} onClick={() => void save.run()}>Save rules</Button></div>}
+      {canEdit && <div className="mt-3 flex justify-end"><Button variant="primary" pending={save.pending} onClick={() => void save.run()}>Save</Button></div>}
     </Card>
   );
 }
