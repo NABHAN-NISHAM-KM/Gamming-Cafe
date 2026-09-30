@@ -132,7 +132,7 @@ export class GamesController {
     ]);
     const byGame = new Map(settings.map((s) => [s.gameId, s]));
     const installs = branchId && /^[0-9a-f-]{36}$/i.test(branchId)
-      ? await tx().gameInstallation.groupBy({ by: ["gameId", "status"], where: { device: { branchId } }, _count: { _all: true }, _avg: { progressPct: true } })
+      ? await tx().gameInstallation.groupBy({ by: ["gameId", "status"], where: { device: { branchId, isEnabled: true } }, _count: { _all: true }, _avg: { progressPct: true } })
       : [];
     const stations = branchId && /^[0-9a-f-]{36}$/i.test(branchId) ? await tx().device.count({ where: { branchId, isEnabled: true, platform: "WINDOWS" } }) : null;
     return {
@@ -237,7 +237,7 @@ export class GamesController {
   async detected(@Query("branchId") branchId?: string) {
     const [rows, games, apps] = await Promise.all([
       tx().detectedTitle.findMany({
-        where: branchId && /^[0-9a-f-]{36}$/i.test(branchId) ? { device: { branchId } } : {},
+        where: { device: { isEnabled: true, ...(branchId && /^[0-9a-f-]{36}$/i.test(branchId) ? { branchId } : {}) } },
         include: { device: { select: { name: true } } },
         orderBy: { name: "asc" },
       }),

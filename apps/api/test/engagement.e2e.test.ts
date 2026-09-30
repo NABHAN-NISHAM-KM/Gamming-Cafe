@@ -236,8 +236,10 @@ describe.skipIf(!HAS_DB)("Loyalty, promotions, tournaments & CRM (e2e)", () => {
       expect((await call(ownerT, "GET", `/promotions/${id}`)).body.usageCount).toBe(1);
     });
 
-    it("changing promotions is sensitive, and only for managers", async () => {
-      expect((await call(ownerT, "POST", "/promotions", { name: "No reason", type: "AUTOMATIC_DISCOUNT", effects: [{ type: "PERCENT_OFF", target: "ORDER", value: 5 }] })).body.reason).toBe("REASON_REQUIRED");
+    it("promotions are routine setup (no reason asked), and only for managers", async () => {
+      const draft = await call(ownerT, "POST", "/promotions", { name: `No reason ${tag()}`, type: "AUTOMATIC_DISCOUNT", effects: [{ type: "PERCENT_OFF", target: "ORDER", value: 5 }] });
+      expect(draft.status, JSON.stringify(draft.body)).toBe(201);
+      expect(draft.body.status).toBe("DRAFT"); // not live until activated
       expect((await call(cashierT, "POST", "/promotions", { name: "Cashier", type: "AUTOMATIC_DISCOUNT", effects: [{ type: "PERCENT_OFF", target: "ORDER", value: 5 }] }, "trying")).status).toBe(403);
       expect((await call(ownerT, "POST", "/promotions", { name: "Bad", type: "AUTOMATIC_DISCOUNT", conditions: { all: [{ evil: true }] }, effects: [{ type: "PERCENT_OFF", target: "ORDER", value: 5 }] }, "x x")).status).toBe(400);
     });
@@ -315,9 +317,12 @@ describe.skipIf(!HAS_DB)("Loyalty, promotions, tournaments & CRM (e2e)", () => {
       const token = await appLogin("ahmed", "ahmed123");
       const list = await (await fetch(`${base}/v1/app/tournaments`, { headers: { authorization: `Bearer ${token}` } })).json();
       expect(list.some((x: any) => x.id === id)).toBe(true);
-      const before = (await call(ownerT, "GET", `/customers/${(await (await fetch(`${base}/v1/app/me`, { headers: { authorization: `Bearer ${token}` } })).json()).id}/wallet`)).body;
+      const me = (await (await fetch(`${base}/v1/app/me`, { headers: { authorization: `Bearer ${token}` } })).json()).id;
+      // The shared demo customer's wallet drains across runs; make sure the entry fee is covered.
+      await call(ownerT, "POST", `/customers/${me}/wallet/topup`, { branchId: dxb1, amount: "20", payment: { method: "CASH" }, idempotencyKey: key() });
+      const before = (await call(ownerT, "GET", `/customers/${me}/wallet`)).body;
       const r = await fetch(`${base}/v1/app/tournaments/${id}/register`, { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: JSON.stringify({ teamName: `Ahmed ${tag()}`, idempotencyKey: key() }) });
-      expect(r.status).toBe(201);
+      expect(r.status, await r.clone().text()).toBe(201);
       const detail = await (await fetch(`${base}/v1/app/tournaments/${id}`, { headers: { authorization: `Bearer ${token}` } })).json();
       expect(detail.myTeamId).toBeTruthy();
       expect(JSON.stringify(detail)).not.toMatch(/username|"id":"[0-9a-f-]{36}","displayName"/);
@@ -343,7 +348,6 @@ describe.skipIf(!HAS_DB)("Loyalty, promotions, tournaments & CRM (e2e)", () => {
       const promo = await promotion({ name: `Camp ${tag()}`, type: "PROMO_CODE", requiresCode: true, effects: [{ type: "PERCENT_OFF", target: "ORDER", value: 15 }] });
       const c = await call(ownerT, "POST", "/campaigns", { name: "Test", channel: "IN_APP", segmentId: seg, promotionId: promo, subject: "Hi {{firstName}}", body: "Your code: {{code}}" });
       expect(c.status).toBe(201);
-      expect((await call(ownerT, "POST", `/campaigns/${c.body.id}/send`)).body.reason).toBe("REASON_REQUIRED");
       const sent = await call(ownerT, "POST", `/campaigns/${c.body.id}/send`, undefined, "weekly campaign");
       expect(sent.body).toMatchObject({ targeted: 1, sent: 1, withoutConsent: 1 });
       expect((await call(ownerT, "POST", `/campaigns/${c.body.id}/send`, undefined, "again")).body.error).toBe("campaign_not_sendable");

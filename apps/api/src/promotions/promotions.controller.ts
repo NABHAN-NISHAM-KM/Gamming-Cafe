@@ -52,7 +52,8 @@ export class PromotionsController {
   @Get("promotions")
   async list(@Query("status") status?: string) {
     const rows = await tx().promotion.findMany({
-      where: { description: { not: { startsWith: "reward:" } }, ...(status && /^[A-Z]{4,10}$/.test(status) ? { status: status as never } : {}) },
+      // NULL NOT LIKE … is NULL in SQL, so null descriptions must be let through explicitly.
+      where: { OR: [{ description: null }, { description: { not: { startsWith: "reward:" } } }], ...(status && /^[A-Z]{4,10}$/.test(status) ? { status: status as never } : {}) },
       orderBy: [{ status: "asc" }, { priority: "desc" }, { createdAt: "desc" }],
       include: { _count: { select: { promoCodes: true, promotionRedemptions: true } } },
     });

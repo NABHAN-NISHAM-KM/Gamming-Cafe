@@ -1,5 +1,6 @@
-import { Body, Controller, Get, HttpCode, Inject, NotFoundException, Param, Patch, Post, Query } from "@nestjs/common";
+import { Body, ConflictException, Controller, Get, HttpCode, Inject, NotFoundException, Param, Patch, Post, Query } from "@nestjs/common";
 import { z } from "zod";
+import { auditAs } from "../common/audit.service.js";
 import { authorizeFor } from "../common/authz.js";
 import { AnyStaff, RequirePermissionAnyScope } from "../common/decorators.js";
 import { orgId, principal, tx } from "../common/request-state.js";
@@ -41,6 +42,10 @@ const Register = z
 const Result = z.object({ scoreA: z.number().int().min(0).max(999), scoreB: z.number().int().min(0).max(999), winnerTeamId: z.uuid().nullish(), games: z.array(z.record(z.string(), z.unknown())).max(9).optional() }).strict();
 const Seed = z.object({ seeds: z.array(z.object({ teamId: z.uuid(), seed: z.number().int().min(1).max(256).nullable() }).strict()).max(256) }).strict();
 
+const EditTournament = z
+  .object({ name: z.string().min(3).max(80), description: z.string().max(1000).nullable(), rules: z.string().max(5000).nullable(), startsAt: z.coerce.date(), maxTeams: z.number().int().min(2).max(256), isPublic: z.boolean() })
+  .partial()
+  .strict();
 const me = () => ({ id: principal().employeeId });
 
 async function target(tournamentId: string) {
@@ -97,6 +102,19 @@ export class TournamentsController {
   async register(@Param("id") id: string, @Body(new ZodPipe(Register)) body: z.infer<typeof Register>) {
     authorizeFor("tournament.manage", await target(id));
     return this.svc.register(tx(), id, body, { type: "EMPLOYEE", id: principal().employeeId });
+  }
+
+  /** Details that are safe to change before check-in; fees, format and prizes stay as registered teams saw them. */
+  @AnyStaff()
+  @Patch("tournaments/:id")
+  async edit(@Param("id") id: string, @Body(new ZodPipe(EditTournament)) body: Record<string, unknown> & { maxTeams?: number }) {
+    authorizeFor("tournament.manage", await target(id));
+    const t = await tx().tournament.findUniqueOrThrow({ where: { id }, select: { status: true, _count: { select: { teams: true } } } });
+    if (!["DRAFT", "REGISTRATION_OPEN", "REGISTRATION_CLOSED"].includes(t.status)) throw new ConflictException({ error: "tournament_started" });
+    if (body.maxTeams != null && body.maxTeams < t._count.teams) throw new ConflictException({ error: "max_teams_below_entered", entered: t._count.teams });
+    await tx().tournament.update({ where: { id }, data: body });
+    await auditAs(tx(), { type: "EMPLOYEE", id: principal().employeeId }, { action: "tournament.update", entityType: "Tournament", entityId: id, after: body });
+    return this.svc.view(tx(), id);
   }
 
   @AnyStaff()

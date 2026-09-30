@@ -7,7 +7,7 @@ import { api } from "@/lib/client/api";
 import { useAction, useApi } from "@/lib/client/hooks";
 import { useCan, useMe } from "@/lib/client/me";
 import { EMP_TONE, statusLabel, type Branch, type Employee, type Role } from "@/lib/client/types";
-import { Badge, Button, Card, ErrorNote, Field, Input, Modal, PageHeader, Select, Spinner } from "@/components/ui";
+import { Badge, Button, Card, ErrorNote, Field, Input, Modal, PageHeader, Select, Spinner, askConfirm } from "@/components/ui";
 import { useRouteId } from "@/lib/client/route-id";
 
 function GrantRole({ employeeId, branches, onDone }: { employeeId: string; branches: Branch[]; onDone: () => void }) {
@@ -175,7 +175,7 @@ export default function EmployeePage({ params }: { params: Promise<{ employeeId:
               </div>
               {can("employee.assign_roles") && (
                 <button
-                  onClick={() => confirm(`Remove ${a.role.name} from ${e.displayName}?`) && void revoke.run(a.id)}
+                  onClick={async () => (await askConfirm(`Remove ${a.role.name} from ${e.displayName}?`)) && void revoke.run(a.id)}
                   className="ml-auto rounded p-1.5 text-ink-3 hover:bg-panel-2 hover:text-danger"
                   aria-label={`Revoke ${a.role.name}`}
                 >

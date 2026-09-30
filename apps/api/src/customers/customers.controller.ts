@@ -157,6 +157,42 @@ export class CustomersController {
     return present(after);
   }
 
+  /**
+   * Right to erasure: scrub every piece of personal data and block the
+   * account, but keep bills, payments, wallet and loyalty ledgers (anonymous
+   * now) so the books and reports still add up. Refused while the customer
+   * still has money with us or something in progress.
+   */
+  @RequirePermissionAnyScope("customer.delete")
+  @Post(":customerId/erase")
+  @HttpCode(200)
+  async erase(@Param("customerId") customerId: string) {
+    const t = tx();
+    const c = await t.customer.findUnique({ where: { id: customerId }, select: { id: true, status: true, wallets: { select: { cashBalance: true, refundBalance: true } } } });
+    if (!c) throw new NotFoundException({ error: "not_found" });
+    if (c.status === "DELETED") throw new ConflictException({ error: "customer_erased" });
+    if (c.wallets.some((w) => w.cashBalance.add(w.refundBalance).gt(0))) throw new ConflictException({ error: "wallet_not_empty" });
+    if (await t.gamingSession.count({ where: { customerId, status: { in: ["PENDING", "ACTIVE", "PAUSED", "ENDING"] } } })) throw new ConflictException({ error: "customer_in_session" });
+    if (await t.bill.count({ where: { customerId, status: { in: ["OPEN", "PARTIALLY_PAID"] } } })) throw new ConflictException({ error: "customer_has_open_bill" });
+    if (await t.booking.count({ where: { customerId, startsAt: { gt: new Date() }, status: { in: ["PENDING", "CONFIRMED"] } } })) throw new ConflictException({ error: "customer_has_bookings" });
+
+    await t.customer.update({
+      where: { id: customerId },
+      data: {
+        username: `erased-${customerId.slice(-12)}`, displayName: "Erased customer", firstName: null, lastName: null, email: null, phone: null, dateOfBirth: null,
+        avatarUrl: null, passwordHash: null, pinHash: null, qrLoginSecretRef: null, referralCode: null, marketingConsent: false, emailVerifiedAt: null, phoneVerifiedAt: null,
+        status: "DELETED",
+      },
+    });
+    // Logins, devices and profile extras go entirely; money and history stay, now anonymous.
+    await t.customerSession.deleteMany({ where: { customerId } });
+    await t.pushSubscription.deleteMany({ where: { customerId } });
+    await t.customerFavoriteGame.deleteMany({ where: { customerId } });
+    await t.customerSegmentMember.deleteMany({ where: { customerId } });
+    await this.audit.record({ action: "customer.erase", entityType: "Customer", entityId: customerId });
+    return { erased: true };
+  }
+
   @RequirePermissionAnyScope("customer.reset_password")
   @Post(":customerId/credentials")
   @HttpCode(204)
@@ -216,11 +252,10 @@ export class CustomersController {
     return walletView(tx(), customerId);
   }
 
-  @AnyStaff()
+  @RequirePermissionAnyScope("customer.restrict")
   @Post(":customerId/wallet/freeze")
   @HttpCode(200)
   async freeze(@Param("customerId") customerId: string, @Body(new ZodPipe(Freeze)) body: z.infer<typeof Freeze>) {
-    authorizeFor("customer.restrict", { organizationId: orgId() });
     const { currency, organizationId } = await orgCurrency(tx());
     const w = await tx().wallet.upsert({ where: { customerId_currency: { customerId, currency } }, create: { organizationId, customerId, currency, isFrozen: body.frozen }, update: { isFrozen: body.frozen } });
     await this.audit.record({ action: body.frozen ? "wallet.freeze" : "wallet.unfreeze", entityType: "Customer", entityId: customerId, after: { frozen: w.isFrozen } });

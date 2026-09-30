@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Building2, Plus } from "lucide-react";
 import { api } from "@/lib/client/api";
 import { useAction, useApi } from "@/lib/client/hooks";
 import { useCan, useMe } from "@/lib/client/me";
+import { RecordActions } from "@/components/records";
 import { Badge, Button, Card, Empty, ErrorNote, Field, Input, Modal, PageHeader, Select, Spinner, Table } from "@/components/ui";
 import { STATUS_TONE, statusLabel, type Branch } from "@/lib/client/types";
 
@@ -74,6 +76,7 @@ function NewBranch({ open, onClose, onCreated }: { open: boolean; onClose: () =>
 export default function BranchesPage() {
   const can = useCan();
   const { data, loading, error, reload } = useApi<Branch[]>("/branches");
+  const router = useRouter();
   const [creating, setCreating] = useState(false);
 
   return (
@@ -101,7 +104,7 @@ export default function BranchesPage() {
             Create your first venue to start adding zones and stations.
           </Empty>
         ) : (
-          <Table head={["Code", "Branch", "Brand", "City", "Time zone", "Status"]}>
+          <Table head={["Code", "Branch", "Brand", "City", "Time zone", "Status", ""]}>
             {data.map((b) => (
               <tr key={b.id} className="transition hover:bg-panel-2">
                 <td className="px-4 py-3 font-mono text-xs text-ink-2">{b.code}</td>
@@ -115,6 +118,9 @@ export default function BranchesPage() {
                 <td className="px-4 py-3 text-ink-2">{b.timezone}</td>
                 <td className="px-4 py-3">
                   <Badge tone={STATUS_TONE[b.status]}>{statusLabel(b.status)}</Badge>
+                </td>
+                <td className="px-4 py-3 text-right">
+                  {b.status !== "CLOSED" && <RecordActions kind="branch" id={b.id} name={b.name} onEdit={() => router.push(`/branches/${b.id}`)} onDone={() => void reload()} />}
                 </td>
               </tr>
             ))}

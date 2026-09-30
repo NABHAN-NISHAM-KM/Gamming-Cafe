@@ -1,5 +1,6 @@
 import { Body, ConflictException, Controller, Get, HttpCode, Inject, NotFoundException, Param, Patch, Post, Query } from "@nestjs/common";
 import { z } from "zod";
+import { holdsPermission } from "@arena/rbac";
 import { AuditService } from "../common/audit.service.js";
 import { authorizeFor } from "../common/authz.js";
 import { AnyStaff } from "../common/decorators.js";
@@ -31,9 +32,13 @@ const Receive = z
     lines: z.array(z.object({ lineId: z.uuid(), quantity: amount, unitCost: amount.nullish(), lotCode: z.string().max(40).nullish(), expiresAt: z.iso.date().nullish(), serialNumbers: z.array(z.string().min(1).max(60)).max(500).nullish() }).strict()).min(1).max(200),
     note: z.string().max(200).nullish(),
     idempotencyKey: z.string().min(8).max(100),
+    invoice: z.object({ invoiceNumber: z.string().max(40).nullish(), invoiceDate: z.iso.date().nullish(), dueDate: z.iso.date().nullish() }).strict().nullish(),
   })
   .strict();
 const Reason = z.object({ reason: z.string().min(3).max(200) }).strict();
+const ReturnGoods = z
+  .object({ lines: z.array(z.object({ lineId: z.uuid(), quantity: amount }).strict()).min(1).max(200), reason: z.string().min(3).max(200), idempotencyKey: z.string().min(8).max(100) })
+  .strict();
 const Decision = z.object({ approve: z.boolean(), note: z.string().max(200).nullish() }).strict();
 const Draft = z.object({ warehouseId: z.uuid(), itemIds: z.array(z.uuid()).max(200).nullish() }).strict();
 const Invoice = z
@@ -169,8 +174,19 @@ export class PurchasingController {
   @Post("purchase-orders/:id/receive")
   @HttpCode(200)
   async receive(@Param("id") id: string, @Body(new ZodPipe(Receive)) body: z.infer<typeof Receive>) {
-    authorizeFor("purchasing.receive", await poTarget(id));
+    const target = await poTarget(id);
+    authorizeFor("purchasing.receive", target);
+    // The invoice is derived from this branch's own delivery, so the PO's scope is enough.
+    if (body.invoice) authorizeFor("purchasing.suppliers_manage", target);
     return this.svc.receive(tx(), id, body, me());
+  }
+
+  @AnyStaff()
+  @Post("purchase-orders/:id/return")
+  @HttpCode(200)
+  async returnGoods(@Param("id") id: string, @Body(new ZodPipe(ReturnGoods)) body: z.infer<typeof ReturnGoods>) {
+    authorizeFor("purchasing.receive", await poTarget(id));
+    return this.svc.returnToSupplier(tx(), id, body, me());
   }
 
   @AnyStaff()
@@ -210,10 +226,13 @@ export class PurchasingController {
   @AnyStaff()
   @Get("supplier-invoices")
   async invoices(@Query("status") status?: string, @Query("supplierId") supplierId?: string) {
-    authorizeFor("purchasing.view", org());
+    // Org-wide viewers see every invoice; branch viewers only those for orders delivered to their warehouses.
+    const orgWide = holdsPermission(principal(), "purchasing.view", org());
+    const ids = orgWide ? [] : await visibleWarehouses("purchasing.view");
+    if (!orgWide && !ids.length) authorizeFor("purchasing.view", org());
     const statuses = (status ?? "").split(",").filter((s) => /^[A-Z_]{3,20}$/.test(s));
     const rows = await tx().supplierInvoice.findMany({
-      where: { ...(statuses.length ? { status: { in: statuses as never } } : {}), ...(supplierId && /^[0-9a-f-]{36}$/i.test(supplierId) ? { supplierId } : {}) },
+      where: { ...(orgWide ? {} : { purchaseOrder: { warehouseId: { in: ids } } }), ...(statuses.length ? { status: { in: statuses as never } } : {}), ...(supplierId && /^[0-9a-f-]{36}$/i.test(supplierId) ? { supplierId } : {}) },
       orderBy: [{ dueDate: "asc" }],
       take: 200,
       select: { id: true },

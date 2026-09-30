@@ -3,6 +3,7 @@ import { CalendarClock, Check, ChevronRight, Clock, Crown, Gamepad2, Gift, Home,
 import { api, ApiError, key, setToken, signedIn, venueSlug, whenSignedOut, type Booking, type LedgerRow, type Me, type Venue } from "./api";
 import { BookScreen } from "./book";
 import { InboxScreen, RewardsScreen, TournamentsScreen } from "./engage";
+import { askConfirm } from "./confirm";
 
 const cx = (...c: Array<string | false | null | undefined>) => c.filter(Boolean).join(" ");
 const hours = (min: number) => (min >= 60 ? `${Math.floor(min / 60)} h${min % 60 ? ` ${min % 60} min` : ""}` : `${min} min`);
@@ -200,7 +201,7 @@ function BookingsScreen({ bookings, reload, toast }: { bookings: Booking[]; relo
   const upcoming = bookings.filter((b) => ["CONFIRMED", "PENDING", "CHECKED_IN"].includes(b.status) && new Date(b.endsAt) > new Date());
   const past = bookings.filter((b) => !upcoming.includes(b));
   const cancel = async (b: Booking) => {
-    if (!confirm(`Cancel ${b.reference}?`)) return;
+    if (!(await askConfirm(`Cancel booking ${b.reference}?`, { ok: "Cancel booking", cancel: "Keep it" }))) return;
     try {
       await api(`/bookings/${b.id}/cancel`, { method: "POST" });
       toast("Booking cancelled.");
@@ -251,7 +252,7 @@ function ShopScreen({ venue, me, onBought, toast }: { venue: Venue; me: Me; onBo
   const shop = useLoad(() => api<Shop>(`/shop?branchId=${branchId}`), [branchId]);
   const [busy, setBusy] = useState<string | null>(null);
   const buy = async (id: string, path: string, body: Record<string, unknown>, what: string) => {
-    if (!confirm(`Pay for ${what} from your wallet?`)) return;
+    if (!(await askConfirm(`Pay for ${what} from your wallet?`, { ok: "Pay" }))) return;
     setBusy(id);
     try {
       await api(path, { method: "POST", body: { branchId, ...body, idempotencyKey: key() } });

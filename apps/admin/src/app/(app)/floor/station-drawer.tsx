@@ -6,7 +6,7 @@ import { api } from "@/lib/client/api";
 import { useAction, useApi } from "@/lib/client/hooks";
 import { useCan } from "@/lib/client/me";
 import { CMD_TONE, STATUS, ago, fmtPct, fmtTemp, type Alert, type CommandRow, type FloorDevice } from "@/lib/client/floor";
-import { Badge, Button, ErrorNote, Field, Input, cx } from "@/components/ui";
+import { Badge, Button, ErrorNote, Field, Input, cx, askConfirm } from "@/components/ui";
 import { SessionPanel } from "./session-panel";
 import { ToolsPanel } from "./tools-panel";
 
@@ -57,8 +57,8 @@ export function StationDrawer({ device, allDevices, liveCommands, alerts, onClos
   const b = device.branchId;
   const commands = (detail.data?.commands ?? []).map((c) => ({ ...c, ...liveCommands[c.id] }));
 
-  const act = (type: string, label: string, confirmText?: string, payload?: Record<string, unknown>) => () => {
-    if (confirmText && !confirm(confirmText)) return;
+  const act = (type: string, label: string, confirmText?: string, payload?: Record<string, unknown>) => async () => {
+    if (confirmText && !(await askConfirm(confirmText))) return;
     void send.run(type, payload, label);
   };
 

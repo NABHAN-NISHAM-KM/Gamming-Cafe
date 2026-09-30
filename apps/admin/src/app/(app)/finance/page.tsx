@@ -4,7 +4,8 @@ import { useMemo, useState } from "react";
 import { BookOpen, CheckCircle2, Download, Landmark, Lock, Plus, Receipt, RefreshCw, Scale, Trash2, Undo2, XCircle } from "lucide-react";
 import { api } from "@/lib/client/api";
 import { useAction, useApi } from "@/lib/client/hooks";
-import { useCan } from "@/lib/client/me";
+import { useCan, useCanOrg } from "@/lib/client/me";
+import { QuickEdit, RecordActions } from "@/components/records";
 import { Badge, Button, Card, Empty, ErrorNote, Field, Input, Modal, PageHeader, Select, Spinner, Table, cx } from "@/components/ui";
 
 // ── types (mirror apps/api/src/accounting) ──────────────────────────────────
@@ -45,7 +46,7 @@ const qs = (o: Record<string, string | number | undefined | null>) => {
 };
 
 export default function FinancePage() {
-  const can = useCan();
+  const canOrg = useCanOrg();
   const [tab, setTab] = useState<Tab>("overview");
   const [from, setFrom] = useState(monthStart());
   const [to, setTo] = useState(todayLocal());
@@ -79,7 +80,7 @@ export default function FinancePage() {
         </Field>
       </div>
       <div className="flex gap-1 overflow-x-auto overflow-y-hidden border-b border-line">
-        {TABS.filter(([t]) => t !== "close" || can("accounting.view")).map(([t, label]) => (
+        {TABS.filter(([t]) => t !== "close" || canOrg("accounting.view")).map(([t, label]) => (
           <button key={t} onClick={() => setTab(t)} className={cx("-mb-px whitespace-nowrap border-b-2 px-4 py-2 text-sm", tab === t ? "border-accent text-ink" : "border-transparent text-ink-3 hover:text-ink")}>{label}</button>
         ))}
       </div>
@@ -333,6 +334,7 @@ function Accounts({ from, to, branchId, v }: Filter) {
   const tb = useApi<TB>(`/accounting/trial-balance${qs({ to, branchId })}&v=${v}`);
   const [ledger, setLedger] = useState<Account | null>(null);
   const [adding, setAdding] = useState(false);
+  const [renaming, setRenaming] = useState<Account | null>(null);
   const bal = useMemo(() => new Map((tb.data?.accounts ?? []).map((a) => [a.id, Number(a.debit) - Number(a.credit)])), [tb.data]);
   if (accounts.error) return <ErrorNote>{accounts.error.message}</ErrorNote>;
   if (!accounts.data || !tb.data) return <Spinner />;
@@ -353,12 +355,13 @@ function Accounts({ from, to, branchId, v }: Filter) {
             {accounts.data!.filter((a) => a.type === type).map((a) => {
               const b = (bal.get(a.id) ?? 0) * (naturalDebit(type) ? 1 : -1);
               return (
-                <li key={a.id}>
-                  <button disabled={a.isHeader} onClick={() => setLedger(a)} className={cx("flex w-full items-center gap-3 px-4 py-1.5 text-left", a.isHeader ? "bg-panel-2/60 font-medium" : "hover:bg-panel-2", a.parentId && "pl-8", !a.isActive && "opacity-50")}>
+                <li key={a.id} className="flex items-center pr-2">
+                  <button disabled={a.isHeader} onClick={() => setLedger(a)} className={cx("flex min-w-0 flex-1 items-center gap-3 px-4 py-1.5 text-left", a.isHeader ? "bg-panel-2/60 font-medium" : "hover:bg-panel-2", a.parentId && "pl-8", !a.isActive && "opacity-50")}>
                     <span className="w-14 font-mono text-xs text-ink-3">{a.code}</span>
                     <span className="flex-1">{a.name}{!a.isActive && <span className="ml-2 text-xs text-ink-3">(inactive)</span>}</span>
                     {!a.isHeader && <span className={cx("tabular-nums", b === 0 && "text-ink-3")}>{money(b)}</span>}
                   </button>
+                  <RecordActions kind="ledger-account" id={a.id} name={`${a.code} ${a.name}`} deletable={!a.systemKey} onEdit={() => setRenaming(a)} onDone={() => void accounts.reload()} />
                 </li>
               );
             })}
@@ -371,6 +374,11 @@ function Accounts({ from, to, branchId, v }: Filter) {
       <Modal open={adding} onClose={() => setAdding(false)} title="New account">
         {adding && <AccountForm accounts={accounts.data} onDone={() => { setAdding(false); void accounts.reload(); }} />}
       </Modal>
+      <QuickEdit
+        title={renaming ? `Edit ${renaming.code}` : ""} open={!!renaming} onClose={() => setRenaming(null)} onDone={() => { setRenaming(null); void accounts.reload(); }}
+        fields={[{ key: "name", label: "Name", required: true }]} initial={{ name: renaming?.name ?? "" }}
+        save={(v) => api(`/accounting/accounts/${renaming!.id}`, { method: "PATCH", body: { name: v["name"]!.trim() } })}
+      />
     </div>
   );
 }
@@ -441,6 +449,7 @@ function Expenses({ from, to, branchId, v, branches }: Filter & { branches: Bran
   const can = useCan();
   const list = useApi<{ currency: string; total: string; expenses: ExpenseRow[] }>(`/accounting/expenses${qs({ from, to, branchId })}&v=${v}`);
   const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState<ExpenseRow | null>(null);
   const mayRecord = branches.some((b) => can("accounting.expense", b.id));
   return (
     <div className="grid gap-4">
@@ -452,7 +461,7 @@ function Expenses({ from, to, branchId, v, branches }: Filter & { branches: Bran
       <ErrorNote>{list.error?.message}</ErrorNote>
       <Card>
         {!list.data ? <Spinner /> : list.data.expenses.length === 0 ? <Empty icon={<Receipt className="size-8" />} title="No expenses">Rent, utilities, repairs… record them here and they post to the ledger.</Empty> : (
-          <Table head={["Date", "Branch", "Account", "Description", "Paid", "Total"]}>
+          <Table head={["Date", "Branch", "Account", "Description", "Paid", "Total", ""]}>
             {list.data.expenses.map((e) => (
               <tr key={e.id} className="border-t border-line">
                 <td className="whitespace-nowrap px-4 py-2 tabular-nums text-ink-2">{e.incurredAt}</td>
@@ -461,11 +470,26 @@ function Expenses({ from, to, branchId, v, branches }: Filter & { branches: Bran
                 <td className="px-4 py-2 text-ink-2">{e.description ?? "—"}{e.supplier && <span className="text-ink-3"> · {e.supplier}</span>}</td>
                 <td className="px-4 py-2 text-xs">{e.fromDrawer ? <Badge tone="warn">From drawer</Badge> : e.paidVia.replace("_", " ").toLowerCase()}</td>
                 <td className="px-4 py-2 text-right tabular-nums">{money(e.total)}{Number(e.taxAmount) > 0 && <span className="block text-xs text-ink-3">incl. VAT {money(e.taxAmount)}</span>}</td>
+                <td className="px-4 py-2 text-right"><RecordActions kind="expense" id={e.id} name="expense" deletable={false} onEdit={() => setEditing(e)} onDone={() => void list.reload()} /></td>
               </tr>
             ))}
           </Table>
         )}
       </Card>
+      <QuickEdit
+        title="Fix expense" open={!!editing} onClose={() => setEditing(null)} onDone={() => { setEditing(null); void list.reload(); }}
+        fields={[
+          { key: "incurredAt", label: "Date", type: "date", required: true },
+          { key: "description", label: "Description" },
+          { key: "amount", label: "Amount (before VAT)", required: true, hint: editing?.fromDrawer ? "Paid from the drawer — the amount can't change; record a correcting expense instead." : undefined },
+          { key: "taxAmount", label: "VAT" },
+        ]}
+        initial={editing ? { incurredAt: editing.incurredAt, description: editing.description ?? "", amount: String(Number(editing.amount)), taxAmount: String(Number(editing.taxAmount)) } : {}}
+        save={(v) => api(`/accounting/expenses/${editing!.id}`, {
+          method: "PATCH",
+          body: { incurredAt: v["incurredAt"], description: v["description"] || null, ...(editing!.fromDrawer ? {} : { amount: v["amount"], taxAmount: v["taxAmount"] || "0" }) },
+        })}
+      />
       <Modal open={adding} onClose={() => setAdding(false)} title="Record expense">
         {adding && <ExpenseForm branches={branches.filter((b) => can("accounting.expense", b.id))} onDone={() => { setAdding(false); void list.reload(); }} />}
       </Modal>

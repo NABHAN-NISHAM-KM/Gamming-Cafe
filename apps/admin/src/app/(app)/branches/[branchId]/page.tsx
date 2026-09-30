@@ -6,7 +6,7 @@ import { Archive, ArrowLeft, Car, Coffee, DoorClosed, Gamepad2, Glasses, Globe, 
 import { api } from "@/lib/client/api";
 import { useAction, useApi } from "@/lib/client/hooks";
 import { useCan } from "@/lib/client/me";
-import { Badge, Button, Card, Empty, ErrorNote, Field, Input, Modal, PageHeader, Select, Spinner } from "@/components/ui";
+import { Badge, Button, Card, Empty, ErrorNote, Field, Input, Modal, PageHeader, Select, Spinner, askConfirm } from "@/components/ui";
 import { STATUS_TONE, statusLabel, type Branch } from "@/lib/client/types";
 import { useRouteId } from "@/lib/client/route-id";
 
@@ -139,7 +139,7 @@ export default function BranchPage({ params }: { params: Promise<{ branchId: str
   const zones = useApi<Zone[]>(`/branches/${branchId}/zones`);
   const [modal, setModal] = useState<{ kind: "zone"; zone?: Zone } | { kind: "branch" } | null>(null);
   const archive = useAction(async (z: Zone) => {
-    if (!confirm(`Archive zone "${z.name}"? Its history is kept.`)) return;
+    if (!(await askConfirm(`Archive zone "${z.name}"? Its history is kept.`))) return;
     await api(`/zones/${z.id}`, { method: "DELETE", action: "Archive zone" });
     await zones.reload();
   });

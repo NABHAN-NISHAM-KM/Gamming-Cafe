@@ -1,7 +1,7 @@
 "use client";
 
-import { forwardRef, useEffect, useRef, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from "react";
-import { ChevronDown, Loader2, X } from "lucide-react";
+import { forwardRef, useEffect, useRef, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from "react";
+import { AlertTriangle, CheckCircle2, ChevronDown, HelpCircle, Info, Loader2, MessageSquareText, X } from "lucide-react";
 
 export const cx = (...c: Array<string | false | null | undefined>) => c.filter(Boolean).join(" ");
 
@@ -41,7 +41,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLBut
 // ── Form controls ───────────────────────────────────────────────────────────
 
 const control =
-  "w-full h-10 rounded-lg bg-bg/70 border border-line-strong px-3 text-sm text-ink placeholder:text-ink-3 transition-[border-color,box-shadow] duration-150 hover:border-ink-3/60 focus:border-accent focus:outline-none focus:ring-4 focus:ring-accent/15 disabled:opacity-60";
+  "w-full min-w-0 h-10 rounded-lg bg-bg/70 border border-line-strong px-3 text-sm text-ink placeholder:text-ink-3 transition-[border-color,box-shadow] duration-150 hover:border-ink-3/60 focus:border-accent focus:outline-none focus:ring-4 focus:ring-accent/15 disabled:opacity-60";
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(function Input({ className, ...rest }, ref) {
   return <input ref={ref} className={cx(control, className)} {...rest} />;
@@ -60,7 +60,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSel
 
 export function Field({ label, hint, children, className }: { label: string; hint?: ReactNode; children: ReactNode; className?: string }) {
   return (
-    <label className={cx("grid content-start gap-1.5", className)}>
+    <label className={cx("grid min-w-0 content-start gap-1.5", className)}>
       <span className="text-xs font-medium tracking-wide text-ink-2">{label}</span>
       {children}
       {hint && <span className="text-xs text-ink-3">{hint}</span>}
@@ -201,5 +201,92 @@ export function Modal({ open, onClose, title, children, wide }: { open: boolean;
         </div>
       )}
     </dialog>
+  );
+}
+
+// ── Toast (replaces alert(): call toast("…") anywhere, <Toaster /> renders them) ──
+
+type ToastTone = "ok" | "info" | "warn";
+type ToastMsg = { id: number; text: string; tone: ToastTone };
+let toasts: ToastMsg[] = [];
+let nextToast = 1;
+const toastListeners = new Set<(t: ToastMsg[]) => void>();
+const emitToasts = (next: ToastMsg[]) => { toasts = next; toastListeners.forEach((l) => l(toasts)); };
+const dismissToast = (id: number) => emitToasts(toasts.filter((t) => t.id !== id));
+
+export function toast(text: string, tone: ToastTone = "ok") {
+  const id = nextToast++;
+  emitToasts([...toasts, { id, text, tone }].slice(-4));
+  setTimeout(() => dismissToast(id), tone === "warn" ? 8000 : 5000);
+}
+
+const TOAST_TONE: Record<ToastTone, { icon: ReactNode; ring: string }> = {
+  ok: { icon: <CheckCircle2 className="size-4 text-ok" />, ring: "border-ok/35" },
+  info: { icon: <Info className="size-4 text-accent" />, ring: "border-accent/35" },
+  warn: { icon: <AlertTriangle className="size-4 text-reserved" />, ring: "border-reserved/40" },
+};
+
+export function Toaster() {
+  const [list, setList] = useState(toasts);
+  useEffect(() => {
+    toastListeners.add(setList);
+    return () => void toastListeners.delete(setList);
+  }, []);
+  return (
+    <div aria-live="polite" className="pointer-events-none fixed right-4 bottom-4 z-[100] grid w-[min(24rem,calc(100vw-2rem))] gap-2">
+      {list.map((t) => (
+        <div key={t.id} role="status" className={cx("animate-enter pointer-events-auto flex items-start gap-3 rounded-xl border bg-panel/95 px-4 py-3 text-sm text-ink shadow-2xl shadow-black/60 backdrop-blur", TOAST_TONE[t.tone].ring)}>
+          <span className="mt-0.5 shrink-0">{TOAST_TONE[t.tone].icon}</span>
+          <p className="min-w-0 flex-1">{t.text}</p>
+          <button onClick={() => dismissToast(t.id)} className="press -mr-1 rounded p-0.5 text-ink-3 hover:text-ink" aria-label="Dismiss"><X className="size-3.5" /></button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Dialogs (replace confirm()/prompt(): `if (!(await askConfirm("…"))) return;`) ──
+
+type DialogReq = { kind: "confirm" | "text"; message: string; optional?: boolean; resolve: (v: string | null) => void };
+let openDialog: ((d: DialogReq) => void) | null = null;
+const request = (d: Omit<DialogReq, "resolve">) =>
+  new Promise<string | null>((resolve) => (openDialog ? openDialog({ ...d, resolve }) : resolve(null)));
+
+/** Themed yes/no question. */
+export const askConfirm = async (message: string) => (await request({ kind: "confirm", message })) !== null;
+/** Themed text question; resolves the trimmed answer (≥ 3 chars unless optional), or null if cancelled. */
+export const askText = (message: string, opts: { optional?: boolean } = {}) => request({ kind: "text", message, ...opts });
+
+export function Dialogs() {
+  const [d, setD] = useState<DialogReq | null>(null);
+  const [text, setText] = useState("");
+  const current = useRef<DialogReq | null>(null);
+  const show = (next: DialogReq | null) => { current.current = next; setText(""); setD(next); };
+  useEffect(() => {
+    openDialog = (next) => { current.current?.resolve(null); show(next); }; // a newer question cancels the older one
+    return () => void (openDialog = null);
+  }, []);
+  const finish = (v: string | null) => { current.current?.resolve(v); show(null); };
+  const valid = d?.kind !== "text" || d.optional || text.trim().length >= 3;
+  return (
+    <Modal open={!!d} onClose={() => finish(null)} title={d?.kind === "text" ? "Add a note" : "Please confirm"}>
+      {d && (
+        <form className="grid gap-4" onSubmit={(e) => { e.preventDefault(); if (valid) finish(d.kind === "text" ? text.trim() : "yes"); }}>
+          <p className="flex gap-2.5 text-sm text-ink-2">
+            {d.kind === "text" ? <MessageSquareText className="mt-0.5 size-4 shrink-0 text-accent" /> : <HelpCircle className="mt-0.5 size-4 shrink-0 text-reserved" />}
+            <span className="text-ink">{d.message}</span>
+          </p>
+          {d.kind === "text" && (
+            <Field label={d.optional ? "Note (optional)" : "Reason"}>
+              <Input autoFocus value={text} onChange={(e) => setText(e.target.value)} maxLength={200} placeholder={d.optional ? "" : "At least 3 characters"} />
+            </Field>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={() => finish(null)}>Cancel</Button>
+            <Button type="submit" variant="primary" disabled={!valid} autoFocus={d.kind === "confirm"}>{d.kind === "text" ? "Continue" : "Confirm"}</Button>
+          </div>
+        </form>
+      )}
+    </Modal>
   );
 }

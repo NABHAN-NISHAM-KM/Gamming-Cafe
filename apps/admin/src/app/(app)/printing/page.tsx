@@ -6,7 +6,7 @@ import { api } from "@/lib/client/api";
 import { useBranch } from "@/lib/client/branch";
 import { useAction, useApi } from "@/lib/client/hooks";
 import { useCan } from "@/lib/client/me";
-import { Badge, Button, Card, Empty, ErrorNote, Field, Input, PageHeader, Select, Spinner, Table, cx } from "@/components/ui";
+import { Badge, Button, Card, Empty, ErrorNote, Field, Input, PageHeader, Select, Spinner, Table, cx, toast, askText } from "@/components/ui";
 
 interface Job {
   id: string;
@@ -39,7 +39,7 @@ const REASON: Record<string, string> = { no_session: "no session", not_set_up: "
 export default function PrintingPage() {
   const can = useCan();
   const { branches, branchId, setBranchId } = useBranch();
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const jobs = useApi<Job[]>(branchId ? `/branches/${branchId}/print-jobs${open ? "?open=1" : ""}` : null);
   const settings = useApi<Settings>(branchId ? `/branches/${branchId}/print-settings` : null);
   const [now, setNow] = useState(() => Date.now());
@@ -54,11 +54,11 @@ export default function PrintingPage() {
 
   const release = useAction(async (j: Job, payWith?: "BILL" | "WALLET") => {
     const r = await api<{ result: string }>(`/print-jobs/${j.id}/release`, { method: "POST", body: payWith ? { payWith } : {} });
-    if (r.result === "session_ended") alert("The customer's session has ended — the job was cancelled.");
+    if (r.result === "session_ended") toast("The customer's session has ended — the job was cancelled.", "warn");
     await jobs.reload();
   });
   const cancel = useAction(async (j: Job) => {
-    const reason = prompt("Why cancel this print?");
+    const reason = await askText("Why cancel this print?");
     if (!reason || reason.trim().length < 3) return;
     await api(`/print-jobs/${j.id}/cancel`, { method: "POST", body: { reason: reason.trim() } });
     await jobs.reload();
@@ -78,8 +78,8 @@ export default function PrintingPage() {
               </Select>
             )}
             <Select value={open ? "open" : "all"} onChange={(e) => setOpen(e.target.value === "open")} className="w-auto">
-              <option value="open">Waiting & printing</option>
               <option value="all">Last 24 hours</option>
+              <option value="open">Waiting & printing</option>
             </Select>
           </div>
         }

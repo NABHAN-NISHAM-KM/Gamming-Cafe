@@ -209,11 +209,11 @@ describe.skipIf(!HAS_DB)("ArenaOS API (e2e)", () => {
       expect(res.status).toBe(403);
     });
 
-    it("sensitive actions require a reason", async () => {
-      const res = await as(ownerToken).patch("/v1/organization", { displayName: "Demo Arena" });
+    it("risky actions require a reason; routine setup doesn't", async () => {
+      expect((await as(ownerToken).patch("/v1/organization", { displayName: "Demo Arena" })).status).toBe(200);
+      const res = await as(ownerToken).post("/v1/customers/00000000-0000-7000-8000-000000000000/erase");
       expect(res.status).toBe(403);
       expect(res.body.reason).toBe("REASON_REQUIRED");
-      expect((await as(ownerToken).patch("/v1/organization", { displayName: "Demo Arena" }, "rename check")).status).toBe(200);
     });
 
     it("anti-escalation: a branch manager cannot hire an org owner, but can hire a cashier for their branch", async () => {

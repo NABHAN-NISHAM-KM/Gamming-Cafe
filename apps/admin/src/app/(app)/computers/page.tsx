@@ -9,7 +9,8 @@ import { useBranch } from "@/lib/client/branch";
 import { useCan } from "@/lib/client/me";
 import { STATUS, ago, fmtTemp, type FloorDevice } from "@/lib/client/floor";
 import type { Branch } from "@/lib/client/types";
-import { Badge, Button, Card, Empty, ErrorNote, Field, Input, Modal, PageHeader, Select, Spinner, Table } from "@/components/ui";
+import { QuickEdit, RecordActions } from "@/components/records";
+import { Badge, Button, Card, Empty, ErrorNote, Field, Input, Modal, PageHeader, Select, Spinner, Table, askConfirm } from "@/components/ui";
 
 interface Zone {
   id: string;
@@ -159,9 +160,10 @@ export default function ComputersPage() {
   const manage = can("station.manage", branchId ?? undefined);
 
   const devices = useApi<FloorDevice[]>(branchId ? `/branches/${branchId}/devices` : null);
-  const zones = useApi<Zone[]>(branchId ? `/branches/${branchId}/zones` : null);
+  const zones = useApi<Zone[]>(branchId && can("zone.view", branchId) ? `/branches/${branchId}/zones` : null);
   const tokens = useApi<Token[]>(branchId && manage ? `/branches/${branchId}/enrollment-tokens` : null);
   const [adding, setAdding] = useState(false);
+  const [renaming, setRenaming] = useState<FloorDevice | null>(null);
   const zoneName = (id: string | null) => (id ? zones.data?.find((z) => z.id === id)?.name ?? "—" : "First zone");
 
   const revoke = useAction(async (id: string) => {
@@ -169,7 +171,7 @@ export default function ComputersPage() {
     await tokens.reload();
   });
   const retire = useAction(async (d: FloorDevice) => {
-    if (!confirm(`Retire ${d.name}? It will be disconnected and must be re-enrolled to come back. History is kept.`)) return;
+    if (!(await askConfirm(`Retire ${d.name}? It will be disconnected and must be re-enrolled to come back. History is kept.`))) return;
     await api(`/devices/${d.id}`, { method: "DELETE", action: "Retire station" });
     await devices.reload();
   });
@@ -261,7 +263,8 @@ export default function ComputersPage() {
                   <td className="tabular px-4 py-3 text-ink-2">{d.isOnline ? `${fmtTemp(d.metrics?.cpuTempC)} · ${fmtTemp(d.metrics?.gpuTempC)}` : "—"}</td>
                   <td className="px-4 py-3 text-xs text-ink-2">{d.agentVersion ?? "—"}</td>
                   <td className="px-4 py-3 text-xs text-ink-3">{d.isOnline ? "now" : ago(d.lastSeenAt)}</td>
-                  <td className="px-4 py-3 text-right">
+                  <td className="whitespace-nowrap px-4 py-3 text-right">
+                    <RecordActions kind="device" id={d.id} name={d.name} deletable={false} onEdit={() => setRenaming(d)} onDone={() => void devices.reload()} />
                     {manage && (
                       <button onClick={() => void retire.run(d)} className="rounded p-1.5 text-ink-3 hover:bg-panel-2 hover:text-danger" aria-label={`Retire ${d.name}`}>
                         <Trash2 className="size-4" />
@@ -284,6 +287,11 @@ export default function ComputersPage() {
           onCreated={() => void tokens.reload()}
         />
       )}
+      <QuickEdit
+        title={renaming ? `Rename ${renaming.name}` : ""} open={!!renaming} onClose={() => setRenaming(null)} onDone={() => { setRenaming(null); void devices.reload(); }}
+        fields={[{ key: "name", label: "Name", required: true, hint: "Letters, numbers, spaces, - and _ (max 24)" }]} initial={{ name: renaming?.name ?? "" }}
+        save={(v) => api(`/devices/${renaming!.id}`, { method: "PATCH", body: { name: v["name"]!.trim() } })}
+      />
     </>
   );
 }

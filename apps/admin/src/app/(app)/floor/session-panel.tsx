@@ -7,7 +7,7 @@ import { useAction, useApi } from "@/lib/client/hooks";
 import { useCan } from "@/lib/client/me";
 import type { FloorDevice } from "@/lib/client/floor";
 import { fmtCountdown, idem, money, remaining, useTick, type QuoteResponse, type SessionSummary } from "@/lib/client/sessions";
-import { Button, ErrorNote, Field, Input, Select, cx } from "@/components/ui";
+import { Button, ErrorNote, Field, Input, Select, cx, askConfirm } from "@/components/ui";
 
 type Req = { kind: "minutes"; minutes: number } | { kind: "package"; packageId: string } | { kind: "pass" } | { kind: "open" };
 type Method = "CASH" | "CARD" | "TIME_BALANCE" | "PAY_LATER";
@@ -249,7 +249,7 @@ function RunningSession({ device, session, available, onChange }: { device: Floo
     onChange();
   });
   const end = useAction(async () => {
-    if (!confirm(`End ${session.customer?.displayName ?? session.guestLabel ?? "this"} session on ${device.name} now?`)) return;
+    if (!(await askConfirm(`End ${session.customer?.displayName ?? session.guestLabel ?? "this"} session on ${device.name} now?`))) return;
     await api(`/sessions/${session.id}/end`, { method: "POST", action: "End session", body: {} });
     onChange();
   });

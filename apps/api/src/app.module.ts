@@ -19,6 +19,7 @@ import { EmployeesController } from "./employees/employees.controller.js";
 import { OrganizationsController } from "./organizations/organizations.controller.js";
 import { RolesController } from "./roles/roles.controller.js";
 import { ZonesController } from "./zones/zones.controller.js";
+import { RecordsController } from "./common/records.controller.js";
 import { CommandsService } from "./devices/commands.service.js";
 import { DeviceGateway } from "./devices/device-gateway.js";
 import { DeviceRuntimeService } from "./devices/device-runtime.service.js";
@@ -110,6 +111,7 @@ export class AppModule {
         OrganizationsController,
         BranchesController,
         ZonesController,
+        RecordsController,
         EmployeesController,
         RolesController,
         DevicesController,

@@ -17,6 +17,12 @@ export interface PoLineInput {
   unitCost: string;
   taxRatePercent?: string | null;
 }
+/** Bill this delivery straight away; blanks default to the PO number, today and the supplier's terms. */
+export interface ReceiveInvoice {
+  invoiceNumber?: string | null;
+  invoiceDate?: string | null;
+  dueDate?: string | null;
+}
 export interface ReceiveLine {
   lineId: string;
   quantity: string;
@@ -171,8 +177,10 @@ export class PurchasingService {
    * Goods arrive: each line's received quantity goes into the PO's warehouse
    * at the line's cost (or the invoiced cost, if it changed), moving the
    * average cost. Never more than ordered — the database refuses it too.
+   * With `invoice`, the supplier invoice for exactly what arrived (at the
+   * cost it arrived at, plus the line's tax) is recorded in the same step.
    */
-  async receive(t: TenantTx, poId: string, r: { lines: ReceiveLine[]; note?: string | null; idempotencyKey: string }, actor: Actor) {
+  async receive(t: TenantTx, poId: string, r: { lines: ReceiveLine[]; note?: string | null; idempotencyKey: string; invoice?: ReceiveInvoice | null }, actor: Actor) {
     const po = await t.purchaseOrder.findUnique({ where: { id: poId }, include: { purchaseOrderLines: { include: { item: { select: { name: true, trackExpiry: true, trackSerial: true } } } } } });
     if (!po) throw new NotFoundException({ error: "po_not_found" });
     const replay = await t.stockMovement.findFirst({ where: { idempotencyKey: { startsWith: `${r.idempotencyKey}:` } }, select: { id: true } });
@@ -180,6 +188,9 @@ export class PurchasingService {
     if (!(RECEIVABLE as readonly string[]).includes(po.status)) throw new ConflictException({ error: "bad_po_status", status: po.status });
     if (!r.lines.length) throw new HttpException({ error: "bad_lines" }, 400);
     const received: Array<{ item: string; quantity: string }> = [];
+    const unit = await minorUnitOf(t, po.currency);
+    let billedNet = ZERO;
+    let billedTax = ZERO;
     for (const [n, x] of r.lines.entries()) {
       const line = po.purchaseOrderLines.find((l) => l.id === x.lineId);
       if (!line) throw new NotFoundException({ error: "po_line_not_found" });
@@ -202,11 +213,54 @@ export class PurchasingService {
         await moveStock(t, { itemId: line.itemId, warehouseId: po.warehouseId, type: "PURCHASE_RECEIPT", delta: qty, unitCost: cost, lot: { lotCode: x.lotCode ?? null, expiresAt }, referenceType: "PO_LINE", referenceId: line.id, employeeId: actor.id, reason: r.note ?? null, idempotencyKey: `${r.idempotencyKey}:${n}` });
       }
       received.push({ item: line.item.name, quantity: q(qty) });
+      const m = lineMoney(qty, cost, line.taxRatePercent, unit);
+      billedNet = billedNet.add(m.net);
+      billedTax = billedTax.add(m.tax);
     }
     const lines = await t.purchaseOrderLine.findMany({ where: { purchaseOrderId: poId }, select: { quantityOrdered: true, quantityReceived: true } });
     const done = lines.every((l) => l.quantityReceived.gte(l.quantityOrdered));
     await t.purchaseOrder.update({ where: { id: poId }, data: { status: done ? "RECEIVED" : "PARTIALLY_RECEIVED", orderedAt: po.orderedAt ?? new Date() } });
     await auditAs(t, actor, { action: "po.receive", entityType: "PurchaseOrder", entityId: poId, branchId: po.branchId, after: { received, note: r.note ?? null, status: done ? "RECEIVED" : "PARTIALLY_RECEIVED" } });
+    if (r.invoice) {
+      const earlier = await t.supplierInvoice.count({ where: { purchaseOrderId: poId } });
+      await this.createInvoice(t, {
+        supplierId: po.supplierId, purchaseOrderId: poId,
+        invoiceNumber: r.invoice.invoiceNumber?.trim() || (earlier ? `${po.number}-${earlier + 1}` : po.number),
+        invoiceDate: r.invoice.invoiceDate || new Date().toISOString().slice(0, 10), dueDate: r.invoice.dueDate ?? null,
+        amount: billedNet.toFixed(unit), taxAmount: billedTax.toFixed(unit),
+      }, actor);
+    }
+    return this.view(t, poId);
+  }
+
+  /**
+   * Undo a receipt: goods received by mistake (wrong count, damaged, wrong
+   * item) go back to the supplier. Stock leaves the warehouse as a
+   * RETURN_TO_SUPPLIER movement and the line's received quantity drops, so the
+   * order shows as outstanding again and invoices re-match against it.
+   */
+  async returnToSupplier(t: TenantTx, poId: string, r: { lines: Array<{ lineId: string; quantity: string }>; reason: string; idempotencyKey: string }, actor: Actor) {
+    const po = await t.purchaseOrder.findUnique({ where: { id: poId }, include: { purchaseOrderLines: { include: { item: { select: { name: true } } } } } });
+    if (!po) throw new NotFoundException({ error: "po_not_found" });
+    const replay = await t.stockMovement.findFirst({ where: { idempotencyKey: { startsWith: `${r.idempotencyKey}:` } }, select: { id: true } });
+    if (replay) return this.view(t, poId);
+    if (!["PARTIALLY_RECEIVED", "RECEIVED"].includes(po.status)) throw new ConflictException({ error: "bad_po_status", status: po.status });
+    const returned: Array<{ item: string; quantity: string }> = [];
+    for (const [n, x] of r.lines.entries()) {
+      const line = po.purchaseOrderLines.find((l) => l.id === x.lineId);
+      if (!line) throw new NotFoundException({ error: "po_line_not_found" });
+      const qty = D(x.quantity);
+      if (qty.lte(0)) throw new HttpException({ error: "bad_quantity" }, 400);
+      if (qty.gt(line.quantityReceived)) throw new ConflictException({ error: "over_return", item: line.item.name, received: q(line.quantityReceived) });
+      const upd = await t.purchaseOrderLine.updateMany({ where: { id: line.id, quantityReceived: line.quantityReceived }, data: { quantityReceived: line.quantityReceived.sub(qty) } });
+      if (upd.count !== 1) throw new ConflictException({ error: "po_busy", hint: "Someone else is changing this order — reload." });
+      await moveStock(t, { itemId: line.itemId, warehouseId: po.warehouseId, type: "RETURN_TO_SUPPLIER", delta: qty.neg(), referenceType: "PO_LINE", referenceId: line.id, employeeId: actor.id, reason: r.reason, idempotencyKey: `${r.idempotencyKey}:${n}` });
+      returned.push({ item: line.item.name, quantity: q(qty) });
+    }
+    const lines = await t.purchaseOrderLine.findMany({ where: { purchaseOrderId: poId }, select: { quantityOrdered: true, quantityReceived: true } });
+    const status = lines.every((l) => l.quantityReceived.gte(l.quantityOrdered)) ? "RECEIVED" : lines.some((l) => l.quantityReceived.gt(0)) ? "PARTIALLY_RECEIVED" : "ORDERED";
+    await t.purchaseOrder.update({ where: { id: poId }, data: { status } });
+    await auditAs(t, actor, { action: "po.return", entityType: "PurchaseOrder", entityId: poId, branchId: po.branchId, after: { returned, reason: r.reason, status } });
     return this.view(t, poId);
   }
 
@@ -279,7 +333,9 @@ export class PurchasingService {
     let match: { receivedValue: string; difference: string; status: "MATCHED" | "OVER" | "UNDER" } | null = null;
     if (i.purchaseOrderId) {
       const po = await this.view(t, i.purchaseOrderId);
-      const diff = total.sub(D(po.receivedValue));
+      // Per-delivery invoices add up: compare everything billed on the order with everything received.
+      const billed = po.invoices.filter((x) => x.status !== "VOID").reduce((a, x) => a.add(D(x.amount)).add(D(x.taxAmount)), ZERO);
+      const diff = billed.sub(D(po.receivedValue));
       match = { receivedValue: po.receivedValue, difference: diff.toFixed(unit), status: diff.abs().lte(D(1).div(10 ** unit)) ? "MATCHED" : diff.gt(0) ? "OVER" : "UNDER" };
     }
     return {

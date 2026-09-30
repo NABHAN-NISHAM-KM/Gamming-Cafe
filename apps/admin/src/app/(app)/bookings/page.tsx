@@ -8,7 +8,7 @@ import type { FloorDevice, FloorZone } from "@/lib/client/floor";
 import { useAction, useApi } from "@/lib/client/hooks";
 import { useCan } from "@/lib/client/me";
 import { idem } from "@/lib/client/sessions";
-import { Badge, Button, Card, Empty, ErrorNote, Field, Input, Modal, PageHeader, Select, Spinner, cx } from "@/components/ui";
+import { Badge, Button, Card, Empty, ErrorNote, Field, Input, Modal, PageHeader, Select, Spinner, cx, askText } from "@/components/ui";
 
 interface Booking {
   id: string;
@@ -155,7 +155,7 @@ function BookingDetail({ b, branchId, onDone }: { b: Booking; branchId: string; 
     onDone();
   });
   const cancel = useAction(async () => {
-    const reason = prompt("Why is it cancelled?");
+    const reason = await askText("Why is it cancelled?");
     if (!reason) return;
     await api(`/bookings/${b.id}/cancel`, { method: "POST", action: "Cancel booking", body: { reason } });
     onDone();

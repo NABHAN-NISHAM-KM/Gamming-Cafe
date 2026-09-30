@@ -9,9 +9,10 @@ import {
   CATEGORY_LABEL, MOVE_LABEL, STATUS_TONE, qtyLabel,
   type Item, type Movement, type Overview, type StockRow, type Supplier, type WarehouseStock, type WarehouseSummary,
 } from "@/lib/client/inventory";
-import { useCan } from "@/lib/client/me";
+import { useCan, useCanOrg } from "@/lib/client/me";
 import { idem } from "@/lib/client/sessions";
-import { Badge, Button, Card, Empty, ErrorNote, Field, Input, Modal, PageHeader, Select, Spinner, Table, cx } from "@/components/ui";
+import { RecordActions } from "@/components/records";
+import { Badge, Button, Card, Empty, ErrorNote, Field, Input, Modal, PageHeader, Select, Spinner, Table, cx, toast } from "@/components/ui";
 
 type Tab = "overview" | "stock" | "items" | "movements";
 const WH_KEY = "arena.inventory.warehouse";
@@ -48,6 +49,7 @@ export default function InventoryPage() {
 
   const can = useCan();
   const [addingStore, setAddingStore] = useState(false);
+  const [editingStore, setEditingStore] = useState<WarehouseSummary | null>(null);
 
   return (
     <div className="space-y-5">
@@ -57,6 +59,7 @@ export default function InventoryPage() {
         actions={can("inventory.manage") && <Button onClick={() => setAddingStore(true)}><Plus className="size-4" /> Add store</Button>}
       />
       <AddStore open={addingStore} onClose={() => setAddingStore(false)} onSaved={() => void overview.reload()} />
+      <EditStore store={editingStore} onClose={() => setEditingStore(null)} onSaved={() => void overview.reload()} />
       <div className="flex gap-1 border-b border-line">
         {(["overview", "stock", "items", "movements"] as Tab[]).map((t) => (
           <button key={t} onClick={() => setTab(t)} className={cx("-mb-px border-b-2 px-4 py-2 text-sm capitalize", tab === t ? "border-accent text-ink" : "border-transparent text-ink-3 hover:text-ink")}>{t}</button>
@@ -69,7 +72,7 @@ export default function InventoryPage() {
       ) : overview.data.warehouses.length === 0 && tab !== "items" ? (
         <Empty icon={<Boxes className="size-8" />} title="No stores yet">Add a warehouse (a branch store, kitchen, bar or central warehouse) to start tracking stock.</Empty>
       ) : tab === "overview" ? (
-        <OverviewTab o={overview.data} onOpen={open} />
+        <OverviewTab o={overview.data} onOpen={open} onEdit={setEditingStore} onChanged={() => void overview.reload()} />
       ) : tab === "stock" ? (
         <StockTab warehouses={overview.data.warehouses} warehouse={warehouse} onPick={pick} onChanged={() => void overview.reload()} />
       ) : tab === "items" ? (
@@ -82,6 +85,29 @@ export default function InventoryPage() {
 }
 
 const STORE_TYPES: Array<[string, string]> = [["BRANCH_STORE", "Branch store"], ["KITCHEN", "Kitchen"], ["BAR", "Bar"], ["TECH_STORE", "Tech store (spare parts)"], ["CENTRAL", "Central warehouse"]];
+
+function EditStore({ store, onClose, onSaved }: { store: WarehouseSummary | null; onClose: () => void; onSaved: () => void }) {
+  const [f, setF] = useState({ name: "", isActive: true });
+  useEffect(() => { if (store) setF({ name: store.name, isActive: store.isActive }); }, [store]);
+  const save = useAction(async () => {
+    await api(`/warehouses/${store!.id}`, { method: "PATCH", body: { name: f.name.trim(), isActive: f.isActive } });
+    onSaved();
+    onClose();
+  });
+  return (
+    <Modal open={!!store} onClose={onClose} title={store ? `Edit ${store.name}` : ""}>
+      <form className="grid gap-4" onSubmit={(e) => { e.preventDefault(); void save.run(); }}>
+        <Field label="Name"><Input required value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} maxLength={60} /></Field>
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={f.isActive} onChange={(e) => setF({ ...f, isActive: e.target.checked })} /> Active</label>
+        <ErrorNote>{save.error}</ErrorNote>
+        <div className="flex justify-end gap-2">
+          <Button type="button" onClick={onClose}>Cancel</Button>
+          <Button type="submit" variant="primary" pending={save.pending}>Save</Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
 
 /** A place stock lives: a branch store, kitchen, bar, or a central warehouse that serves every branch. */
 function AddStore({ open, onClose, onSaved }: { open: boolean; onClose: () => void; onSaved: () => void }) {
@@ -126,7 +152,7 @@ function WarehousePicker({ warehouses, value, onChange }: { warehouses: Warehous
 
 // ── overview ────────────────────────────────────────────────────────────────
 
-function OverviewTab({ o, onOpen }: { o: Overview; onOpen: (warehouseId: string) => void }) {
+function OverviewTab({ o, onOpen, onEdit, onChanged }: { o: Overview; onOpen: (warehouseId: string) => void; onEdit: (w: WarehouseSummary) => void; onChanged: () => void }) {
   const total = o.warehouses.reduce((a, w) => a + Number(w.value), 0);
   const whName = (id: string) => whLabel(o.warehouses.find((w) => w.id === id) ?? { name: "?", branch: null });
   return (
@@ -139,12 +165,15 @@ function OverviewTab({ o, onOpen }: { o: Overview; onOpen: (warehouseId: string)
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {o.warehouses.map((w) => (
-          <button key={w.id} onClick={() => onOpen(w.id)} className="rounded-xl border border-line bg-panel p-4 text-left transition hover:border-accent">
-            <p className="flex items-center justify-between"><span className="font-medium">{w.name}</span>{w.alerts > 0 && <Badge tone="warn"><AlertTriangle className="size-3" /> {w.alerts}</Badge>}</p>
-            <p className="text-xs text-ink-3">{w.branch ? `${w.branch.code} · ${w.branch.name}` : "Central"} · {w.type.replace("_", " ").toLowerCase()}</p>
-            <p className="mt-3 text-lg font-semibold tabular-nums">{w.value}</p>
-            <p className="text-xs text-ink-3">{w.items} items stocked</p>
-          </button>
+          <div key={w.id} className={cx("relative", !w.isActive && "opacity-50")}>
+            <button onClick={() => onOpen(w.id)} className="w-full rounded-xl border border-line bg-panel p-4 text-left transition hover:border-accent">
+              <p className="flex items-center gap-2 pr-16"><span className="font-medium">{w.name}</span>{w.alerts > 0 && <Badge tone="warn"><AlertTriangle className="size-3" /> {w.alerts}</Badge>}{!w.isActive && <Badge>archived</Badge>}</p>
+              <p className="text-xs text-ink-3">{w.branch ? `${w.branch.code} · ${w.branch.name}` : "Central"} · {w.type.replace("_", " ").toLowerCase()}</p>
+              <p className="mt-3 text-lg font-semibold tabular-nums">{w.value}</p>
+              <p className="text-xs text-ink-3">{w.items} items stocked</p>
+            </button>
+            <span className="absolute right-2 top-2"><RecordActions kind="warehouse" id={w.id} name={w.name} onEdit={() => onEdit(w)} onDone={onChanged} /></span>
+          </div>
         ))}
       </div>
       <div className="grid gap-5 lg:grid-cols-2">
@@ -201,7 +230,7 @@ function StockTab({ warehouses, warehouse, onPick, onChanged }: { warehouses: Wa
     const lines = Object.entries(counting ?? {}).filter(([, v]) => v.trim() !== "").map(([itemId, counted]) => ({ itemId, counted: counted.trim() }));
     if (!lines.length) return setCounting(null);
     const r = await api<{ itemsOff: number; variance: string }>(`/warehouses/${warehouse}/counts`, { method: "POST", body: { lines, note: "Stock count", idempotencyKey: countKey } });
-    alert(`Count saved — ${r.itemsOff} item(s) differed, value ${r.variance}.`);
+    toast(`Count saved — ${r.itemsOff} item(s) differed, value ${r.variance}.`);
     setCounting(null);
     setCountKey(idem());
     void stock.reload();
@@ -359,6 +388,7 @@ function TransferForm({ from, warehouses, rows, onDone }: { from: string; wareho
 
 function ItemsTab() {
   const can = useCan();
+  const canOrg = useCanOrg();
   const [q, setQ] = useState("");
   const items = useApi<Item[]>(`/inventory/items${q.trim() ? `?q=${encodeURIComponent(q.trim())}` : ""}`);
   const suppliers = useApi<Supplier[]>(can("purchasing.view") ? "/suppliers" : null);
@@ -371,7 +401,7 @@ function ItemsTab() {
           <Search className="pointer-events-none absolute left-3 top-2.5 size-4 text-ink-3" />
           <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search item, SKU, barcode" className="w-64 pl-9" />
         </div>
-        {can("inventory.manage") && <Button variant="primary" className="ml-auto" onClick={() => setEditing("new")}><Plus className="size-4" /> Item</Button>}
+        {canOrg("inventory.manage") && <Button variant="primary" className="ml-auto" onClick={() => setEditing("new")}><Plus className="size-4" /> Item</Button>}
       </div>
       <Card>
         {!items.data ? <Spinner /> : (
@@ -385,7 +415,7 @@ function ItemsTab() {
                 <td className="px-4 py-2 tabular-nums text-ink-2">{Number(i.averageCost).toFixed(4)}</td>
                 <td className="px-4 py-2 tabular-nums">{i.value}</td>
                 <td className="px-4 py-2 text-ink-2">{i.defaultSupplier?.name ?? "—"}</td>
-                <td className="px-4 py-2 text-right">{can("inventory.manage") && <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); setEditing(i); }} aria-label={`Edit ${i.name}`}><Pencil className="size-3.5" /></Button>}</td>
+                <td className="whitespace-nowrap px-4 py-2 text-right">{canOrg("inventory.manage") && <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); setEditing(i); }} aria-label={`Edit ${i.name}`}><Pencil className="size-3.5" /></Button>}<RecordActions kind="inventory-item" id={i.id} name={i.name} onDone={() => void items.reload()} /></td>
               </tr>
             ))}
           </Table>
@@ -409,7 +439,7 @@ function ItemForm({ item, suppliers, onDone }: { item: Item | null; suppliers: S
   });
   const save = useAction(async () => {
     const body = {
-      sku: f.sku.toUpperCase(), name: f.name.trim(), category: f.category, barcode: f.barcode || null, baseUnit: f.baseUnit.trim(), purchaseUnit: f.purchaseUnit || null,
+      sku: f.sku.trim().toUpperCase(), name: f.name.trim(), category: f.category, barcode: f.barcode || null, baseUnit: f.baseUnit.trim(), purchaseUnit: f.purchaseUnit || null,
       purchaseUnitQty: f.purchaseUnitQty || null, minStock: f.minStock || "0", reorderQty: f.reorderQty || null, trackExpiry: f.trackExpiry, trackSerial: f.trackSerial,
       defaultSupplierId: f.defaultSupplierId || null, isActive: f.isActive,
     };
@@ -420,7 +450,7 @@ function ItemForm({ item, suppliers, onDone }: { item: Item | null; suppliers: S
   return (
     <form className="grid gap-3 sm:grid-cols-4" onSubmit={(e) => { e.preventDefault(); void save.run(); }}>
       <Field label="Name" className="sm:col-span-2"><Input value={f.name} onChange={set("name")} required maxLength={80} /></Field>
-      <Field label="SKU"><Input value={f.sku} onChange={set("sku")} required pattern="[A-Za-z0-9-]{2,30}" /></Field>
+      <Field label="SKU"><Input value={f.sku} onChange={set("sku")} required pattern="\s*[A-Za-z0-9\-]{2,30}\s*" title="2–30 letters, digits or dashes" /></Field>
       <Field label="Barcode"><Input value={f.barcode} onChange={set("barcode")} maxLength={40} /></Field>
       <Field label="Category"><Select value={f.category} onChange={set("category")}>{Object.entries(CATEGORY_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</Select></Field>
       <Field label="Counted in" hint="pcs, g, ml…"><Input value={f.baseUnit} onChange={set("baseUnit")} required maxLength={10} /></Field>

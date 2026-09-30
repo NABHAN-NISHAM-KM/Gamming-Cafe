@@ -6,7 +6,7 @@ import { api } from "@/lib/client/api";
 import { useBranch } from "@/lib/client/branch";
 import { useAction, useApi } from "@/lib/client/hooks";
 import { useCan } from "@/lib/client/me";
-import { Badge, Button, Card, Empty, ErrorNote, Field, Input, Modal, PageHeader, Select, Spinner, cx } from "@/components/ui";
+import { Badge, Button, Card, Empty, ErrorNote, Field, Input, Modal, PageHeader, Select, Spinner, cx, toast, askConfirm } from "@/components/ui";
 
 type Accessory = { id: string; type: string; label: string | null; vendor: string | null; model: string | null; serialNumber: string | null; status: string };
 type PowerPlug = { kind: "SHELLY" | "SHELLY_GEN1" | "TASMOTA"; host: string; channel: number; offDelaySeconds: number };
@@ -53,7 +53,7 @@ export default function ConsolesPage() {
   const can = useCan();
   const { branches, branchId, setBranchId } = useBranch();
   const list = useApi<Listing>(branchId ? `/branches/${branchId}/stations` : null);
-  const zones = useApi<Array<{ id: string; name: string; type: string }>>(branchId ? `/branches/${branchId}/zones` : null);
+  const zones = useApi<Array<{ id: string; name: string; type: string }>>(branchId && can("zone.view", branchId) ? `/branches/${branchId}/zones` : null);
   const [editing, setEditing] = useState<Station | "new" | null>(null);
   const [checking, setChecking] = useState<Station | null>(null);
   const [pairing, setPairing] = useState<{ station: Station; code: string; expiresAt: string } | null>(null);
@@ -77,7 +77,7 @@ export default function ConsolesPage() {
     await list.reload();
   });
   const unpair = useAction(async (s: Station) => {
-    if (!confirm(`Unpair ${s.name}? The TV stops showing times until it's paired again.`)) return;
+    if (!(await askConfirm(`Unpair ${s.name}? The TV stops showing times until it's paired again.`))) return;
     await api(`/devices/${s.id}/display-pairing`, { method: "DELETE" });
     await list.reload();
   });
@@ -154,7 +154,7 @@ export default function ConsolesPage() {
                 {s.powerPlug && can("station.shutdown", branchId ?? undefined) && (
                   <>
                     <Button size="sm" variant="ghost" pending={act.pending} onClick={() => void act.run(`/devices/${s.id}/power`, { on: true })} title="Switch on"><Power className="size-3.5" /></Button>
-                    <Button size="sm" variant="ghost" pending={act.pending} onClick={() => confirm(`Switch ${s.name} off now?`) && void act.run(`/devices/${s.id}/power`, { on: false })} title="Switch off"><PowerOff className="size-3.5" /></Button>
+                    <Button size="sm" variant="ghost" pending={act.pending} onClick={async () => (await askConfirm(`Switch ${s.name} off now?`)) && void act.run(`/devices/${s.id}/power`, { on: false })} title="Switch off"><PowerOff className="size-3.5" /></Button>
                   </>
                 )}
                 {manage && <Button size="sm" variant="ghost" className="ml-auto" onClick={() => setEditing(s)} aria-label={`Edit ${s.name}`}><Pencil className="size-3.5" /></Button>}
@@ -287,7 +287,7 @@ function GearCheck({ station, onDone }: { station: Station; onDone: () => void }
   const [note, setNote] = useState("");
   const save = useAction(async () => {
     const r = await api<{ problems: Array<{ name: string; status: string }> }>(`/devices/${station.id}/accessory-check`, { method: "POST", body: { items: Object.entries(status).map(([accessoryId, s]) => ({ accessoryId, status: s })), note: note || null } });
-    if (r.problems.length) alert(`Flagged on the floor: ${r.problems.map((p) => `${p.name} ${pretty(p.status)}`).join(", ")}`);
+    if (r.problems.length) toast(`Flagged on the floor: ${r.problems.map((p) => `${p.name} ${pretty(p.status)}`).join(", ")}`, "warn");
     onDone();
   });
   return (

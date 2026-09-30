@@ -5,11 +5,12 @@ import { Ban, CheckCircle2, ChefHat, Pencil, Plus, Send, Trash2, UtensilsCrossed
 import { api } from "@/lib/client/api";
 import { useBranch } from "@/lib/client/branch";
 import { useAction, useApi } from "@/lib/client/hooks";
-import { useCan } from "@/lib/client/me";
+import { useCan, useCanOrg } from "@/lib/client/me";
 import { type CartLine, type Menu, type TableRow } from "@/lib/client/pos";
 import { idem } from "@/lib/client/sessions";
 import { BillPanel } from "@/components/bill";
 import { CartList, MenuGrid, cartTotal, toOrderLines } from "@/components/pos";
+import { RecordActions } from "@/components/records";
 import { Badge, Button, Card, Empty, ErrorNote, Field, Input, Modal, PageHeader, Select, Spinner, Table, cx } from "@/components/ui";
 
 type Tab = "tables" | "menu";
@@ -25,8 +26,9 @@ const STATUS_LABEL: Record<TableRow["status"], string> = { AVAILABLE: "Free", OC
 
 export default function RestaurantPage() {
   const can = useCan();
+  const canOrg = useCanOrg();
   const { branches, branchId, setBranchId } = useBranch();
-  const tabs = ([can("restaurant.order", branchId ?? undefined) && "tables", can("restaurant.menu_manage") && "menu"].filter(Boolean) as Tab[]);
+  const tabs = ([can("restaurant.order", branchId ?? undefined) && "tables", canOrg("restaurant.menu_manage") && "menu"].filter(Boolean) as Tab[]);
   const [pick, setTab] = useState<Tab | null>(null);
   const tab = pick && tabs.includes(pick) ? pick : tabs[0];
 
@@ -88,7 +90,7 @@ function Tables({ branchId }: { branchId: string }) {
         </div>
       )}
       <Modal open={!!table} onClose={() => { setOpen(null); void tables.reload(); }} title={table ? `Table ${table.name}` : ""} wide>
-        {table && <TableDetail t={table} branchId={branchId} onChanged={() => void tables.reload()} />}
+        {table && <TableDetail t={table} branchId={branchId} onChanged={() => void tables.reload()} onDeleted={() => { setOpen(null); void tables.reload(); }} />}
       </Modal>
       <Modal open={adding} onClose={() => setAdding(false)} title="Add table">
         {adding && <AddTable branchId={branchId} onDone={() => { setAdding(false); void tables.reload(); }} />}
@@ -97,13 +99,15 @@ function Tables({ branchId }: { branchId: string }) {
   );
 }
 
-function TableDetail({ t, branchId, onChanged }: { t: TableRow; branchId: string; onChanged: () => void }) {
+function TableDetail({ t, branchId, onChanged, onDeleted }: { t: TableRow; branchId: string; onChanged: () => void; onDeleted: () => void }) {
   const can = useCan();
   const [ordering, setOrdering] = useState(!t.bill);
+  const [editing, setEditing] = useState(false);
   const setStatus = useAction(async (status: TableRow["status"]) => {
     await api(`/tables/${t.id}/status`, { method: "POST", body: { status } });
     onChanged();
   });
+  if (editing) return <EditTable t={t} onDone={() => { setEditing(false); onChanged(); }} onCancel={() => setEditing(false)} />;
   const choices: TableRow["status"][] = ["AVAILABLE", "RESERVED", "BILL_REQUESTED", "CLEANING", ...(can("restaurant.tables_manage", branchId) ? (["OUT_OF_SERVICE"] as const) : [])];
   return (
     <div className="grid gap-5">
@@ -112,6 +116,7 @@ function TableDetail({ t, branchId, onChanged }: { t: TableRow; branchId: string
         {choices.map((s) => (
           <Button key={s} size="sm" variant={t.status === s ? "primary" : "ghost"} disabled={t.status === s} pending={setStatus.pending} onClick={() => void setStatus.run(s)}>{STATUS_LABEL[s]}</Button>
         ))}
+        <span className="ml-auto"><RecordActions kind="table" id={t.id} name={`Table ${t.name}`} onEdit={() => setEditing(true)} onDone={onDeleted} /></span>
       </div>
       <ErrorNote>{setStatus.error}</ErrorNote>
       {t.status !== "OUT_OF_SERVICE" && (
@@ -123,6 +128,25 @@ function TableDetail({ t, branchId, onChanged }: { t: TableRow; branchId: string
       )}
       {t.bill && !ordering && <BillPanel key={t.bill.id + t.bill.total} billId={t.bill.id} branchId={branchId} onChanged={onChanged} />}
     </div>
+  );
+}
+
+function EditTable({ t, onDone, onCancel }: { t: TableRow; onDone: () => void; onCancel: () => void }) {
+  const [f, setF] = useState({ name: t.name, seats: String(t.seats) });
+  const save = useAction(async () => {
+    await api(`/tables/${t.id}`, { method: "PATCH", body: { name: f.name.trim(), seats: Number(f.seats) || 1 } });
+    onDone();
+  });
+  return (
+    <form className="grid gap-3 sm:grid-cols-2" onSubmit={(e) => { e.preventDefault(); void save.run(); }}>
+      <Field label="Name"><Input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} required maxLength={20} autoFocus /></Field>
+      <Field label="Seats"><Input type="number" min={1} max={40} value={f.seats} onChange={(e) => setF({ ...f, seats: e.target.value })} required /></Field>
+      <div className="sm:col-span-2"><ErrorNote>{save.error}</ErrorNote></div>
+      <div className="flex justify-end gap-2 sm:col-span-2">
+        <Button type="button" variant="ghost" onClick={onCancel}>Back</Button>
+        <Button type="submit" variant="primary" pending={save.pending}>Save</Button>
+      </div>
+    </form>
   );
 }
 
@@ -188,6 +212,7 @@ function MenuAdmin({ branchId }: { branchId: string }) {
   const [cat, setCat] = useState<string | "all">("all");
   const [editing, setEditing] = useState<ManagedProduct | "new" | null>(null);
   const [addingCat, setAddingCat] = useState(false);
+  const [editingCat, setEditingCat] = useState<Manage["categories"][number] | null>(null);
   const [addingGroup, setAddingGroup] = useState(false);
   const [addingStation, setAddingStation] = useState(false);
   const [recipeFor, setRecipeFor] = useState<ManagedProduct | null>(null);
@@ -207,6 +232,10 @@ function MenuAdmin({ branchId }: { branchId: string }) {
         {[{ id: "all", name: "All" }, ...m.data.categories].map((c) => (
           <button key={c.id} onClick={() => setCat(c.id)} className={cx("rounded-full border px-3 py-1 text-sm", cat === c.id ? "border-accent bg-accent-soft text-accent" : "border-line text-ink-2")}>{c.name}</button>
         ))}
+        {cat !== "all" && (() => {
+          const c = m.data.categories.find((x) => x.id === cat);
+          return c && <RecordActions kind="product-category" id={c.id} name={c.name} onEdit={() => setEditingCat(c)} onDone={() => { setCat("all"); void m.reload(); }} />;
+        })()}
         <div className="ml-auto flex gap-2">
           <Button size="sm" variant={costView ? "primary" : "ghost"} onClick={() => setCostView(!costView)}><ChefHat className="size-4" /> Food cost</Button>
           <Button size="sm" variant="ghost" onClick={() => setAddingStation(true)} title="Where orders are prepared: Kitchen, Bar…"><Plus className="size-4" /> Kitchen station</Button>
@@ -236,6 +265,7 @@ function MenuAdmin({ branchId }: { branchId: string }) {
                 <td className="whitespace-nowrap px-4 py-2 text-right">
                   {["RECIPE_ITEM", "STOCK_ITEM", "COMBO"].includes(p.type) && <Button size="sm" variant="ghost" onClick={() => setRecipeFor(p)} aria-label={`Recipe for ${p.name}`} title={p.type === "STOCK_ITEM" ? "Stock item" : "Recipe"}><ChefHat className="size-3.5" /></Button>}
                   <Button size="sm" variant="ghost" onClick={() => setEditing(p)} aria-label={`Edit ${p.name}`}><Pencil className="size-3.5" /></Button>
+                  <RecordActions kind="product" id={p.id} name={p.name} onDone={() => void m.reload()} />
                 </td>
               </tr>
             );
@@ -255,6 +285,9 @@ function MenuAdmin({ branchId }: { branchId: string }) {
       </Modal>
       <Modal open={addingCat} onClose={() => setAddingCat(false)} title="New category">
         {addingCat && <CategoryForm onDone={() => { setAddingCat(false); void m.reload(); }} />}
+      </Modal>
+      <Modal open={!!editingCat} onClose={() => setEditingCat(null)} title={editingCat ? `Edit ${editingCat.name}` : ""}>
+        {editingCat && <CategoryForm c={editingCat} onDone={() => { setEditingCat(null); void m.reload(); }} />}
       </Modal>
       <Modal open={addingStation} onClose={() => setAddingStation(false)} title="New kitchen station">
         {addingStation && <StationForm branchId={branchId} existing={m.data.stations.filter((s) => s.branchId === branchId).map((s) => s.name)} onDone={() => { setAddingStation(false); void m.reload(); }} />}
@@ -352,10 +385,11 @@ function StationForm({ branchId, existing, onDone }: { branchId: string; existin
   );
 }
 
-function CategoryForm({ onDone }: { onDone: () => void }) {
-  const [f, setF] = useState({ name: "", sortOrder: "0", showInShell: true });
+function CategoryForm({ c, onDone }: { c?: Manage["categories"][number]; onDone: () => void }) {
+  const [f, setF] = useState({ name: c?.name ?? "", sortOrder: String(c?.sortOrder ?? 0), showInShell: c?.showInShell ?? true });
   const save = useAction(async () => {
-    await api("/product-categories", { method: "POST", body: { name: f.name.trim(), sortOrder: Number(f.sortOrder) || 0, showInShell: f.showInShell } });
+    const body = { name: f.name.trim(), sortOrder: Number(f.sortOrder) || 0, showInShell: f.showInShell };
+    await api(c ? `/product-categories/${c.id}` : "/product-categories", { method: c ? "PATCH" : "POST", body });
     onDone();
   });
   return (
@@ -364,7 +398,7 @@ function CategoryForm({ onDone }: { onDone: () => void }) {
       <Field label="Position" hint="Lower comes first"><Input type="number" min={0} value={f.sortOrder} onChange={(e) => setF({ ...f, sortOrder: e.target.value })} /></Field>
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={f.showInShell} onChange={(e) => setF({ ...f, showInShell: e.target.checked })} /> Show on customers' PCs</label>
       <ErrorNote>{save.error}</ErrorNote>
-      <div className="flex justify-end"><Button type="submit" variant="primary" pending={save.pending}>Add category</Button></div>
+      <div className="flex justify-end"><Button type="submit" variant="primary" pending={save.pending}>{c ? "Save" : "Add category"}</Button></div>
     </form>
   );
 }

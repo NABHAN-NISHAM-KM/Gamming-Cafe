@@ -8,7 +8,7 @@ import { useCan } from "@/lib/client/me";
 import { money, type BillView } from "@/lib/client/pos";
 import { idem } from "@/lib/client/sessions";
 import { PayForm } from "@/components/pos";
-import { Badge, Button, ErrorNote, Field, Input, Select, Spinner } from "@/components/ui";
+import { Badge, Button, ErrorNote, Field, Input, Select, Spinner, askText } from "@/components/ui";
 
 const STATUS_TONE: Record<string, "accent" | "ok" | "warn" | "neutral" | "danger"> = { OPEN: "accent", PARTIALLY_PAID: "warn", SETTLED: "ok", VOID: "neutral" };
 
@@ -21,9 +21,17 @@ export function BillPanel({ billId, branchId, onChanged }: { billId: string; bra
   // One key per attempt: a double-click or retry can never charge twice.
   const [payKey, setPayKey] = useState(idem);
   const voidItem = useAction(async (id: string, name: string) => {
-    const reason = prompt(`Why is “${name}” voided?`);
+    const reason = await askText(`Why is “${name}” voided?`);
     if (!reason || reason.trim().length < 3) return;
     await api(`/order-items/${id}/void`, { method: "POST", body: { reason: reason.trim() }, reason: reason.trim(), action: `Void ${name}` });
+    await bill.reload();
+    onChanged?.();
+  });
+
+  const cancelOrder = useAction(async (id: string, number: string) => {
+    const reason = await askText(`Cancel order ${number}? Items not yet started go back to stock; the kitchen stops working on it.`);
+    if (!reason) return;
+    await api(`/orders/${id}/cancel`, { method: "POST", body: { reason }, reason, action: `Cancel order ${number}` });
     await bill.reload();
     onChanged?.();
   });
@@ -47,7 +55,12 @@ export function BillPanel({ billId, branchId, onChanged }: { billId: string; bra
         <div key={o.id} className="rounded-lg border border-line">
           <p className="flex items-center justify-between border-b border-line px-3 py-1.5 text-xs text-ink-3">
             <span>Order {o.number} · {o.type.replace("_", " ").toLowerCase()}{o.deliverTo ? ` → ${o.deliverTo}` : ""}</span>
-            <span>{o.status.replace("_", " ").toLowerCase()}</span>
+            <span className="flex items-center gap-2">
+              {o.status.replace("_", " ").toLowerCase()}
+              {b.status !== "SETTLED" && !["CANCELLED", "COMPLETED", "REFUNDED"].includes(o.status) && can("restaurant.cancel_order", branchId) && (
+                <button onClick={() => void cancelOrder.run(o.id, o.number)} className="rounded px-1.5 py-0.5 text-ink-3 hover:bg-danger/10 hover:text-danger" title="Cancel the whole order">Cancel order</button>
+              )}
+            </span>
           </p>
           <ul className="divide-y divide-line/60">
             {o.orderItems.map((x) => (
@@ -63,7 +76,7 @@ export function BillPanel({ billId, branchId, onChanged }: { billId: string; bra
           </ul>
         </div>
       ))}
-      <ErrorNote>{voidItem.error}</ErrorNote>
+      <ErrorNote>{voidItem.error ?? cancelOrder.error}</ErrorNote>
 
       <dl className="grid grid-cols-2 gap-y-1">
         <dt className="text-ink-3">Total (incl. {b.taxTotal} tax)</dt><dd className="text-right tabular-nums">{money(b.total ?? 0, b.currency)}</dd>

@@ -14,7 +14,7 @@ const CATEGORIES = ["FOOD", "DRINK", "INGREDIENT", "GAMING_ACCESSORY", "CONTROLL
 
 const Item = z
   .object({
-    sku: z.string().regex(/^[A-Z0-9-]{2,30}$/),
+    sku: z.string().trim().toUpperCase().regex(/^[A-Z0-9-]{2,30}$/, "use 2–30 letters, digits or dashes"),
     barcode: z.string().max(40).nullish(),
     name: z.string().min(1).max(80),
     category: z.enum(CATEGORIES),

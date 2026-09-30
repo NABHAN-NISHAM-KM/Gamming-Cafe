@@ -6,9 +6,13 @@ import { api } from "@/lib/client/api";
 import { useAction, useApi } from "@/lib/client/hooks";
 import { useCan } from "@/lib/client/me";
 import { money, type ShiftReport } from "@/lib/client/pos";
-import { Badge, Button, Card, ErrorNote, Field, Input, Select, Spinner, Table } from "@/components/ui";
+import { Badge, Button, Card, ErrorNote, Field, Input, Select, Spinner, Table, askConfirm, askText } from "@/components/ui";
 
-export const useMyShift = (branchId: string | null) => useApi<ShiftReport | null>(branchId ? `/branches/${branchId}/shifts/me` : null);
+export const useMyShift = (branchId: string | null) => {
+  const can = useCan();
+  // Staff without a till (waiters) have no shift; don't ask.
+  return useApi<ShiftReport | null>(branchId && can("shift.open", branchId) ? `/branches/${branchId}/shifts/me` : null);
+};
 
 const MOVE_LABEL: Record<string, string> = { OPENING_FLOAT: "Opening float", SALE: "Cash sales", REFUND: "Cash refunds", PAY_IN: "Pay-ins", PAY_OUT: "Pay-outs", SAFE_DROP: "Safe drops", CHANGE: "Change" };
 const STATUS_TONE = { OPEN: "accent", PENDING_APPROVAL: "warn", CLOSED: "ok" } as const;
@@ -123,7 +127,7 @@ function OpenShift({ s, onChange, onClosed }: { s: ShiftReport; onChange: () => 
         <Card className="p-5">
           <h3 className="mb-1 font-semibold">Close shift</h3>
           <p className="mb-3 text-sm text-ink-3">Count the drawer and enter the total. A difference above the branch limit goes to a manager for approval.</p>
-          <form className="grid gap-3" onSubmit={(e) => { e.preventDefault(); if (confirm(`Close the shift with ${count.countedCash} counted?`)) void close.run(); }}>
+          <form className="grid gap-3" onSubmit={async (e) => { e.preventDefault(); if (await askConfirm(`Close the shift with ${count.countedCash} counted?`)) void close.run(); }}>
             <Field label="Counted cash"><Input inputMode="decimal" value={count.countedCash} onChange={(e) => setCount({ ...count, countedCash: e.target.value })} required /></Field>
             <Field label="Notes (optional)"><Input value={count.notes} onChange={(e) => setCount({ ...count, notes: e.target.value })} maxLength={300} /></Field>
             <ErrorNote>{close.error}</ErrorNote>
@@ -169,7 +173,8 @@ function AllShifts({ branchId }: { branchId: string }) {
   const list = useApi<ShiftReport[]>(`/branches/${branchId}/shifts`);
   const [open, setOpen] = useState<string | null>(null);
   const approve = useAction(async (id: string) => {
-    const note = prompt("Approval note (optional)") ?? "";
+    const note = await askText("Approval note (optional)", { optional: true });
+    if (note === null) return;
     await api(`/shifts/${id}/approve`, { method: "POST", body: { note: note.trim().length >= 2 ? note.trim() : null } });
     void list.reload();
   });

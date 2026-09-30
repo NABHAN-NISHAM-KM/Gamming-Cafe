@@ -7,7 +7,8 @@ import { useBranch } from "@/lib/client/branch";
 import { useAction, useApi } from "@/lib/client/hooks";
 import { useCan } from "@/lib/client/me";
 import { idem } from "@/lib/client/sessions";
-import { Badge, Button, Card, Empty, ErrorNote, Field, Input, Modal, PageHeader, Select, Spinner, Table, cx } from "@/components/ui";
+import { QuickEdit, RecordActions } from "@/components/records";
+import { Badge, Button, Card, Empty, ErrorNote, Field, Input, Modal, PageHeader, Select, Spinner, Table, cx, askConfirm, askText } from "@/components/ui";
 import { CustomerPicker, type PickedCustomer } from "@/components/pos";
 
 interface Row { id: string; name: string; status: string; format: string; game: string | null; branch: string; startsAt: string; teamSize: number; maxTeams: number; entered: number; entryFee: string; prizePool: string; currency: string }
@@ -28,6 +29,7 @@ export default function TournamentsPage() {
   const list = useApi<Row[]>("/tournaments");
   const [open, setOpen] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState<Row | null>(null);
   return (
     <div className="space-y-5">
       <PageHeader
@@ -37,7 +39,7 @@ export default function TournamentsPage() {
       />
       <Card>
         {!list.data ? <Spinner /> : list.data.length === 0 ? <Empty icon={<Trophy className="size-8" />} title="No tournaments yet" /> : (
-          <Table head={["Tournament", "Format", "Starts", "Teams", "Entry", "Prize pool", "Status"]}>
+          <Table head={["Tournament", "Format", "Starts", "Teams", "Entry", "Prize pool", "Status", ""]}>
             {list.data.map((t) => (
               <tr key={t.id} className="cursor-pointer border-t border-line hover:bg-panel-2" onClick={() => setOpen(t.id)}>
                 <td className="px-4 py-2"><p className="font-medium">{t.name}</p><p className="text-xs text-ink-3">{t.game ?? "—"} · {t.branch}{t.teamSize > 1 ? ` · ${t.teamSize}v${t.teamSize}` : " · 1v1"}</p></td>
@@ -47,11 +49,26 @@ export default function TournamentsPage() {
                 <td className="px-4 py-2 tabular-nums">{Number(t.entryFee) > 0 ? `${t.currency} ${t.entryFee}` : "Free"}</td>
                 <td className="px-4 py-2 tabular-nums">{Number(t.prizePool) > 0 ? `${t.currency} ${t.prizePool}` : "—"}</td>
                 <td className="px-4 py-2"><Badge tone={STATUS_TONE[t.status] ?? "neutral"}>{pretty(t.status)}</Badge></td>
+                <td className="px-4 py-2 text-right">
+                  {["DRAFT", "REGISTRATION_OPEN", "REGISTRATION_CLOSED"].includes(t.status) && (
+                    <RecordActions kind="tournament" id={t.id} name={t.name} deletable={t.status === "DRAFT"} onEdit={() => setEditing(t)} onDone={() => void list.reload()} />
+                  )}
+                </td>
               </tr>
             ))}
           </Table>
         )}
       </Card>
+      <QuickEdit
+        title={editing ? `Edit ${editing.name}` : ""} open={!!editing} onClose={() => setEditing(null)} onDone={() => { setEditing(null); void list.reload(); }}
+        fields={[
+          { key: "name", label: "Name", required: true },
+          { key: "startsAt", label: "Starts", type: "datetime-local", required: true },
+          { key: "maxTeams", label: "Max teams", type: "number", required: true, hint: "Can't go below the teams already entered" },
+        ]}
+        initial={editing ? { name: editing.name, startsAt: new Date(new Date(editing.startsAt).getTime() - new Date(editing.startsAt).getTimezoneOffset() * 60_000).toISOString().slice(0, 16), maxTeams: String(editing.maxTeams) } : {}}
+        save={(v) => api(`/tournaments/${editing!.id}`, { method: "PATCH", body: { name: v["name"]!.trim(), startsAt: new Date(v["startsAt"]!).toISOString(), maxTeams: Number(v["maxTeams"]) } })}
+      />
       <Modal open={creating} onClose={() => setCreating(false)} title="New tournament" wide>
         {creating && <NewTournament onDone={(id) => { setCreating(false); void list.reload(); setOpen(id); }} />}
       </Modal>
@@ -128,11 +145,11 @@ function TournamentView({ id }: { id: string }) {
             <>
               {d.status === "REGISTRATION_OPEN" && <Button onClick={() => setAdding(true)}><UserPlus className="size-4" /> Register a team</Button>}
               {d.status !== "CHECK_IN" && <Button variant="ghost" pending={act.pending} onClick={() => void act.run(`/tournaments/${id}/status`, { status: "CHECK_IN" })}>Start check-in</Button>}
-              <Button variant="primary" pending={act.pending} disabled={live.length < d.minTeams} onClick={() => confirm(`Seed ${live.length} teams and start?`) && void act.run(`/tournaments/${id}/start`)}><Play className="size-4" /> Start ({live.length}/{d.minTeams}+)</Button>
+              <Button variant="primary" pending={act.pending} disabled={live.length < d.minTeams} onClick={async () => (await askConfirm(`Seed ${live.length} teams and start?`)) && void act.run(`/tournaments/${id}/start`)}><Play className="size-4" /> Start ({live.length}/{d.minTeams}+)</Button>
             </>
           )}
           {!["COMPLETED", "CANCELLED"].includes(d.status) && (
-            <Button variant="danger" pending={act.pending} onClick={() => { const r = prompt("Why cancel? Paid entries are refunded to wallets."); if (r) void act.run(`/tournaments/${id}/status`, { status: "CANCELLED", reason: r }); }}><Ban className="size-4" /> Cancel</Button>
+            <Button variant="danger" pending={act.pending} onClick={async () => { const r = await askText("Why cancel? Paid entries are refunded to wallets."); if (r) void act.run(`/tournaments/${id}/status`, { status: "CANCELLED", reason: r }); }}><Ban className="size-4" /> Cancel</Button>
           )}
         </div>
       )}
@@ -164,7 +181,7 @@ function TournamentView({ id }: { id: string }) {
               <Badge tone={team.status === "CHECKED_IN" ? "ok" : team.status === "WINNER" ? "accent" : "neutral"}>{pretty(team.status)}</Badge>
               {manage && ["REGISTRATION_OPEN", "REGISTRATION_CLOSED", "CHECK_IN"].includes(d.status) && team.status === "CONFIRMED" && <Button size="sm" variant="ghost" pending={act.pending} onClick={() => void act.run(`/teams/${team.id}/check-in`)}><CheckCircle2 className="size-3.5" /></Button>}
               {manage && ["REGISTRATION_OPEN", "REGISTRATION_CLOSED", "CHECK_IN"].includes(d.status) && ["CONFIRMED", "CHECKED_IN"].includes(team.status) && (
-                <Button size="sm" variant="ghost" pending={act.pending} onClick={() => { const r = prompt(`Withdraw ${team.name}?${team.paid ? " The fee goes back to the captain's wallet." : ""} Reason:`); if (r && r.trim().length >= 3) void act.run(`/teams/${team.id}/withdraw`, { reason: r.trim() }); }}><Ban className="size-3.5" /></Button>
+                <Button size="sm" variant="ghost" pending={act.pending} onClick={async () => { const r = await askText(`Withdraw ${team.name}?${team.paid ? " The fee goes back to the captain's wallet." : ""}`); if (r && r.trim().length >= 3) void act.run(`/teams/${team.id}/withdraw`, { reason: r.trim() }); }}><Ban className="size-3.5" /></Button>
               )}
             </div>
           ))}

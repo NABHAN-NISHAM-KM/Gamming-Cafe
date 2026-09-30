@@ -41,7 +41,7 @@ const Product = z
     name: z.string().min(1).max(80),
     description: z.string().max(300).nullish(),
     type: z.enum(["STOCK_ITEM", "RECIPE_ITEM", "COMBO", "SERVICE"]),
-    sku: z.string().regex(/^[A-Z0-9-]{2,30}$/).optional(),
+    sku: z.string().trim().toUpperCase().regex(/^[A-Z0-9-]{2,30}$/, "use 2–30 letters, digits or dashes").optional(),
     price: money,
     taxAppliesTo: z.enum(["ALL", "FOOD", "BEVERAGE", "MERCHANDISE", "SERVICE"]).default("FOOD"),
     kitchenStationId: z.uuid().nullish(),
@@ -354,6 +354,17 @@ export class PosController {
     if (await tx().restaurantTable.findFirst({ where: { branchId, name: body.name } })) throw new ConflictException({ error: "table_name_taken" });
     const t = await tx().restaurantTable.create({ data: { ...body, organizationId: orgId(), branchId, qrToken: randomBytes(16).toString("base64url") } });
     await this.audit.record({ action: "table.create", entityType: "RestaurantTable", entityId: t.id, branchId, after: body });
+    return t;
+  }
+
+  @AnyStaff()
+  @Patch("tables/:id")
+  async editTable(@Param("id") id: string, @Body(new ZodPipe(Table.pick({ name: true, seats: true }).partial())) body: { name?: string; seats?: number }) {
+    const target = await branchOf("table", id);
+    authorizeFor("restaurant.tables_manage", target);
+    if (body.name && (await tx().restaurantTable.findFirst({ where: { branchId: target.branchId!, name: body.name, id: { not: id } } }))) throw new ConflictException({ error: "table_name_taken" });
+    const t = await tx().restaurantTable.update({ where: { id }, data: body, select: { id: true, name: true, seats: true } });
+    await this.audit.record({ action: "table.update", entityType: "RestaurantTable", entityId: id, branchId: target.branchId, after: body });
     return t;
   }
 

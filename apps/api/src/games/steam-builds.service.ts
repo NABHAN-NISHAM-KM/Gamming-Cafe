@@ -99,7 +99,7 @@ export class SteamBuildsService implements OnModuleInit, OnModuleDestroy {
     for (const { organization_id: organizationId } of orgs) {
       const ctx = { organizationId, actorType: "SYSTEM", actorId: null } as const;
       const rows = await this.db.withTenant(ctx, (t) =>
-        t.detectedTitle.findMany({ where: { source: "STEAM", kind: "GAME", updateRequired: false, version: { not: null } }, select: { id: true, key: true, version: true, deviceId: true, device: { select: { branchId: true } } } }),
+        t.detectedTitle.findMany({ where: { source: "STEAM", kind: "GAME", updateRequired: false, version: { not: null }, device: { isEnabled: true } }, select: { id: true, key: true, version: true, deviceId: true, device: { select: { branchId: true } } } }),
       );
       if (!rows.length) continue;
       const latest = await this.latest(rows.map((r) => r.key));

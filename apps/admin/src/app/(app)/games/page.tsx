@@ -5,7 +5,8 @@ import { AppWindow, Download, Gamepad2, Plus, Radar, RefreshCcw, Search, Star } 
 import { api } from "@/lib/client/api";
 import { useBranch } from "@/lib/client/branch";
 import { useAction, useApi } from "@/lib/client/hooks";
-import { useCan } from "@/lib/client/me";
+import { useCan, useCanOrg } from "@/lib/client/me";
+import { RecordActions } from "@/components/records";
 import { Badge, Button, Card, Empty, ErrorNote, Field, Input, Modal, PageHeader, Select, Spinner, Table, cx } from "@/components/ui";
 
 interface Game {
@@ -120,17 +121,19 @@ const updatable = (g: Game) => !!g.launcherGameId && (g.launcher?.key === "STEAM
 
 export default function GamesPage() {
   const can = useCan();
+  const canOrg = useCanOrg();
   const { branches, branchId, setBranchId } = useBranch();
   const [tab, setTab] = useState<"library" | "found" | "updates" | "apps">("library");
   const lib = useApi<{ stations: number | null; games: Game[] }>(branchId ? `/games?branchId=${branchId}` : null);
   const jobs = useApi<Job[]>(branchId ? `/branches/${branchId}/game-updates` : null);
-  const zones = useApi<Zone[]>(branchId ? `/branches/${branchId}/zones` : null);
+  const zones = useApi<Zone[]>(branchId && can("zone.view", branchId) ? `/branches/${branchId}/zones` : null);
   const [adding, setAdding] = useState(false);
+  const [editingGame, setEditingGame] = useState<Game | null>(null);
   const [zonesFor, setZonesFor] = useState<Game | null>(null);
   const [q, setQ] = useState("");
   const [note, setNote] = useState<string | null>(null);
 
-  const manage = can("game.manage");
+  const manage = canOrg("game.manage");
   const update = can("game.update", branchId ?? undefined);
   const running = jobs.data?.some((j) => j.status === "RUNNING" || j.status === "SCHEDULED");
 
@@ -249,7 +252,7 @@ export default function GamesPage() {
                         {s?.allowedZoneIds.length ? `${s.allowedZoneIds.length} zone(s)` : "All zones"}
                       </button>
                     </td>
-                    <td />
+                    <td className="px-4 py-3 text-right">{g.custom && <RecordActions kind="game" id={g.id} name={g.title} onEdit={() => setEditingGame(g)} onDone={() => void lib.reload()} />}</td>
                   </tr>
                 );
               })}
@@ -296,6 +299,9 @@ export default function GamesPage() {
       <Modal open={adding} onClose={() => setAdding(false)} title="Add a game" wide>
         <AddGame onDone={() => { setAdding(false); void lib.reload(); }} />
       </Modal>
+      <Modal open={!!editingGame} onClose={() => setEditingGame(null)} title={editingGame ? `Edit ${editingGame.title}` : ""} wide>
+        {editingGame && <AddGame game={editingGame} onDone={() => { setEditingGame(null); void lib.reload(); }} />}
+      </Modal>
       <Modal open={!!zonesFor} onClose={() => setZonesFor(null)} title={`Where can ${zonesFor?.title ?? ""} be played?`}>
         {zonesFor && <ZonePicker game={zonesFor} zones={zones.data ?? []} onDone={() => { setZonesFor(null); void lib.reload(); }} />}
       </Modal>
@@ -326,21 +332,26 @@ function ZonePicker({ game, zones, onDone }: { game: Game; zones: Zone[]; onDone
   );
 }
 
-function AddGame({ onDone }: { onDone: () => void }) {
-  const [f, setF] = useState({ title: "", how: "STEAM", storeId: "", exe: "", args: "", process: "", minAge: "" });
+function AddGame({ game, onDone }: { game?: Game; onDone: () => void }) {
+  const [f, setF] = useState(
+    game
+      ? { title: game.title, how: game.launcher?.key ?? "EXE", storeId: game.launcherGameId ?? "", exe: game.executablePath ?? "", args: "", process: "", minAge: game.minAge == null ? "" : String(game.minAge) }
+      : { title: "", how: "STEAM", storeId: "", exe: "", args: "", process: "", minAge: "" },
+  );
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF((x) => ({ ...x, [k]: e.target.value }));
   const save = useAction(async () => {
     const byLauncher = f.how === "STEAM" || f.how === "EPIC";
-    await api("/games", {
-      method: "POST",
-      action: "Add game",
+    await api(game ? `/games/${game.id}` : "/games", {
+      method: game ? "PATCH" : "POST",
+      action: game ? "Edit game" : "Add game",
       body: {
         title: f.title,
         launcherKey: f.how === "EXE" ? null : f.how,
         launcherGameId: byLauncher ? f.storeId : null,
         executablePath: byLauncher ? null : f.exe,
         arguments: byLauncher ? null : f.args || null,
-        processNames: f.process ? f.process.split(",").map((p) => p.trim()).filter(Boolean) : [],
+        // Editing leaves process names alone unless new ones are typed.
+        ...(f.process || !game ? { processNames: f.process ? f.process.split(",").map((p) => p.trim()).filter(Boolean) : [] } : {}),
         minAge: f.minAge ? Number(f.minAge) : null,
       },
     });
@@ -371,13 +382,14 @@ function AddGame({ onDone }: { onDone: () => void }) {
       <Field label="Game process names" hint="Comma separated — closed when the session ends"><Input value={f.process} onChange={set("process")} placeholder="game.exe" /></Field>
       <Field label="Minimum age"><Input inputMode="numeric" value={f.minAge} onChange={set("minAge")} placeholder="e.g. 16" /></Field>
       <div className="sm:col-span-2"><ErrorNote>{save.error}</ErrorNote></div>
-      <div className="flex justify-end sm:col-span-2"><Button type="submit" variant="primary" pending={save.pending}>Add game</Button></div>
+      <div className="flex justify-end sm:col-span-2"><Button type="submit" variant="primary" pending={save.pending}>{game ? "Save" : "Add game"}</Button></div>
     </form>
   );
 }
 
 function AppsTab({ manage }: { manage: boolean }) {
   const apps = useApi<App[]>("/shell-apps");
+  const [editing, setEditing] = useState<App | null>(null);
   const [f, setF] = useState({ name: "", kind: "COMMUNICATION", exe: "", args: "" });
   const add = useAction(async () => {
     await api("/shell-apps", { method: "POST", action: "Add app", body: { name: f.name, kind: f.kind, executablePath: f.exe, arguments: f.args || null } });
@@ -393,7 +405,7 @@ function AppsTab({ manage }: { manage: boolean }) {
               <td className="px-4 py-3 font-medium">{a.name}{!a.organizationId && <span className="ml-2 text-xs text-ink-3">built-in</span>}</td>
               <td className="px-4 py-3 text-ink-2">{a.kind === "BROWSER" ? "Internet" : a.kind === "PLATFORM_LAUNCHER" ? "Platforms" : "Apps"}</td>
               <td className="px-4 py-3 font-mono text-xs text-ink-3">{a.executablePath} {a.arguments}</td>
-              <td />
+              <td className="px-4 py-3 text-right">{a.organizationId && <RecordActions kind="shell-app" id={a.id} name={a.name} onEdit={() => setEditing(a)} onDone={() => void apps.reload()} />}</td>
             </tr>
           ))}
         </Table>
@@ -414,7 +426,36 @@ function AppsTab({ manage }: { manage: boolean }) {
           <div className="sm:col-span-5"><ErrorNote>{add.error}</ErrorNote></div>
         </form>
       )}
+      <Modal open={!!editing} onClose={() => setEditing(null)} title={editing ? `Edit ${editing.name}` : ""}>
+        {editing && <EditApp app={editing} onDone={() => { setEditing(null); void apps.reload(); }} />}
+      </Modal>
     </Card>
+  );
+}
+
+function EditApp({ app, onDone }: { app: App; onDone: () => void }) {
+  const [f, setF] = useState({ name: app.name, kind: app.kind, exe: app.executablePath, args: app.arguments ?? "" });
+  const save = useAction(async () => {
+    await api(`/shell-apps/${app.id}`, { method: "PATCH", action: "Edit app", body: { name: f.name, kind: f.kind, executablePath: f.exe, arguments: f.args || null } });
+    onDone();
+  });
+  return (
+    <form className="grid gap-3" onSubmit={(e) => { e.preventDefault(); void save.run(); }}>
+      <Field label="Name"><Input required value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} maxLength={80} /></Field>
+      <Field label="Shown under">
+        <Select value={f.kind} onChange={(e) => setF({ ...f, kind: e.target.value })}>
+          <option value="COMMUNICATION">Chat</option>
+          <option value="MEDIA">Media</option>
+          <option value="UTILITY">Utility</option>
+          <option value="BROWSER">Browser</option>
+          <option value="PLATFORM_LAUNCHER">Game platform</option>
+        </Select>
+      </Field>
+      <Field label="Program"><Input required value={f.exe} onChange={(e) => setF({ ...f, exe: e.target.value })} /></Field>
+      <Field label="Arguments"><Input value={f.args} onChange={(e) => setF({ ...f, args: e.target.value })} /></Field>
+      <ErrorNote>{save.error}</ErrorNote>
+      <div className="flex justify-end"><Button type="submit" variant="primary" pending={save.pending}>Save</Button></div>
+    </form>
   );
 }
 

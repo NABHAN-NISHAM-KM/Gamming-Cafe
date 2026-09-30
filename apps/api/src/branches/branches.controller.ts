@@ -2,7 +2,7 @@ import { Body, ConflictException, Controller, Get, HttpException, Inject, Param,
 import { z } from "zod";
 import { branchesWith } from "@arena/rbac";
 import { AuditService } from "../common/audit.service.js";
-import { RequirePermission, RequirePermissionAnyScope } from "../common/decorators.js";
+import { AnyStaff, RequirePermission, RequirePermissionAnyScope } from "../common/decorators.js";
 import { orgId, principal, tx } from "../common/request-state.js";
 import { ZodPipe } from "../common/zod.pipe.js";
 
@@ -43,12 +43,19 @@ export class BranchesController {
   constructor(@Inject(AuditService) private readonly audit: AuditService) {}
 
   /** Lists only branches the caller may view (org grant → all; branch/brand grants → those). */
-  @RequirePermissionAnyScope("branch.view")
+  /** Every screen's branch picker needs this, so any staff member sees at least the branches they're assigned to. */
+  @AnyStaff()
   @Get()
   async list() {
     const all = await tx().branch.findMany({ orderBy: [{ name: "asc" }], include: { brand: { select: { name: true } } } });
-    const allowed = branchesWith(principal(), "branch.view", (id) => all.find((b) => b.id === id)?.brandId, all.map((b) => b.id));
-    return allowed === null ? all : all.filter((b) => allowed.includes(b.id));
+    const p = principal();
+    const brandOf = (id: string) => all.find((b) => b.id === id)?.brandId;
+    const allowed = branchesWith(p, "branch.view", brandOf, all.map((b) => b.id));
+    if (allowed === null) return all;
+    const now = new Date();
+    const live = p.grants.filter((g) => !g.expiresAt || g.expiresAt > now);
+    if (live.some((g) => g.scope === "ORGANIZATION")) return all;
+    return all.filter((b) => allowed.includes(b.id) || live.some((g) => (g.scope === "BRANCH" && g.branchId === b.id) || (g.scope === "BRAND" && g.brandId === b.brandId)));
   }
 
   @RequirePermission("branch.view")

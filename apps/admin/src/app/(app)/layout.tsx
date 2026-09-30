@@ -18,41 +18,49 @@ interface NavItem {
   label: string;
   icon: typeof Gauge;
   phase?: number; // not built yet → shown disabled with its phase
+  /** Shown if the user holds any of these (the permission the page's data needs). Omitted = everyone. */
+  anyOf?: string[];
 }
 
 const NAV: Array<{ group: string; items: NavItem[] }> = [
   { group: "Operate", items: [
     { href: "/", label: "Dashboard", icon: Gauge },
-    { href: "/floor", label: "Live Floor", icon: LayoutGrid },
-    { href: "/sessions", label: "Sessions", icon: Timer },
-    { href: "/bookings", label: "Bookings", icon: CalendarClock },
-    { href: "/customers", label: "Customers", icon: UserRound },
-    { href: "/printing", label: "Printing", icon: Printer },
+    { href: "/floor", label: "Live Floor", icon: LayoutGrid, anyOf: ["station.view"] },
+    { href: "/sessions", label: "Sessions", icon: Timer, anyOf: ["station.view"] },
+    { href: "/bookings", label: "Bookings", icon: CalendarClock, anyOf: ["booking.view"] },
+    { href: "/customers", label: "Customers", icon: UserRound, anyOf: ["customer.view"] },
+    { href: "/printing", label: "Printing", icon: Printer, anyOf: ["print.view"] },
   ] },
   { group: "Gaming", items: [
-    { href: "/games", label: "Games", icon: Gamepad2 },
-    { href: "/computers", label: "Computers", icon: Cpu },
-    { href: "/consoles", label: "Consoles & VR", icon: Joystick },
-    { href: "/tournaments", label: "Tournaments", icon: Trophy },
+    { href: "/games", label: "Games", icon: Gamepad2, anyOf: ["game.view"] },
+    { href: "/computers", label: "Computers", icon: Cpu, anyOf: ["station.view"] },
+    { href: "/consoles", label: "Consoles & VR", icon: Joystick, anyOf: ["station.view"] },
+    { href: "/tournaments", label: "Tournaments", icon: Trophy, anyOf: ["tournament.view"] },
   ] },
   { group: "Food & sales", items: [
-    { href: "/restaurant", label: "Restaurant", icon: UtensilsCrossed },
-    { href: "/pos", label: "POS", icon: ShoppingCart },
-    { href: "/kitchen", label: "Kitchen", icon: ChefHat },
-    { href: "/inventory", label: "Inventory", icon: Boxes },
-    { href: "/purchasing", label: "Purchasing", icon: Truck },
+    { href: "/restaurant", label: "Restaurant", icon: UtensilsCrossed, anyOf: ["restaurant.order", "restaurant.menu_manage"] },
+    { href: "/pos", label: "POS", icon: ShoppingCart, anyOf: ["pos.sell"] },
+    { href: "/kitchen", label: "Kitchen", icon: ChefHat, anyOf: ["kds.view"] },
+    { href: "/inventory", label: "Inventory", icon: Boxes, anyOf: ["inventory.view"] },
+    { href: "/purchasing", label: "Purchasing", icon: Truck, anyOf: ["purchasing.view"] },
   ] },
   { group: "Business", items: [
-    { href: "/branches", label: "Branches & zones", icon: Building2 },
-    { href: "/employees", label: "Employees", icon: Users },
-    { href: "/roles", label: "Roles", icon: ShieldCheck },
-    { href: "/rates", label: "Rates", icon: Tag },
-    { href: "/finance", label: "Finance", icon: Coins },
-    { href: "/reports", label: "Reports", icon: BarChart3 },
-    { href: "/marketing", label: "Marketing", icon: Megaphone },
+    { href: "/branches", label: "Branches & zones", icon: Building2, anyOf: ["branch.view"] },
+    { href: "/employees", label: "Employees", icon: Users, anyOf: ["employee.view"] },
+    { href: "/roles", label: "Roles", icon: ShieldCheck, anyOf: ["employee.view"] },
+    { href: "/rates", label: "Rates", icon: Tag, anyOf: ["pricing.view"] },
+    { href: "/finance", label: "Finance", icon: Coins, anyOf: ["accounting.view"] },
+    { href: "/reports", label: "Reports", icon: BarChart3, anyOf: ["reports.operational", "reports.financial", "reports.staff"] },
+    { href: "/marketing", label: "Marketing", icon: Megaphone, anyOf: ["promotion.view", "loyalty.view", "crm.view"] },
     { href: "/settings", label: "Settings", icon: Settings },
   ] },
 ];
+
+/** The menu for this user: items they can't use are left out, and empty groups disappear. */
+const navFor = (me: Me) => {
+  const held = new Set(me.grants.flatMap((g) => g.permissions));
+  return NAV.map((g) => ({ ...g, items: g.items.filter((it) => !it.anyOf || it.anyOf.some((p) => held.has(p))) })).filter((g) => g.items.length);
+};
 
 const isActive = (path: string, href: string) => (href === "/" ? path === "/" : path.startsWith(href));
 
@@ -65,11 +73,11 @@ function BrandMark({ className }: { className?: string }) {
   );
 }
 
-function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
+function Sidebar({ nav, onNavigate }: { nav: typeof NAV; onNavigate?: () => void }) {
   const path = usePathname();
   return (
     <nav className="flex flex-col gap-6 px-3 py-5" aria-label="Main">
-      {NAV.map((g) => (
+      {nav.map((g) => (
         <div key={g.group}>
           <p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-3">{g.group}</p>
           <ul className="grid gap-0.5">
@@ -137,13 +145,14 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     router.replace("/login");
   };
 
+  const nav = useMemo(() => (me ? navFor(me) : []), [me]);
   const commands = useMemo<Command[]>(
     () => [
-      ...NAV.flatMap((g) => g.items.filter((it) => !it.phase).map((it) => ({ id: it.href, label: it.label, group: g.group, icon: it.icon, href: it.href }))),
+      ...nav.flatMap((g) => g.items.filter((it) => !it.phase).map((it) => ({ id: it.href, label: it.label, group: g.group, icon: it.icon, href: it.href }))),
       { id: "logout", label: "Sign out", group: "Account", icon: LogOut, run: () => void logout(), keywords: "logout exit" },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
+    [nav],
   );
 
   if (error) {
@@ -189,7 +198,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             </button>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto">
-            <Sidebar />
+            <Sidebar nav={nav} />
           </div>
           <div className="border-t border-line p-3">
             <div className="flex items-center gap-3 rounded-lg px-2 py-1.5">
@@ -219,7 +228,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               <BrandMark />
               <button onClick={() => setMenu(false)} className="press rounded-lg p-2 hover:bg-panel-2" aria-label="Close menu"><X className="size-5" /></button>
             </div>
-            <Sidebar onNavigate={() => setMenu(false)} />
+            <Sidebar nav={nav} onNavigate={() => setMenu(false)} />
           </aside>
         </div>
 

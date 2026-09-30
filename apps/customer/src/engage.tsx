@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { ChevronLeft, Crown, Gift, Inbox, Loader2, Medal, Swords, Trophy, Users } from "lucide-react";
 import { api, key } from "./api";
+import { askConfirm } from "./confirm";
 
 /* Rewards (loyalty points), tournaments and the inbox — Phase 10. */
 
@@ -48,7 +49,7 @@ export function RewardsScreen({ toast, onChanged }: { toast: Toast; onChanged: (
   const [busy, setBusy] = useState<string | null>(null);
   const [code, setCode] = useState<string | null>(null);
   const redeem = async (r: Loyalty["rewards"][number]) => {
-    if (!confirm(`Use ${r.costPoints} points for “${r.name}”?`)) return;
+    if (!(await askConfirm(`Use ${r.costPoints} points for “${r.name}”?`, { ok: "Redeem" }))) return;
     setBusy(r.id);
     try {
       const out = await api<{ code?: string; minutes?: number; walletCredit?: string }>("/loyalty/redeem", { method: "POST", body: { rewardId: r.id, idempotencyKey: key() } });

@@ -149,6 +149,9 @@ describe.skipIf(!HAS_DB)("Games & station tools (e2e)", () => {
 
       // Other organizations never see these PCs' scans.
       expect(((await call(rivalT, "GET", "/detected-titles")).body as any[]).some((d) => d.key === indieGame.key)).toBe(false);
+      // A retired PC's scan no longer counts.
+      expect((await call(ownerT, "DELETE", `/devices/${a.identity!.deviceId}`)).status).toBe(204);
+      expect((await found()).some((d) => d.key === indieGame.key)).toBe(false);
       await call(ownerT, "PATCH", `/games/${added.body.id}`, { isActive: false }); // the test DB persists between runs
     });
 

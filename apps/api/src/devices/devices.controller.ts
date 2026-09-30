@@ -173,6 +173,7 @@ export class DevicesController {
   async retire(@Param("deviceId") deviceId: string) {
     const d = await tx().device.update({ where: { id: deviceId }, data: { isEnabled: false, isOnline: false, status: "OFFLINE", macAddress: null }, select: DEVICE_FIELDS });
     await tx().deviceCredential.updateMany({ where: { deviceId, revokedAt: null }, data: { revokedAt: new Date(), revokeReason: "retired" } });
+    await tx().detectedTitle.deleteMany({ where: { deviceId } }); // its last scan is no longer "what's on our PCs"
     await this.audit.record({ action: "device.retire", entityType: "Device", entityId: deviceId, branchId: d.branchId });
     state().afterCommit.push(() => this.hub.get(deviceId)?.socket.close(4001, "retired"));
     this.bus.publish(orgId(), d.branchId, { type: "device", device: this.runtime.view({ ...d, removed: true }) });

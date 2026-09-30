@@ -4,8 +4,9 @@ import { useState } from "react";
 import { Gift, Megaphone, Pause, Play, Plus, RefreshCw, Send, Tag, Users } from "lucide-react";
 import { api } from "@/lib/client/api";
 import { useAction, useApi } from "@/lib/client/hooks";
-import { useCan } from "@/lib/client/me";
-import { Badge, Button, Card, Empty, ErrorNote, Field, Input, Modal, PageHeader, Select, Spinner, Table, cx } from "@/components/ui";
+import { useCan, useCanOrg } from "@/lib/client/me";
+import { QuickEdit, RecordActions } from "@/components/records";
+import { Badge, Button, Card, Empty, ErrorNote, Field, Input, Modal, PageHeader, Select, Spinner, Table, cx, toast, askConfirm } from "@/components/ui";
 
 type Tab = "promotions" | "loyalty" | "segments" | "campaigns";
 const DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
@@ -15,13 +16,21 @@ const TONE: Record<string, "neutral" | "ok" | "warn" | "danger" | "accent"> = { 
 interface Promotion { id: string; name: string; type: string; status: string; conditions: Record<string, unknown>; effects: Array<Record<string, unknown>>; isStackable: boolean; requiresCode: boolean; perCustomerLimit: number | null; totalUsageLimit: number | null; usageCount: number; startsAt: string | null; endsAt: string | null; codes: number; redemptions: number }
 interface Segment { id: string; key: string | null; name: string; kind: string; rules: Record<string, unknown>; memberCount: number; lastEvaluatedAt: string | null }
 
+/** ISO → value for <input type="datetime-local"> in local time. */
+const toLocalInput = (iso: string | null) => (iso ? new Date(new Date(iso).getTime() - new Date(iso).getTimezoneOffset() * 60_000).toISOString().slice(0, 16) : "");
+
+const TAB_PERMISSION: Record<Tab, string> = { promotions: "promotion.view", loyalty: "loyalty.view", segments: "crm.view", campaigns: "crm.view" };
+
 export default function MarketingPage() {
-  const [tab, setTab] = useState<Tab>("promotions");
+  const can = useCan();
+  const tabs = (Object.keys(TAB_PERMISSION) as Tab[]).filter((t) => can(TAB_PERMISSION[t]));
+  const [picked, setTab] = useState<Tab | null>(null);
+  const tab = picked ?? tabs[0] ?? "promotions";
   return (
     <div className="space-y-5">
       <PageHeader title="Marketing" subtitle="Promotions that apply by themselves at the till, loyalty points and rewards, customer segments, and campaigns to the customer app and PCs." />
       <div className="flex gap-1 border-b border-line">
-        {(["promotions", "loyalty", "segments", "campaigns"] as Tab[]).map((t) => (
+        {tabs.map((t) => (
           <button key={t} onClick={() => setTab(t)} className={cx("-mb-px border-b-2 px-4 py-2 text-sm capitalize", tab === t ? "border-accent text-ink" : "border-transparent text-ink-3 hover:text-ink")}>{t}</button>
         ))}
       </div>
@@ -55,6 +64,7 @@ function Promotions() {
   const list = useApi<Promotion[]>("/promotions");
   const [creating, setCreating] = useState(false);
   const [open, setOpen] = useState<Promotion | null>(null);
+  const [editing, setEditing] = useState<Promotion | null>(null);
   const status = useAction(async (p: Promotion, s: string) => {
     await api(`/promotions/${p.id}/status`, { method: "POST", body: { status: s }, action: `${s === "ACTIVE" ? "Activate" : "Pause"} promotion` });
     await list.reload();
@@ -77,12 +87,28 @@ function Promotions() {
                   {can("promotion.manage") && (p.status === "ACTIVE"
                     ? <Button size="sm" variant="ghost" pending={status.pending} onClick={() => void status.run(p, "PAUSED")}><Pause className="size-3.5" /> Pause</Button>
                     : ["DRAFT", "PAUSED"].includes(p.status) && <Button size="sm" variant="ghost" pending={status.pending} onClick={() => void status.run(p, "ACTIVE")}><Play className="size-3.5" /> Activate</Button>)}
+                  <RecordActions kind="promotion" id={p.id} name={p.name} onEdit={() => setEditing(p)} onDone={() => void list.reload()} />
                 </td>
               </tr>
             ))}
           </Table>
         )}
       </Card>
+      <QuickEdit
+        title={editing ? `Edit ${editing.name}` : ""} open={!!editing} onClose={() => setEditing(null)} onDone={() => { setEditing(null); void list.reload(); }}
+        fields={[
+          { key: "name", label: "Name", required: true },
+          { key: "startsAt", label: "Starts", type: "datetime-local", hint: "Blank = right away" },
+          { key: "endsAt", label: "Ends", type: "datetime-local", hint: "Blank = no end" },
+          { key: "perCustomerLimit", label: "Uses per customer", type: "number", hint: "Blank = unlimited" },
+          { key: "totalUsageLimit", label: "Total uses", type: "number", hint: "Blank = unlimited" },
+        ]}
+        initial={editing ? { name: editing.name, startsAt: toLocalInput(editing.startsAt), endsAt: toLocalInput(editing.endsAt), perCustomerLimit: editing.perCustomerLimit?.toString() ?? "", totalUsageLimit: editing.totalUsageLimit?.toString() ?? "" } : {}}
+        save={(v) => api(`/promotions/${editing!.id}`, {
+          method: "PATCH", action: "Edit promotion",
+          body: { name: v["name"]!.trim(), startsAt: v["startsAt"] ? new Date(v["startsAt"]).toISOString() : null, endsAt: v["endsAt"] ? new Date(v["endsAt"]).toISOString() : null, perCustomerLimit: v["perCustomerLimit"] ? Number(v["perCustomerLimit"]) : null, totalUsageLimit: v["totalUsageLimit"] ? Number(v["totalUsageLimit"]) : null },
+        })}
+      />
       <Modal open={creating} onClose={() => setCreating(false)} title="New promotion" wide>
         {creating && <PromotionForm onDone={() => { setCreating(false); void list.reload(); }} />}
       </Modal>
@@ -203,11 +229,12 @@ const SOURCE: Record<string, string> = { GAMING: "Gaming", RESTAURANT: "Food & d
 const REWARD_FIELDS: Record<string, Array<[string, string]>> = { FREE_MINUTES: [["minutes", "Minutes"]], WALLET_CREDIT: [["amount", "Amount"]], DISCOUNT_PERCENT: [["percent", "Percent"]], DISCOUNT_AMOUNT: [["amount", "Amount"]], PRODUCT: [["productId", "Product id"]] };
 
 function Loyalty() {
-  const can = useCan();
+  const canOrg = useCanOrg();
   const rules = useApi<Array<{ id: string; source: string; unit: string; pointsPerUnit: string; isActive: boolean }>>("/loyalty/rules");
   const rewards = useApi<Array<{ id: string; name: string; costPoints: number; rewardType: string; value: Record<string, unknown>; stock: number | null; isActive: boolean }>>("/loyalty/rewards");
   const [addingRule, setAddingRule] = useState(false);
   const [addingReward, setAddingReward] = useState(false);
+  const [editingReward, setEditingReward] = useState<NonNullable<typeof rewards.data>[number] | null>(null);
   const edit = useAction(async (id: string, body: Record<string, unknown>) => {
     await api(`/loyalty/rules/${id}`, { method: "PATCH", body });
     await rules.reload();
@@ -219,26 +246,27 @@ function Loyalty() {
   return (
     <div className="grid gap-5 lg:grid-cols-2">
       <Card>
-        <div className="flex items-center justify-between px-5 pt-4"><h3 className="font-semibold">How points are earned</h3>{can("loyalty.manage") && <Button size="sm" onClick={() => setAddingRule(true)}><Plus className="size-4" /> Rule</Button>}</div>
+        <div className="flex items-center justify-between px-5 pt-4"><h3 className="font-semibold">How points are earned</h3>{canOrg("loyalty.manage") && <Button size="sm" onClick={() => setAddingRule(true)}><Plus className="size-4" /> Rule</Button>}</div>
         <p className="px-5 pt-1 text-xs text-ink-3">Times the customer's tier multiplier. Spend points come when a bill is paid in full; points expire after a year.</p>
         <ErrorNote>{edit.error}</ErrorNote>
         {!rules.data ? <Spinner /> : (
-          <Table head={["For", "Points", "On"]}>
+          <Table head={["For", "Points", "On", ""]}>
             {rules.data.map((r) => (
               <tr key={r.id} className={cx("border-t border-line", !r.isActive && "opacity-50")}>
                 <td className="px-4 py-2">{SOURCE[r.source] ?? r.source}</td>
                 <td className="px-4 py-2">
-                  {can("loyalty.manage") ? <Input className="w-24" inputMode="decimal" defaultValue={Number(r.pointsPerUnit)} onBlur={(e) => Number(e.target.value) !== Number(r.pointsPerUnit) && void edit.run(r.id, { pointsPerUnit: Number(e.target.value) })} aria-label="Points" /> : Number(r.pointsPerUnit)}
+                  {canOrg("loyalty.manage") ? <Input className="w-24" inputMode="decimal" defaultValue={Number(r.pointsPerUnit)} onBlur={(e) => Number(e.target.value) !== Number(r.pointsPerUnit) && void edit.run(r.id, { pointsPerUnit: Number(e.target.value) })} aria-label="Points" /> : Number(r.pointsPerUnit)}
                   <span className="ml-1 text-xs text-ink-3">{r.unit === "CURRENCY" ? "per AED" : r.unit === "MINUTE" ? "per minute" : "each time"}</span>
                 </td>
-                <td className="px-4 py-2">{can("loyalty.manage") && <input type="checkbox" checked={r.isActive} onChange={(e) => void edit.run(r.id, { isActive: e.target.checked })} aria-label="Active" />}</td>
+                <td className="px-4 py-2">{canOrg("loyalty.manage") && <input type="checkbox" checked={r.isActive} onChange={(e) => void edit.run(r.id, { isActive: e.target.checked })} aria-label="Active" />}</td>
+                <td className="px-4 py-2 text-right"><RecordActions kind="loyalty-rule" id={r.id} name={`${SOURCE[r.source] ?? r.source} rule`} onDone={() => void rules.reload()} /></td>
               </tr>
             ))}
           </Table>
         )}
       </Card>
       <Card>
-        <div className="flex items-center justify-between px-5 pt-4"><h3 className="font-semibold">Rewards</h3>{can("loyalty.manage") && <Button size="sm" onClick={() => setAddingReward(true)}><Plus className="size-4" /> Reward</Button>}</div>
+        <div className="flex items-center justify-between px-5 pt-4"><h3 className="font-semibold">Rewards</h3>{canOrg("loyalty.manage") && <Button size="sm" onClick={() => setAddingReward(true)}><Plus className="size-4" /> Reward</Button>}</div>
         <ErrorNote>{toggleReward.error}</ErrorNote>
         {!rewards.data ? <Spinner /> : (
           <Table head={["Reward", "Points", "Stock", ""]}>
@@ -247,7 +275,7 @@ function Loyalty() {
                 <td className="px-4 py-2"><p className="font-medium">{r.name}</p><p className="text-xs text-ink-3">{pretty(r.rewardType)}</p></td>
                 <td className="px-4 py-2 tabular-nums">{r.costPoints}</td>
                 <td className="px-4 py-2 tabular-nums">{r.stock ?? "∞"}</td>
-                <td className="px-4 py-2">{can("loyalty.manage") && <input type="checkbox" checked={r.isActive} onChange={(e) => void toggleReward.run(r.id, e.target.checked)} aria-label="Active" />}</td>
+                <td className="whitespace-nowrap px-4 py-2 text-right">{canOrg("loyalty.manage") && <input type="checkbox" checked={r.isActive} onChange={(e) => void toggleReward.run(r.id, e.target.checked)} aria-label="Active" />}<RecordActions kind="loyalty-reward" id={r.id} name={r.name} onEdit={() => setEditingReward(r)} onDone={() => void rewards.reload()} /></td>
               </tr>
             ))}
           </Table>
@@ -256,6 +284,12 @@ function Loyalty() {
       <Modal open={addingRule} onClose={() => setAddingRule(false)} title="New points rule">
         {addingRule && <RuleForm onDone={() => { setAddingRule(false); void rules.reload(); }} />}
       </Modal>
+      <QuickEdit
+        title={editingReward ? `Edit ${editingReward.name}` : ""} open={!!editingReward} onClose={() => setEditingReward(null)} onDone={() => { setEditingReward(null); void rewards.reload(); }}
+        fields={[{ key: "name", label: "Name", required: true }, { key: "costPoints", label: "Points", type: "number", required: true }, { key: "stock", label: "Stock", type: "number", hint: "Blank = unlimited" }]}
+        initial={editingReward ? { name: editingReward.name, costPoints: String(editingReward.costPoints), stock: editingReward.stock?.toString() ?? "" } : {}}
+        save={(v) => api(`/loyalty/rewards/${editingReward!.id}`, { method: "PATCH", body: { name: v["name"]!.trim(), costPoints: Number(v["costPoints"]), stock: v["stock"] ? Number(v["stock"]) : null } })}
+      />
       <Modal open={addingReward} onClose={() => setAddingReward(false)} title="New reward">
         {addingReward && <RewardForm onDone={() => { setAddingReward(false); void rewards.reload(); }} />}
       </Modal>
@@ -313,6 +347,7 @@ function Segments() {
   const list = useApi<Segment[]>("/segments");
   const [open, setOpen] = useState<Segment | null>(null);
   const [creating, setCreating] = useState(false);
+  const [renaming, setRenaming] = useState<Segment | null>(null);
   const refresh = useAction(async () => {
     await api("/segments/refresh", { method: "POST" });
     await list.reload();
@@ -326,13 +361,14 @@ function Segments() {
       <ErrorNote>{refresh.error}</ErrorNote>
       <Card>
         {!list.data ? <Spinner /> : (
-          <Table head={["Segment", "Kind", "Members", "Updated"]}>
+          <Table head={["Segment", "Kind", "Members", "Updated", ""]}>
             {list.data.map((s) => (
               <tr key={s.id} className="cursor-pointer border-t border-line hover:bg-panel-2" onClick={() => setOpen(s)}>
                 <td className="px-4 py-2 font-medium">{s.name}{s.key && <Badge>built-in</Badge>}</td>
                 <td className="px-4 py-2 text-ink-2">{s.kind === "DYNAMIC" ? "Automatic" : "Hand-picked"}</td>
                 <td className="px-4 py-2 tabular-nums">{s.memberCount}</td>
                 <td className="px-4 py-2 text-ink-3">{s.lastEvaluatedAt ? new Date(s.lastEvaluatedAt).toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "—"}</td>
+                <td className="px-4 py-2 text-right">{!s.key && <RecordActions kind="segment" id={s.id} name={s.name} onEdit={() => setRenaming(s)} onDone={() => void list.reload()} />}</td>
               </tr>
             ))}
           </Table>
@@ -341,6 +377,11 @@ function Segments() {
       <Modal open={!!open} onClose={() => setOpen(null)} title={open?.name ?? ""} wide>
         {open && <SegmentMembers s={open} />}
       </Modal>
+      <QuickEdit
+        title={renaming ? `Rename ${renaming.name}` : ""} open={!!renaming} onClose={() => setRenaming(null)} onDone={() => { setRenaming(null); void list.reload(); }}
+        fields={[{ key: "name", label: "Name", required: true }]} initial={{ name: renaming?.name ?? "" }}
+        save={(v) => api(`/segments/${renaming!.id}`, { method: "PATCH", body: { name: v["name"]!.trim() } })}
+      />
       <Modal open={creating} onClose={() => setCreating(false)} title="New segment">
         {creating && <SegmentForm onDone={() => { setCreating(false); void list.reload(); }} />}
       </Modal>
@@ -406,15 +447,20 @@ function Campaigns() {
   const can = useCan();
   const list = useApi<Array<{ id: string; name: string; channel: string; status: string; scheduledAt: string | null; sentAt: string | null; stats: Record<string, number>; segment: { name: string } | null; promotion: { name: string } | null }>>("/campaigns");
   const [creating, setCreating] = useState(false);
+  const cancel = useAction(async (id: string) => {
+    if (!(await askConfirm("Cancel this scheduled campaign? Nobody will receive it."))) return;
+    await api(`/campaigns/${id}/cancel`, { method: "POST" });
+    await list.reload();
+  });
   const send = useAction(async (id: string) => {
     const r = await api<Record<string, unknown>>(`/campaigns/${id}/send`, { method: "POST", action: "Send campaign" });
-    if ("targeted" in r) alert(`Sent to ${r["sent"]} · waiting for their next login ${r["queued"]} · failed ${r["failed"]} · no marketing consent ${r["withoutConsent"]}`);
+    if ("targeted" in r) toast(`Sent to ${r["sent"]} · waiting for their next login ${r["queued"]} · failed ${r["failed"]} · no marketing consent ${r["withoutConsent"]}`);
     await list.reload();
   });
   return (
     <div className="grid gap-4">
       <div className="flex justify-end"><Button variant="primary" onClick={() => setCreating(true)}><Plus className="size-4" /> Campaign</Button></div>
-      <ErrorNote>{send.error}</ErrorNote>
+      <ErrorNote>{send.error ?? cancel.error}</ErrorNote>
       <Card>
         {!list.data ? <Spinner /> : list.data.length === 0 ? <Empty icon={<Megaphone className="size-8" />} title="No campaigns yet" /> : (
           <Table head={["Campaign", "To", "Channel", "Status", "Reach", ""]}>
@@ -425,7 +471,7 @@ function Campaigns() {
                 <td className="px-4 py-2 text-ink-2">{CHANNEL[c.channel] ?? c.channel}</td>
                 <td className="px-4 py-2"><Badge tone={TONE[c.status] ?? "neutral"}>{pretty(c.status)}</Badge>{c.scheduledAt && c.status !== "SENT" && <span className="block text-[11px] text-ink-3">{new Date(c.scheduledAt).toLocaleString()}</span>}</td>
                 <td className="px-4 py-2 text-xs text-ink-2">{c.stats && "targeted" in c.stats ? `${c.stats["sent"] ?? 0} sent · ${c.stats["queued"] ?? 0} waiting · ${c.stats["failed"] ?? 0} failed` : "—"}</td>
-                <td className="px-4 py-2 text-right">{c.status === "DRAFT" && can("crm.campaign_send") && <Button size="sm" variant="primary" pending={send.pending} onClick={() => confirm(c.scheduledAt ? "Schedule this campaign?" : "Send this campaign now?") && void send.run(c.id)}><Send className="size-3.5" /> {c.scheduledAt ? "Schedule" : "Send"}</Button>}</td>
+                <td className="whitespace-nowrap px-4 py-2 text-right">{c.status === "DRAFT" && can("crm.campaign_send") && <Button size="sm" variant="primary" pending={send.pending} onClick={async () => (await askConfirm(c.scheduledAt ? "Schedule this campaign?" : "Send this campaign now?")) && void send.run(c.id)}><Send className="size-3.5" /> {c.scheduledAt ? "Schedule" : "Send"}</Button>}{c.status === "SCHEDULED" && can("crm.campaign_send") && <Button size="sm" variant="ghost" pending={cancel.pending} onClick={() => void cancel.run(c.id)}>Cancel</Button>}{c.status === "DRAFT" && <RecordActions kind="campaign" id={c.id} name={c.name} onDone={() => void list.reload()} />}</td>
               </tr>
             ))}
           </Table>

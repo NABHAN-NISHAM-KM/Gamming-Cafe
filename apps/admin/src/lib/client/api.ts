@@ -1,5 +1,7 @@
 "use client";
 
+import { askText } from "@/components/ui";
+
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
@@ -19,6 +21,7 @@ export function describeError(status: number, body: any): string {
   if (code === "too_far_ahead") return `Bookings can be made up to ${body?.maxDays} days ahead.`;
   if (code === "sold_out") return `${body?.product ?? "An item"} is sold out${typeof body?.left === "number" && body.left > 0 ? ` — only ${body.left} left` : ""}.`;
   if (code === "insufficient_stock") return `Not enough ${body?.item ?? "stock"}${body?.onHand ? ` (${Number(body.onHand)} on hand)` : ""}.`;
+  if (code === "over_return") return `You can't return more than was received — ${Number(body?.received ?? 0)} of ${body?.item ?? "that item"} arrived.`;
   if (code === "over_receipt") return `More than was ordered — only ${Number(body?.outstanding ?? 0)} of ${body?.item ?? "that item"} is still to come.`;
   if (["modifier_required", "too_many_modifiers", "bad_modifier"].includes(code ?? "")) return body?.message ?? "Check the item options.";
   if (code === "insufficient_cash" || code === "not_enough_cash") return "The cash tendered doesn't cover the amount.";
@@ -152,6 +155,15 @@ export function describeError(status: number, body: any): string {
     role_key_taken: "A role with that key already exists.",
     cannot_deactivate_self: "You can't deactivate your own account.",
     conflict: "That conflicts with an existing record.",
+    in_use: "Other records still use this, so it can't be deleted.",
+    wallet_not_empty: "They still have money in their wallet — refund it to them first, then erase.",
+    customer_in_session: "They're playing right now — end the session first.",
+    customer_has_open_bill: "They have an open bill — settle or void it first.",
+    customer_has_bookings: "They have upcoming bookings — cancel them first.",
+    customer_erased: "This customer was already erased.",
+    po_not_draft: "Only draft orders can be deleted. Cancel it instead, or return received goods to the supplier.",
+    system_role: "Built-in roles can't be deleted.",
+    campaign_sent: "Only draft campaigns can be deleted.",
     not_found: "Not found.",
     csrf: "Security check failed — reload the page.",
     api_unreachable: "Can't reach the ArenaOS API. Check that it is running (npm run dev -w @arena/api), then retry.",
@@ -177,9 +189,12 @@ export function describeError(status: number, body: any): string {
 
 // ── Reason prompt hook-up (registered by <ReasonProvider/>) ─────────────────
 type AskReason = (action: string) => Promise<string | null>;
-let askReason: AskReason = async () => window.prompt("Reason for this action:");
+// Kept on globalThis so a hot reload of this module doesn't forget the themed
+// dialog <ReasonProvider/> registered. Never falls back to window.prompt.
+const reasonHost = globalThis as { __arenaAskReason?: AskReason };
+const askReason: AskReason = (action) => (reasonHost.__arenaAskReason ? reasonHost.__arenaAskReason(action) : askText(`${action} needs a reason (saved in the audit log).`));
 export const registerReasonPrompt = (fn: AskReason) => {
-  askReason = fn;
+  reasonHost.__arenaAskReason = fn;
 };
 
 interface Opts {

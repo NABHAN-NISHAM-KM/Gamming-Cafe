@@ -6,6 +6,7 @@ import { AppsScreen, ConnectivityScreen, FeaturedRow, GamesScreen, PeripheralsSc
 import { useStation } from "./station";
 import { FoodScreen } from "./food";
 import { PrintApproval } from "./print";
+import { askConfirm } from "./confirm";
 
 const cx = (...c: Array<string | false | null | undefined>) => c.filter(Boolean).join(" ");
 
@@ -293,7 +294,7 @@ function SessionScreen({ state, t }: { state: ShellState; t: Strings }) {
               {s.tier && <p className="text-xs text-glow-2">{s.tier}</p>}
             </div>
           </div>
-          <button onClick={() => confirm(t.logoutConfirm) && bridge.send({ type: "logout" })} className="press rounded-xl border border-rim p-3 text-dim hover:border-alarm hover:text-alarm" aria-label={t.logout} title={t.logout}>
+          <button onClick={async () => (await askConfirm(t.logoutConfirm, { ok: t.logout })) && bridge.send({ type: "logout" })} className="press rounded-xl border border-rim p-3 text-dim hover:border-alarm hover:text-alarm" aria-label={t.logout} title={t.logout}>
             <LogOut className="size-5" />
           </button>
         </div>

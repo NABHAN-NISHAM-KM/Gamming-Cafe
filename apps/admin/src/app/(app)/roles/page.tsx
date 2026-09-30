@@ -6,6 +6,7 @@ import { api } from "@/lib/client/api";
 import { useAction, useApi } from "@/lib/client/hooks";
 import { useCan, useMe } from "@/lib/client/me";
 import type { PermissionDef, Role } from "@/lib/client/types";
+import { QuickEdit, RecordActions } from "@/components/records";
 import { Badge, Button, Card, ErrorNote, Field, Input, Modal, PageHeader, Spinner, cx } from "@/components/ui";
 
 const groupBy = (perms: PermissionDef[]) =>
@@ -14,13 +15,15 @@ const groupBy = (perms: PermissionDef[]) =>
     return acc;
   }, {});
 
-function RoleCard({ role, catalog }: { role: Role; catalog: PermissionDef[] }) {
+function RoleCard({ role, catalog, onChanged }: { role: Role; catalog: PermissionDef[]; onChanged: () => void }) {
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
   const held = new Set(role.permissions);
   const groups = groupBy(catalog.filter((p) => held.has(p.key)));
   return (
     <Card>
-      <button onClick={() => setOpen(!open)} className="flex w-full items-center gap-3 px-5 py-4 text-left" aria-expanded={open}>
+      <div className="flex items-center pr-3">
+      <button onClick={() => setOpen(!open)} className="flex min-w-0 flex-1 items-center gap-3 px-5 py-4 text-left" aria-expanded={open}>
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-2 font-medium">
             {role.name} {role.isSystem ? <Badge>Template</Badge> : <Badge tone="accent">Custom</Badge>}
@@ -30,6 +33,14 @@ function RoleCard({ role, catalog }: { role: Role; catalog: PermissionDef[] }) {
         <span className="tabular text-sm text-ink-2">{role.permissions.length}</span>
         <ChevronDown className={cx("size-4 text-ink-3 transition", open && "rotate-180")} />
       </button>
+      {!role.isSystem && role.organizationId && <RecordActions kind="role" id={role.id} name={role.name} onEdit={() => setEditing(true)} onDone={onChanged} />}
+      </div>
+      <QuickEdit
+        title={`Edit ${role.name}`} open={editing} onClose={() => setEditing(false)} onDone={() => { setEditing(false); onChanged(); }}
+        fields={[{ key: "name", label: "Name", required: true }, { key: "description", label: "Description" }]}
+        initial={{ name: role.name, description: role.description ?? "" }}
+        save={(v) => api(`/roles/${role.id}`, { method: "PATCH", action: "Edit role", body: { name: v["name"]!.trim(), description: v["description"]?.trim() || null } })}
+      />
       {open && (
         <div className="grid gap-4 border-t border-line px-5 py-4 sm:grid-cols-2 lg:grid-cols-3">
           {Object.entries(groups).map(([mod, perms]) => (
@@ -145,7 +156,7 @@ export default function RolesPage() {
       ) : (
         <div className="grid gap-3">
           {roles.data.map((r) => (
-            <RoleCard key={r.id} role={r} catalog={catalog.data!} />
+            <RoleCard key={r.id} role={r} catalog={catalog.data!} onChanged={() => void roles.reload()} />
           ))}
         </div>
       )}

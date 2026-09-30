@@ -237,3 +237,90 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* ── Themed dropdowns ─────────────────────────────────────────────────────────
+   Chromium 135+ styles the whole <select> popup (customizable select); other
+   browsers keep their native popup but with themed option colours. Unlayered
+   on purpose so it wins over utility classes like `appearance-none`. */
+select option {
+  background: var(--color-panel-2);
+  color: var(--color-ink);
+}
+@supports (appearance: base-select) {
+  select,
+  ::picker(select) {
+    appearance: base-select;
+  }
+  select {
+    align-items: center;
+    cursor: pointer;
+  }
+  select::picker-icon {
+    color: var(--color-ink-3);
+    transition: rotate 140ms var(--ease-out);
+  }
+  select:open::picker-icon {
+    rotate: 180deg;
+  }
+  /* Controls that draw their own chevron (admin <Select>) hide the built-in one. */
+  select.appearance-none::picker-icon {
+    display: none;
+  }
+  ::picker(select) {
+    margin-block: 6px;
+    padding: 4px;
+    min-width: anchor-size(width);
+    max-height: min(320px, 50vh);
+    overflow-y: auto;
+    background: color-mix(in oklab, var(--color-panel) 92%, transparent);
+    backdrop-filter: blur(14px);
+    border: 1px solid var(--color-line-strong);
+    border-radius: 12px;
+    box-shadow: 0 18px 48px -12px rgb(0 0 0 / 0.7), 0 0 0 1px color-mix(in oklab, var(--color-accent) 12%, transparent);
+    opacity: 0;
+    translate: 0 -4px;
+    transition: opacity 140ms var(--ease-out), translate 140ms var(--ease-out), display 140ms allow-discrete, overlay 140ms allow-discrete;
+  }
+  select:open::picker(select) {
+    opacity: 1;
+    translate: 0 0;
+  }
+  @starting-style {
+    select:open::picker(select) {
+      opacity: 0;
+      translate: 0 -4px;
+    }
+  }
+  select option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--color-ink-2);
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: background-color 100ms, color 100ms;
+  }
+  select option:hover,
+  select option:focus-visible {
+    background: var(--color-raised);
+    color: var(--color-ink);
+    outline: none;
+  }
+  select option:checked {
+    background: var(--color-accent-soft);
+    color: var(--color-accent);
+    font-weight: 500;
+  }
+  select option::checkmark {
+    order: 1;
+    margin-inline-start: auto;
+    color: var(--color-accent);
+  }
+  select option:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+}

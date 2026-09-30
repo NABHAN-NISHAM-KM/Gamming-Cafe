@@ -4,10 +4,11 @@ import { useEffect, useState } from "react";
 import { Crown, Lock, LockOpen, SlidersHorizontal, Wallet } from "lucide-react";
 import { api } from "@/lib/client/api";
 import { useAction, useApi } from "@/lib/client/hooks";
-import { useCan } from "@/lib/client/me";
+import { useCan, useCanOrg } from "@/lib/client/me";
 import { idem } from "@/lib/client/sessions";
 import type { Branch } from "@/lib/client/types";
-import { Badge, Button, ErrorNote, Field, Input, Modal, Select, cx } from "@/components/ui";
+import { QuickEdit, RecordActions } from "@/components/records";
+import { Badge, Button, ErrorNote, Field, Input, Modal, Select, cx, askConfirm } from "@/components/ui";
 
 export interface WalletView {
   currency: string;
@@ -234,7 +235,7 @@ export function MembershipPanel({ customerId, onChanged }: { customerId: string;
   const rows = useApi<MembershipRow[]>(`/customers/${customerId}/memberships`);
   const [selling, setSelling] = useState(false);
   const cancel = useAction(async (id: string) => {
-    if (!confirm("End this membership now? No refund is made automatically.")) return;
+    if (!(await askConfirm("End this membership now? No refund is made automatically."))) return;
     await api(`/customers/${customerId}/memberships/${id}/cancel`, { method: "POST", action: "Cancel membership" });
     await rows.reload();
     onChanged();
@@ -272,8 +273,9 @@ export function MembershipPanel({ customerId, onChanged }: { customerId: string;
 
 /** Owner view of the tiers: price, benefits, members. */
 export function TiersModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const can = useCan();
+  const canOrg = useCanOrg();
   const tiers = useApi<Tier[]>(open ? "/membership-tiers" : null);
+  const [renaming, setRenaming] = useState<Tier | null>(null);
   const [f, setF] = useState({ code: "", name: "", rank: "15", price: "", durationDays: "30", gamingDiscountPct: "10", bonusMinutesMonthly: "0", bookingWindowDays: "7", color: "#A07CFF" });
   const add = useAction(async () => {
     await api("/membership-tiers", {
@@ -300,11 +302,19 @@ export function TiersModal({ open, onClose }: { open: boolean; onClose: () => vo
               <span className="font-medium">{t.name}</span>
               <span className="text-ink-3">{t.price ? `${Number(t.price).toFixed(2)} / ${t.durationDays} d` : "earned, not sold"} · −{Number(t.gamingDiscountPct)}% · {t.bonusMinutesMonthly} bonus min · {t.bookingWindowDays} d booking</span>
               <span className="ml-auto text-ink-3">{t.members ?? 0} members</span>
-              {can("membership.manage") && <Button size="sm" variant="ghost" onClick={() => void toggle.run(t)}>{t.isActive ? "Retire" : "Restore"}</Button>}
+              {canOrg("membership.manage") && <Button size="sm" variant="ghost" onClick={() => void toggle.run(t)}>{t.isActive ? "Retire" : "Restore"}</Button>}
+              <RecordActions kind="membership-tier" id={t.id} name={t.name} onEdit={() => setRenaming(t)} onDone={() => void tiers.reload()} />
             </li>
           ))}
         </ul>
-        {can("membership.manage") && (
+        {renaming && (
+          <QuickEdit
+            title={`Rename ${renaming.name}`} open onClose={() => setRenaming(null)} onDone={() => { setRenaming(null); void tiers.reload(); }}
+            fields={[{ key: "name", label: "Name", required: true }]} initial={{ name: renaming.name }}
+            save={(v) => api(`/membership-tiers/${renaming.id}`, { method: "PATCH", action: "Update membership tier", body: { name: v["name"]!.trim() } })}
+          />
+        )}
+        {canOrg("membership.manage") && (
           <form className="grid gap-3 rounded-lg border border-line p-4 sm:grid-cols-4" onSubmit={(e) => { e.preventDefault(); void add.run(); }}>
             <p className="text-sm font-medium sm:col-span-4">New tier</p>
             <Field label="Code"><Input required value={f.code} onChange={(e) => setF({ ...f, code: e.target.value })} placeholder="PLATINUM" /></Field>
@@ -343,7 +353,7 @@ export function LoyaltyPanel({ customerId, onChanged }: { customerId: string; on
   const [result, setResult] = useState<string | null>(null);
   const [adj, setAdj] = useState({ points: "", reason: "" });
   const redeem = useAction(async (rewardId: string, name: string) => {
-    if (!confirm(`Redeem “${name}”?`)) return;
+    if (!(await askConfirm(`Redeem “${name}”?`))) return;
     const r = await api<{ code?: string; minutes?: number; walletCredit?: string; balance: number }>(`/customers/${customerId}/loyalty/redeem`, { method: "POST", body: { rewardId, idempotencyKey: idem() } });
     setResult(r.code ? `Code for the customer: ${r.code}` : r.minutes ? `${r.minutes} minutes added to their time` : r.walletCredit ? `${r.walletCredit} added to their wallet` : "Redeemed");
     await s.reload();

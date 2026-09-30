@@ -1,14 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Clock, Crown, KeyRound, Plus, UserPlus, Users } from "lucide-react";
+import { Clock, Crown, KeyRound, Plus, UserPlus, Users, UserX } from "lucide-react";
 import { LoyaltyPanel, MembershipPanel, TiersModal, WalletPanel } from "./account-panels";
 import { api } from "@/lib/client/api";
 import { useAction, useApi } from "@/lib/client/hooks";
 import { useCan } from "@/lib/client/me";
 import { fmtCountdown, idem } from "@/lib/client/sessions";
 import type { Branch } from "@/lib/client/types";
-import { Badge, Button, Card, Empty, ErrorNote, Field, Input, Modal, PageHeader, Select, Spinner, Table } from "@/components/ui";
+import { QuickEdit, RecordActions } from "@/components/records";
+import { Badge, Button, Card, Empty, ErrorNote, Field, Input, Modal, PageHeader, Select, Spinner, Table, askConfirm, toast } from "@/components/ui";
 
 interface Customer {
   id: string;
@@ -170,10 +171,17 @@ function SetCredentials({ customer, onDone }: { customer: Customer; onDone: () =
   );
 }
 
-function CustomerDetail({ id, onChanged }: { id: string; onChanged: () => void }) {
+function CustomerDetail({ id, onChanged, onErased }: { id: string; onChanged: () => void; onErased: () => void }) {
   const can = useCan();
   const c = useApi<Detail>(`/customers/${id}`);
   const [modal, setModal] = useState<"time" | "credentials" | null>(null);
+  const erase = useAction(async () => {
+    const who = c.data!.displayName;
+    if (!(await askConfirm(`Erase ${who}? Their name, phone, email, birthday and logins are deleted for good and they can't sign in again. Bills, payments and points stay in the books, without their name. This can't be undone.`))) return;
+    await api(`/customers/${id}/erase`, { method: "POST", action: `Erase ${who}` });
+    toast(`${who} was erased.`);
+    onErased();
+  });
   if (!c.data) return <Spinner />;
   const d = c.data;
   return (
@@ -201,7 +209,13 @@ function CustomerDetail({ id, onChanged }: { id: string; onChanged: () => void }
             <KeyRound className="size-3.5" /> Password / PIN
           </Button>
         )}
+        {can("customer.delete") && (
+          <Button size="sm" variant="danger" className="ml-auto" pending={erase.pending} onClick={() => void erase.run()}>
+            <UserX className="size-3.5" /> Erase customer
+          </Button>
+        )}
       </div>
+      <ErrorNote>{erase.error}</ErrorNote>
       <div className="grid gap-5 border-t border-line pt-5">
         <MembershipPanel customerId={d.id} onChanged={() => { void c.reload(); onChanged(); }} />
         <WalletPanel key={d.timeBalanceMinutes} customerId={d.id} onChanged={() => { void c.reload(); onChanged(); }} />
@@ -247,6 +261,7 @@ export default function CustomersPage() {
   const list = useApi<Customer[]>(`/customers${debounced ? `?q=${encodeURIComponent(debounced)}` : ""}`);
   const [creating, setCreating] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
+  const [editing, setEditing] = useState<Customer | null>(null);
   const [tiers, setTiers] = useState(false);
 
   return (
@@ -289,7 +304,7 @@ export default function CustomersPage() {
                 <td className="tabular px-4 py-3">{Number(c.walletBalance) > 0 ? c.walletBalance : <span className="text-ink-3">—</span>}</td>
                 <td className="tabular px-4 py-3">{c.timeBalanceMinutes > 0 ? <span className="text-ok">{hours(c.timeBalanceMinutes)}</span> : <span className="text-ink-3">—</span>}</td>
                 <td className="px-4 py-3 text-xs text-ink-3">{c.lastVisitAt ? new Date(c.lastVisitAt).toLocaleDateString() : "never"}</td>
-                <td className="px-4 py-3 text-right">{c.status !== "ACTIVE" && <Badge tone="danger">{c.status.toLowerCase()}</Badge>}</td>
+                <td className="whitespace-nowrap px-4 py-3 text-right">{c.status !== "ACTIVE" && <Badge tone="danger">{c.status.toLowerCase()}</Badge>}<RecordActions kind="customer" id={c.id} name={c.displayName} deletable={false} onEdit={() => setEditing(c)} onDone={() => void list.reload()} /></td>
               </tr>
             ))}
           </Table>
@@ -298,8 +313,14 @@ export default function CustomersPage() {
       <NewCustomer open={creating} onClose={() => setCreating(false)} onDone={(c) => { setCreating(false); void list.reload(); setOpen(c.id); }} />
       <TiersModal open={tiers} onClose={() => setTiers(false)} />
       <Modal open={!!open} onClose={() => setOpen(null)} title="Customer" wide>
-        {open && <CustomerDetail id={open} onChanged={() => void list.reload()} />}
+        {open && <CustomerDetail id={open} onChanged={() => void list.reload()} onErased={() => { setOpen(null); void list.reload(); }} />}
       </Modal>
+      <QuickEdit
+        title={editing ? `Edit ${editing.displayName}` : ""} open={!!editing} onClose={() => setEditing(null)} onDone={() => { setEditing(null); void list.reload(); }}
+        fields={[{ key: "displayName", label: "Name", required: true }, { key: "phone", label: "Phone", hint: "International format, e.g. +971501234567" }, { key: "email", label: "Email" }]}
+        initial={{ displayName: editing?.displayName ?? "", phone: editing?.phone ?? "", email: editing?.email ?? "" }}
+        save={(v) => api(`/customers/${editing!.id}`, { method: "PATCH", body: { displayName: v["displayName"]!.trim(), phone: v["phone"]?.trim() || null, email: v["email"]?.trim() || null } })}
+      />
     </>
   );
 }

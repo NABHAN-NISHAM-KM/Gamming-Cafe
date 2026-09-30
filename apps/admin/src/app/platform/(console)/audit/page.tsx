@@ -6,7 +6,7 @@ import { ActivityList, SectionTitle } from "@/components/platform";
 import { usePlatform, type AuditRow } from "@/lib/client/platform";
 
 export default function AuditPage() {
-  const [scope, setScope] = useState<"platform" | "all">("platform");
+  const [scope, setScope] = useState<"platform" | "all">("all");
   const { data, error } = usePlatform<AuditRow[]>(`/audit?scope=${scope}`);
   return (
     <>
@@ -16,7 +16,7 @@ export default function AuditPage() {
         <SectionTitle
           action={
             <div className="flex gap-1.5" role="group" aria-label="Scope">
-              {(["platform", "all"] as const).map((s) => (
+              {(["all", "platform"] as const).map((s) => (
                 <button
                   key={s}
                   onClick={() => setScope(s)}

@@ -269,8 +269,27 @@ describe.skipIf(!HAS_DB)("Customers, wallet, memberships & bookings (e2e)", () =
     });
   });
 
+  describe("erasure", () => {
+    it("scrubs personal data and blocks login, keeps money history; refused while they still have cash with us", async () => {
+      const c = await newCustomer({ password: "custpass1" });
+      await call(ownerT, "PATCH", `/customers/${c.id}`, { email: "erase.me@example.test", phone: "+971500000001" });
+      expect((await call(cashierT, "POST", `/customers/${c.id}/erase`, undefined, "asked by customer")).status).toBe(403);
+      await topUp(cashierT, c.id, "20");
+      expect((await call(ownerT, "POST", `/customers/${c.id}/erase`, undefined, "asked by customer")).body.error).toBe("wallet_not_empty");
+
+      const d = await newCustomer({ password: "custpass1" });
+      expect((await call(ownerT, "POST", `/customers/${d.id}/erase`)).body.reason).toBe("REASON_REQUIRED");
+      expect((await call(ownerT, "POST", `/customers/${d.id}/erase`, undefined, "asked by customer")).body).toEqual({ erased: true });
+      const after = (await call(ownerT, "GET", `/customers/${d.id}`)).body;
+      expect(after).toMatchObject({ displayName: "Erased customer", email: null, phone: null, status: "DELETED" });
+      expect((await call(ownerT, "GET", `/customers?q=${d.username}`)).body).toEqual([]);
+      expect((await call(null, "POST", "/app/demo/login", { username: d.username, password: "custpass1" })).status).toBe(401);
+      expect((await call(ownerT, "POST", `/customers/${d.id}/erase`, undefined, "again")).body.error).toBe("customer_erased");
+    });
+  });
+
   describe("customer app", () => {
-    const app_ = (token: string | null, method: string, path: string, body?: unknown) => call(token, method, `/app${path}`, body);
+    const app_ =(token: string | null, method: string, path: string, body?: unknown) => call(token, method, `/app${path}`, body);
 
     it("sign-up, sign-in, profile with wallet; wrong password and duplicate names are refused", async () => {
       const venue = (await app_(null, "GET", "/demo/venue")).body;

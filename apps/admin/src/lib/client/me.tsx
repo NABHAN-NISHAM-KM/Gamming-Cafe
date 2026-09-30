@@ -29,3 +29,9 @@ export function useCan() {
   return (permission: string, branchId?: string) =>
     me.grants.some((g) => g.permissions.includes(permission) && (g.scope !== "BRANCH" || !branchId || g.branchId === branchId));
 }
+
+/** For organization-wide records (menu, games, suppliers, tiers…): a branch-level grant isn't enough. */
+export function useCanOrg() {
+  const me = useMe();
+  return (permission: string) => me.grants.some((g) => g.scope === "ORGANIZATION" && g.permissions.includes(permission));
+}

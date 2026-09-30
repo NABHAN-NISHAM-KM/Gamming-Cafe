@@ -7,6 +7,7 @@ import { api } from "@/lib/client/api";
 import { useAction, useApi } from "@/lib/client/hooks";
 import { useCan } from "@/lib/client/me";
 import { EMP_TONE, statusLabel, type Branch, type Employee, type Role } from "@/lib/client/types";
+import { QuickEdit, RecordActions } from "@/components/records";
 import { Badge, Button, Card, Empty, ErrorNote, Field, Input, Modal, PageHeader, Select, Spinner, Table } from "@/components/ui";
 
 function InviteModal({ open, onClose, onDone, branches }: { open: boolean; onClose: () => void; onDone: () => void; branches: Branch[] }) {
@@ -98,6 +99,7 @@ export default function EmployeesPage() {
   const employees = useApi<Employee[]>("/employees");
   const branches = useApi<Branch[]>(can("branch.view") ? "/branches" : null);
   const [inviting, setInviting] = useState(false);
+  const [editing, setEditing] = useState<Employee | null>(null);
   const [q, setQ] = useState("");
   const branchCode = (id: string | null) => (id ? branches.data?.find((b) => b.id === id)?.code ?? "—" : "All");
   const rows = (employees.data ?? []).filter((e) => `${e.displayName} ${e.user.email} ${e.employeeCode}`.toLowerCase().includes(q.toLowerCase()));
@@ -128,7 +130,7 @@ export default function EmployeesPage() {
         ) : rows.length === 0 ? (
           <Empty icon={<Users className="size-8" />} title={q ? "No matches" : "No employees visible"} />
         ) : (
-          <Table head={["Name", "Code", "Home branch", "Roles", "Status"]}>
+          <Table head={["Name", "Code", "Home branch", "Roles", "Status", ""]}>
             {rows.map((e) => (
               <tr key={e.id} className="transition hover:bg-panel-2">
                 <td className="px-4 py-3">
@@ -156,6 +158,7 @@ export default function EmployeesPage() {
                 <td className="px-4 py-3">
                   <Badge tone={EMP_TONE[e.status]}>{statusLabel(e.status)}</Badge>
                 </td>
+                <td className="px-4 py-3 text-right"><RecordActions kind="employee" id={e.id} name={e.displayName} deletable={false} onEdit={() => setEditing(e)} onDone={() => void employees.reload()} /></td>
               </tr>
             ))}
           </Table>
@@ -169,6 +172,11 @@ export default function EmployeesPage() {
           setInviting(false);
           void employees.reload();
         }}
+      />
+      <QuickEdit
+        title={editing ? `Edit ${editing.displayName}` : ""} open={!!editing} onClose={() => setEditing(null)} onDone={() => { setEditing(null); void employees.reload(); }}
+        fields={[{ key: "displayName", label: "Name", required: true }]} initial={{ displayName: editing?.displayName ?? "" }}
+        save={(v) => api(`/employees/${editing!.id}`, { method: "PATCH", body: { displayName: v["displayName"]!.trim() } })}
       />
     </>
   );

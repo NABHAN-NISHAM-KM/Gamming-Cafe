@@ -64,7 +64,7 @@ export default function PosPage() {
 function Sell({ branchId, shiftOpen }: { branchId: string; shiftOpen: boolean }) {
   const can = useCan();
   const menu = useApi<Menu>(`/branches/${branchId}/menu`);
-  const floor = useApi<{ devices: FloorDevice[] }>(`/branches/${branchId}/floor`);
+  const floor = useApi<{ devices: FloorDevice[] }>(can("station.view", branchId) ? `/branches/${branchId}/floor` : null);
   const tables = useApi<TableRow[]>(can("restaurant.order", branchId) ? `/branches/${branchId}/tables` : null);
   const [type, setType] = useState<OrderType>("COUNTER");
   const [target, setTarget] = useState("");

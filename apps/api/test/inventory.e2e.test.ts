@@ -296,6 +296,51 @@ describe.skipIf(!HAS_DB)("Inventory, purchasing & suppliers (e2e)", () => {
       expect(over.body.match.status).toBe("OVER");
     });
 
+    it("receiving a delivery can bill it: one invoice per delivery, at the received cost, and they add up to a match", async () => {
+      const item = await newItem("Kitchen store", 0);
+      const po = await call(invT, "POST", "/purchase-orders", { supplierId: freshSupplier, warehouseId: W["Kitchen store"], lines: [{ itemId: item, quantity: "10", unitCost: "10", taxRatePercent: "5" }] });
+      await call(invT, "POST", `/purchase-orders/${po.body.id}/submit`);
+      const line = po.body.lines[0].id;
+      const first = await call(invT, "POST", `/purchase-orders/${po.body.id}/receive`, { lines: [{ lineId: line, quantity: "4" }], idempotencyKey: key(), invoice: {} });
+      expect(first.body.invoices, JSON.stringify(first.body)).toMatchObject([{ invoiceNumber: po.body.number, amount: "40.00", taxAmount: "2.00" }]);
+      const second = await call(invT, "POST", `/purchase-orders/${po.body.id}/receive`, { lines: [{ lineId: line, quantity: "6" }], idempotencyKey: key(), invoice: {} });
+      expect(second.body.invoices.map((i: any) => i.invoiceNumber).sort()).toEqual([po.body.number, `${po.body.number}-2`]);
+      const invs = (await call(invT, "GET", `/supplier-invoices?supplierId=${freshSupplier}`)).body.filter((i: any) => i.purchaseOrder?.id === po.body.id);
+      expect(invs.every((i: any) => i.match.status === "MATCHED")).toBe(true);
+    });
+
+    it("records: only owner/admin delete; unused rows go, used rows are archived", async () => {
+      const unused = await call(ownerT, "POST", "/suppliers", { name: `Temp ${tag()}` });
+      expect((await call(invT, "DELETE", `/records/supplier/${unused.body.id}`, undefined, "cleanup")).status).toBe(403);
+      const noReason = await call(ownerT, "DELETE", `/records/supplier/${unused.body.id}`);
+      expect(noReason.body.reason).toBe("REASON_REQUIRED");
+      expect((await call(ownerT, "DELETE", `/records/supplier/${unused.body.id}`, undefined, "cleanup")).body).toEqual({ result: "deleted" });
+      const used = await call(ownerT, "POST", "/suppliers", { name: `Used ${tag()}` });
+      await call(invT, "POST", "/purchase-orders", { supplierId: used.body.id, warehouseId: W["Kitchen store"], lines: [{ itemId: await newItem("Kitchen store", 0), quantity: "1", unitCost: "1" }] });
+      expect((await call(ownerT, "DELETE", `/records/supplier/${used.body.id}`, undefined, "cleanup")).body).toEqual({ result: "archived" });
+      expect((await call(ownerT, "GET", "/suppliers")).body.find((s: any) => s.id === used.body.id).isActive).toBe(false);
+      expect((await call(ownerT, "DELETE", `/records/nope/${used.body.id}`, undefined, "cleanup")).status).toBe(404);
+    });
+
+    it("mistakes: draft POs can be deleted; received goods can be returned to the supplier", async () => {
+      const item = await newItem("Kitchen store", 0);
+      const draft = await call(invT, "POST", "/purchase-orders", { supplierId: freshSupplier, warehouseId: W["Kitchen store"], lines: [{ itemId: item, quantity: "5", unitCost: "2" }] });
+      expect((await call(ownerT, "DELETE", `/records/purchase-order/${draft.body.id}`, undefined, "typo")).body).toEqual({ result: "deleted" });
+
+      const po = await call(invT, "POST", "/purchase-orders", { supplierId: freshSupplier, warehouseId: W["Kitchen store"], lines: [{ itemId: item, quantity: "10", unitCost: "2" }] });
+      await call(invT, "POST", `/purchase-orders/${po.body.id}/submit`);
+      expect((await call(ownerT, "DELETE", `/records/purchase-order/${po.body.id}`, undefined, "typo")).body.error).toBe("po_not_draft");
+      const line = po.body.lines[0].id;
+      await call(invT, "POST", `/purchase-orders/${po.body.id}/receive`, { lines: [{ lineId: line, quantity: "10" }], idempotencyKey: key() });
+      expect((await call(invT, "POST", `/purchase-orders/${po.body.id}/return`, { lines: [{ lineId: line, quantity: "11" }], reason: "counted wrong", idempotencyKey: key() })).body.error).toBe("over_return");
+      const k = key();
+      const back = await call(invT, "POST", `/purchase-orders/${po.body.id}/return`, { lines: [{ lineId: line, quantity: "4" }], reason: "counted wrong", idempotencyKey: k });
+      expect(back.body, JSON.stringify(back.body)).toMatchObject({ status: "PARTIALLY_RECEIVED", lines: [{ quantityReceived: "6", outstanding: "4" }] });
+      await call(invT, "POST", `/purchase-orders/${po.body.id}/return`, { lines: [{ lineId: line, quantity: "4" }], reason: "counted wrong", idempotencyKey: k }); // replay: no-op
+      const stock = (await call(ownerT, "GET", `/warehouses/${W["Kitchen store"]}/stock`)).body.rows.find((r: any) => r.itemId === item);
+      expect(Number(stock.quantity)).toBe(6);
+    });
+
     it("reorder suggestions become one draft PO per supplier", async () => {
       const item = await newItem("Bar store", 2); // min 4, case of 6 → suggest 6 (to reach 8)
       const s = (await call(invT, "GET", `/warehouses/${W["Bar store"]}/reorder`)).body;

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { ReasonProvider } from "@/components/reason";
 import { DemoBoot } from "@/components/demo";
+import { Dialogs, Toaster } from "@/components/ui";
 import "@arena/theme/fonts";
 import "./globals.css";
 
@@ -18,6 +19,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body>
         <DemoBoot>
           <ReasonProvider>{children}</ReasonProvider>
+          <Toaster />
+          <Dialogs />
         </DemoBoot>
       </body>
     </html>

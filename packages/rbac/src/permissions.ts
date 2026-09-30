@@ -4,7 +4,11 @@ import type { FeatureKey } from "@arena/contracts";
 
 interface Def {
   description: string;
-  /** Sensitive actions require a written reason and are highlighted in audit. */
+  /**
+   * Sensitive actions require a written reason and are highlighted in audit.
+   * Reserved for money, deletions and security — routine setup (menus, rates,
+   * promotions, staff) is audited but never asks why.
+   */
   sensitive?: boolean;
 }
 
@@ -12,12 +16,13 @@ interface Def {
 const CATALOG = {
   org: {
     view: { description: "View organization profile & settings" },
-    manage: { description: "Edit organization profile, brands, tax profiles", sensitive: true },
+    manage: { description: "Edit organization profile, brands, tax profiles" },
     billing: { description: "View SaaS subscription & invoices" },
+    records_manage: { description: "Edit or delete any setup record (owner/admin)", sensitive: true },
   },
   branch: {
     view: { description: "View branches" },
-    manage: { description: "Create/edit branches, opening hours, IP allow-lists", sensitive: true },
+    manage: { description: "Create/edit branches, opening hours, IP allow-lists" },
   },
   zone: {
     view: { description: "View zones & floor map" },
@@ -50,7 +55,7 @@ const CATALOG = {
   },
   diskless: {
     view: { description: "View diskless images & boot status" },
-    manage: { description: "Configure diskless integrations", sensitive: true },
+    manage: { description: "Configure diskless integrations" },
   },
   game: {
     view: { description: "View game library" },
@@ -61,7 +66,7 @@ const CATALOG = {
   },
   pricing: {
     view: { description: "View rate cards & packages" },
-    manage: { description: "Change prices, packages & pricing rules", sensitive: true },
+    manage: { description: "Change prices, packages & pricing rules" },
   },
   customer: {
     view: { description: "View customer profiles" },
@@ -136,9 +141,9 @@ const CATALOG = {
   },
   employee: {
     view: { description: "View employees" },
-    manage: { description: "Invite/edit/suspend employees", sensitive: true },
+    manage: { description: "Invite/edit/suspend employees" },
     assign_roles: { description: "Grant/revoke roles", sensitive: true },
-    roles_manage: { description: "Create/edit custom roles", sensitive: true },
+    roles_manage: { description: "Create/edit custom roles" },
   },
   tournament: {
     view: { description: "View tournaments" },
@@ -152,11 +157,11 @@ const CATALOG = {
   },
   promotion: {
     view: { description: "View promotions" },
-    manage: { description: "Create/edit promotions & promo codes", sensitive: true },
+    manage: { description: "Create/edit promotions & promo codes" },
   },
   crm: {
     view: { description: "View segments & campaigns" },
-    campaign_send: { description: "Send marketing campaigns", sensitive: true },
+    campaign_send: { description: "Send marketing campaigns" },
   },
   reports: {
     operational: { description: "Operational reports (utilization, sessions, orders)" },
