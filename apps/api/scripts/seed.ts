@@ -641,16 +641,30 @@ async function seedPricingAndCustomers(db: PlatformClient, organizationId: strin
 export const SUPER_ADMIN_EMAIL = "super@arenaos.test";
 
 /** Platform Super Admin: a User with a PlatformRoleAssignment and no org membership. Idempotent. */
-async function seedSuperAdmin(db: PlatformClient) {
+async function seedSuperAdmin(db: PlatformClient, email = SUPER_ADMIN_EMAIL, password = DEMO_PASSWORD) {
   const user =
-    (await db.user.findUnique({ where: { email: SUPER_ADMIN_EMAIL } })) ??
-    (await db.user.create({ data: { email: SUPER_ADMIN_EMAIL, displayName: "Sam Super Admin", passwordHash: await hashSecret(DEMO_PASSWORD), emailVerified: true } }));
+    (await db.user.findUnique({ where: { email } })) ??
+    (await db.user.create({ data: { email, displayName: "Super Admin", passwordHash: await hashSecret(password), emailVerified: true } }));
   await db.platformRoleAssignment.upsert({
     where: { userId_role: { userId: user.id, role: "SUPER_ADMIN" } },
     update: {},
     create: { userId: user.id, role: "SUPER_ADMIN" },
   });
-  console.log(`platform: super admin ${SUPER_ADMIN_EMAIL}`);
+  console.log(`platform: super admin ${email}`);
+}
+
+/** Production: reference data + one Super Admin from env. No demo tenants or known passwords. */
+async function seedProduction(url: string) {
+  const email = process.env["SUPER_ADMIN_EMAIL"];
+  const password = process.env["SUPER_ADMIN_PASSWORD"];
+  if (!email || !password || password.length < 12) throw new Error("Set SUPER_ADMIN_EMAIL and SUPER_ADMIN_PASSWORD (12+ chars) to seed production");
+  const db = createPlatformClient(url);
+  try {
+    await seedPlatform(db);
+    await seedSuperAdmin(db, email, password);
+  } finally {
+    await db.$disconnect();
+  }
 }
 
 export async function seed(url = process.env["DATABASE_URL"]) {
@@ -691,7 +705,9 @@ export async function seed(url = process.env["DATABASE_URL"]) {
   }
 }
 
-if (process.argv[1]?.replace(/\\/g, "/").endsWith("scripts/seed.ts")) {
+if (process.argv[1]?.replace(/\\/g, "/").endsWith("scripts/seed.ts") && process.env["NODE_ENV"] === "production") {
+  await seedProduction(process.env["DATABASE_URL"]!);
+} else if (process.argv[1]?.replace(/\\/g, "/").endsWith("scripts/seed.ts")) {
   await seed();
   console.log(`\nDemo logins (password: ${DEMO_PASSWORD}): owner@demo.test · manager@demo.test · cashier@demo.test · tech@demo.test · waiter@demo.test · kitchen@demo.test · inventory@demo.test · accountant@demo.test · owner@rival.test`);
   console.log(`Super Admin (platform role, password: ${DEMO_PASSWORD}): ${SUPER_ADMIN_EMAIL}`);
