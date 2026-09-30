@@ -4,13 +4,13 @@
   menu, no taskbar, the Windows key does nothing). The agent also empties the
   Ctrl+Alt+Del screen for Player (no sign out, lock, switch user, Task Manager).
 
-  Staff leave the Shell with Shift+F12 and the username and password of a
-  Windows administrator account on this PC: the Shell closes and the normal
-  Windows desktop opens in the same (Player) account, until the next sign-in or
-  restart. Administrator accounts are never locked down.
+  Staff leave the Shell with Shift+F12 and the staff exit login set here (or
+  any Windows administrator account on this PC, as a fallback): the Shell closes
+  and the normal Windows desktop opens in the same (Player) account, until the
+  next sign-in or restart. Administrator accounts are never locked down.
 
   Run as Administrator, after install-agent.ps1:
-    .\setup-player.ps1               # asks for the Player password
+    .\setup-player.ps1               # asks for the staff exit login and the Player password
     .\setup-player.ps1 -Password <player password>
     .\setup-player.ps1 -Off          # stop signing in automatically, give Player Explorer back
 
@@ -52,11 +52,27 @@ if ($Off) {
     return
 }
 
+if (-not (Test-Path $shellExe)) { throw "Gaming Shell not found at $shellExe. Run install-agent.ps1 first." }
+
+# No "Switch user" on the Ctrl+Alt+Del screen or at sign-in. First, so a later mistake can't skip it.
+# (Never New-Item -Force an existing registry key: it recreates the key and wipes its other values.)
+if (-not (Test-Path $machinePolicies)) { New-Item $machinePolicies | Out-Null }
+Set-ItemProperty $machinePolicies HideFastUserSwitching 1 -Type DWord
+
+# The login staff type after Shift+F12 on the Shell. Stored as a salted hash by the agent.
+$exitUser = (Read-Host "Staff exit username for Shift+F12 (Enter keeps the current one)").Trim()
+if ($exitUser) {
+    $exitPassword = [Net.NetworkCredential]::new("", (Read-Host "Staff exit password" -AsSecureString)).Password
+    $again = [Net.NetworkCredential]::new("", (Read-Host "Staff exit password again" -AsSecureString)).Password
+    if ($exitPassword -ne $again) { throw "The two staff exit passwords don't match. Run the script again." }
+    "$exitUser`n$exitPassword" | & (Join-Path $env:ProgramFiles "ArenaOS\Agent\ArenaAgent.exe") staff-exit
+    if ($LASTEXITCODE) { throw "Couldn't save the staff exit login." }
+}
+
 if (-not $Password) {
     $Password = [Net.NetworkCredential]::new("", (Read-Host "Password for the $User account" -AsSecureString)).Password
     if (-not $Password) { throw "A password is required for the $User account." }
 }
-if (-not (Test-Path $shellExe)) { throw "Gaming Shell not found at $shellExe. Run install-agent.ps1 first." }
 
 $secure = ConvertTo-SecureString $Password -AsPlainText -Force
 
@@ -92,10 +108,6 @@ Remove-ItemProperty $winlogon AutoLogonCount -ErrorAction SilentlyContinue
 # Windows 11 ignores automatic sign-in while "Windows Hello sign-in only" is on.
 $pwless = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\PasswordLess\Device"
 if (Test-Path $pwless) { Set-ItemProperty $pwless DevicePasswordLessBuildVersion 0 }
-# No "Switch user" on the Ctrl+Alt+Del screen or at sign-in. (Never New-Item -Force an existing
-# registry key: it recreates the key and wipes its other values.)
-if (-not (Test-Path $machinePolicies)) { New-Item $machinePolicies | Out-Null }
-Set-ItemProperty $machinePolicies HideFastUserSwitching 1 -Type DWord
 
 Write-Host "Done. After a restart Windows signs in to $User and shows only the Gaming Shell." -ForegroundColor Green
-Write-Host "Staff: press Shift+F12 on the Shell and sign in with a Windows administrator account for the desktop." -ForegroundColor Green
+Write-Host "Staff: press Shift+F12 on the Shell and sign in with the staff exit login (or a Windows administrator account)." -ForegroundColor Green

@@ -30,7 +30,7 @@ function Confirm({ message, ok, cancel, onDone }: { message: string; ok: string;
       className="m-auto w-[calc(100%-2rem)] max-w-sm rounded-2xl border border-rim bg-deck p-0 text-text shadow-2xl shadow-black/60 backdrop:bg-black/60"
     >
       <div className="grid gap-5 p-5">
-        <p className="text-[15px] leading-relaxed">{message}</p>
+        <p className="text-[0.9375rem] leading-relaxed">{message}</p>
         <div className="flex justify-end gap-2">
           <button onClick={() => onDone(false)} className="press rounded-xl border border-rim px-4 py-2.5 text-sm text-dim hover:text-text">{cancel}</button>
           <button autoFocus onClick={() => onDone(true)} className="press brand-gradient rounded-xl px-5 py-2.5 text-sm font-semibold text-void">{ok}</button>

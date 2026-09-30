@@ -9,6 +9,7 @@ using Microsoft.Extensions.Hosting.WindowsServices;
 //   run [--data-dir <dir>]           run in this console (development / troubleshooting)
 //   status [--data-dir <dir>]
 //   safe-mode on|off [--data-dir <dir>]
+//   staff-exit [--data-dir <dir>]   username and password (two lines on stdin) for Shift+F12 on the Shell
 //   (no verb when started by the Windows Service Control Manager)
 
 var paths = AgentPaths.Resolve(args);
@@ -40,6 +41,20 @@ switch (verb)
         Console.WriteLine($"Safe mode {value}. Restart the ArenaAgent service to apply.");
         return 0;
 
+    case "staff-exit":
+        // Username, then password, one per line on stdin (never on the command line).
+        var exitUser = Console.ReadLine()?.Trim();
+        var exitPassword = Console.ReadLine();
+        if (!StaffExitLogin.IsValid(exitUser, exitPassword))
+        {
+            Console.Error.WriteLine("Staff exit login: a username without spaces, and a password of at least 4 characters.");
+            return 1;
+        }
+        Directory.CreateDirectory(paths.DataDir);
+        File.WriteAllText(paths.StaffExit, StaffExitLogin.Create(exitUser!, exitPassword!).Serialize());
+        Console.WriteLine($"Staff exit login saved for '{exitUser}'. Shift+F12 on the Gaming Shell now accepts it.");
+        return 0;
+
     case null when WindowsServiceHelpers.IsWindowsService():
     case "run":
         var builder = Host.CreateApplicationBuilder(args);
@@ -67,7 +82,7 @@ switch (verb)
         return 0;
 
     default:
-        Console.WriteLine("ArenaOS station agent\n\n  ArenaAgent enroll --api <url> --code <code> [--name PC-17] [--safe-mode on|off]\n  ArenaAgent run        (console mode)\n  ArenaAgent status\n  ArenaAgent safe-mode on|off\n\nInstall as a Windows service with install-agent.ps1 (as Administrator).");
+        Console.WriteLine("ArenaOS station agent\n\n  ArenaAgent enroll --api <url> --code <code> [--name PC-17] [--safe-mode on|off]\n  ArenaAgent run        (console mode)\n  ArenaAgent status\n  ArenaAgent safe-mode on|off\n  ArenaAgent staff-exit  (reads the Shift+F12 username and password from stdin)\n\nInstall as a Windows service with install-agent.ps1 (as Administrator).");
         return verb is null ? 0 : 1;
 }
 

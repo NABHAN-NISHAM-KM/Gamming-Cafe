@@ -115,7 +115,7 @@ export function FoodScreen({ notify, station }: { notify: Notify; station: strin
   if (menu === null) return <div className="grid h-full place-items-center text-center text-dim"><div><ChefHat className="mx-auto size-12 opacity-60" /><p className="mt-4 text-lg">The menu isn't available right now.</p><p>Please order at the counter.</p></div></div>;
 
   return (
-    <div className="mx-auto grid h-full max-w-7xl gap-8 lg:grid-cols-[1fr_380px]">
+    <div className="mx-auto grid h-full max-w-7xl gap-8 lg:grid-cols-[1fr_23.75rem]">
       <section className="min-w-0">
         {orders.length > 0 && (
           <div className="mb-6 grid gap-3">

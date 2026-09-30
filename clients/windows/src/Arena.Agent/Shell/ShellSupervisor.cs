@@ -14,9 +14,10 @@ namespace Arena.Agent.Shell;
 /// administrators, and a back-off if the Shell keeps crashing.
 ///
 /// Also the kiosk lock for that user (<see cref="Kiosk"/>) and the staff exit:
-/// Shift+F12 plus the username and password of a Windows administrator account on
-/// this PC closes the Shell and opens the normal Windows desktop in the same
-/// (customer) account, until that user signs out or the PC restarts. No server needed.
+/// Shift+F12 plus the staff exit login chosen at install (<see cref="StaffExitLogin"/>),
+/// or else any Windows administrator account on this PC, closes the Shell and opens
+/// the normal Windows desktop in the same (customer) account, until that user signs
+/// out or the PC restarts. No server needed.
 ///
 /// Only runs as the Windows service: in a console (`ArenaAgent run`) the agent
 /// isn't SYSTEM and can't start programs on another user's desktop.
@@ -99,17 +100,19 @@ public sealed class ShellSupervisor(AgentPaths paths, ShellHub hub, ILogger<Shel
         {
             var now = DateTimeOffset.UtcNow;
             if (_guard.IsLocked(now)) { Reply(false, "locked", "Too many wrong tries. Try again in 5 minutes."); return; }
-            var ok = await Task.Run(() => Native.IsWindowsAdmin(request.Username, request.Password));
+            var saved = File.Exists(paths.StaffExit) ? StaffExitLogin.Parse(await File.ReadAllTextAsync(paths.StaffExit)) : null;
+            var ok = await Task.Run(() => saved?.Matches(request.Username, request.Password) == true
+                                          || Native.IsWindowsAdmin(request.Username, request.Password));
             _guard.Record(ok, now);
             if (!ok)
             {
-                log.LogWarning("Staff exit refused for Windows account {User}: wrong password or not an administrator.", request.Username);
-                Reply(false, "denied", "Wrong username or password, or that account isn't an administrator on this PC.");
+                log.LogWarning("Staff exit refused for {User}: wrong username or password.", request.Username);
+                Reply(false, "denied", "Wrong username or password.");
                 return;
             }
             if (Native.ConsoleUser() is not { } user) { Reply(false, "no_user", "Nobody is signed in to Windows."); return; }
 
-            log.LogWarning("Staff exit by Windows administrator {User}: leaving the Gaming Shell for the desktop (session {Session}).", request.Username, user.SessionId);
+            log.LogWarning("Staff exit by {User}: leaving the Gaming Shell for the desktop (session {Session}).", request.Username, user.SessionId);
             Reply(true);
             Interlocked.Exchange(ref _desktopSession, user.SessionId);
             Kiosk.SetLockdown(user.Sid, false);

@@ -27,9 +27,9 @@ function GameTile({ game, playing, onPlay, busy }: { game: ShellGame; playing: b
       <div className="absolute inset-0 bg-gradient-to-t from-void/95 via-void/20 to-transparent" />
       {!game.coverUrl && <span className="absolute -right-3 top-2 font-display text-[7rem] font-bold leading-none text-white/10 select-none">{game.title.slice(0, 1)}</span>}
       <div className="absolute left-3 top-3 flex flex-wrap gap-1.5">
-        {game.featured && <span className="rounded-full bg-glow/90 px-2 py-0.5 text-[11px] font-semibold text-void">Featured</span>}
-        {game.updateRequired && game.installed && <span className="rounded-full bg-warn/90 px-2 py-0.5 text-[11px] font-semibold text-void">Update pending</span>}
-        {playing && <span className="rounded-full bg-good px-2 py-0.5 text-[11px] font-semibold text-void">Playing</span>}
+        {game.featured && <span className="rounded-full bg-glow/90 px-2 py-0.5 text-[0.6875rem] font-semibold text-void">Featured</span>}
+        {game.updateRequired && game.installed && <span className="rounded-full bg-warn/90 px-2 py-0.5 text-[0.6875rem] font-semibold text-void">Update pending</span>}
+        {playing && <span className="rounded-full bg-good px-2 py-0.5 text-[0.6875rem] font-semibold text-void">Playing</span>}
       </div>
       <div className="absolute inset-x-0 bottom-0 p-4">
         <p className="font-display text-lg font-semibold leading-tight">{game.title}</p>

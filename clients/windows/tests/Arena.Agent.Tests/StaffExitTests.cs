@@ -30,6 +30,25 @@ public class StaffExitTests
         Assert.False(g.IsLocked(t0));
     }
 
+    [Fact]
+    public void Stored_login_matches_its_username_any_case_and_exact_password_only()
+    {
+        var saved = StaffExitLogin.Parse(StaffExitLogin.Create("staff", "Exit#2026").Serialize())!;
+        Assert.True(saved.Matches("staff", "Exit#2026"));
+        Assert.True(saved.Matches(" STAFF ", "Exit#2026"));
+        Assert.False(saved.Matches("staff", "exit#2026"));
+        Assert.False(saved.Matches("other", "Exit#2026"));
+        Assert.Null(StaffExitLogin.Parse("just-one-line"));
+    }
+
+    [Theory]
+    [InlineData("staff", "Exit#2026", true)]
+    [InlineData("", "Exit#2026", false)]
+    [InlineData("two words", "Exit#2026", false)]
+    [InlineData("staff", "abc", false)]
+    public void Only_sensible_logins_can_be_saved(string user, string password, bool valid) =>
+        Assert.Equal(valid, StaffExitLogin.IsValid(user, password));
+
     [Theory]
     [InlineData("""{"type":"staff_exit","requestId":"abcd1234","username":"nabha","password":"s3cret!"}""", true)]
     [InlineData("""{"type":"staff_exit","requestId":"abcd1234","username":"  ","password":"s3cret!"}""", false)]

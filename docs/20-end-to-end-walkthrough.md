@@ -365,7 +365,7 @@ Then:
 & "C:\Program Files\ArenaOS\Agent\setup-player.ps1"
 ```
 
-It asks for Player's password. On the Shell, **Shift+F12** + the username and password of a **Windows administrator account** on this PC (yours) closes the Shell and opens the normal Windows desktop in the same account until the next restart. The Ctrl+Alt+Del screen offers nothing to customers (no sign out, lock, switch user or Task Manager). Administrator accounts are never locked down. Undo with `setup-player.ps1 -Off`; hold **Shift** while Windows starts to skip the automatic sign-in once.
+It asks for a **staff exit username and password** (the installer asks for them too) and Player's password. On the Shell, **Shift+F12** + the staff exit login (or any Windows administrator account on this PC) closes the Shell and opens the normal Windows desktop in the same account until the next restart. The Ctrl+Alt+Del screen offers nothing to customers (no sign out, lock, switch user or Task Manager). Administrator accounts are never locked down. Undo with `setup-player.ps1 -Off`; hold **Shift** while Windows starts to skip the automatic sign-in once.
 
 ⚠️ With Test mode off, **Restart / Shut down / Lock** from the admin really do that to your laptop. Save your work first.
 
@@ -385,7 +385,7 @@ It asks for Player's password. On the Shell, **Shift+F12** + the username and pa
 | - [ ] 3B.10 | **Log out** (top-right door icon) | Confirm → back to the lock screen; unused time goes back to Sam's balance |
 | - [ ] 3B.11 | On the lock screen press **العربية** | Right-to-left Arabic layout; switch back to English |
 
-Sign in as sam again and leave the session running for Part 4. To reach the Windows desktop at any time: **Shift+F12** → your Windows username and password → **Open Windows**. Restart to go back to the Shell.
+Sign in as sam again and leave the session running for Part 4. To reach the Windows desktop at any time: **Shift+F12** → staff exit username and password → **Open Windows**. Restart to go back to the Shell.
 
 ---
 

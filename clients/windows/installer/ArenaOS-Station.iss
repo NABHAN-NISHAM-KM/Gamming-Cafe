@@ -10,6 +10,7 @@
 ;
 ; Unattended install (e.g. from a deployment tool), as Administrator:
 ;   ArenaOS-Station-Setup.exe /VERYSILENT /API=https://api.yourvenue.com /CODE=ARENA-XXXXX-XXXXX-XXXXX-XXXXX [/NAME=PC-17] [/SAFEMODE=on]
+;     [/EXITUSER=staff /EXITPASS=...]   the Shift+F12 staff exit login (kept as-is on an update when left out)
 
 #ifndef DefaultApi
   #define DefaultApi ""
@@ -59,6 +60,7 @@ const
 var
   ModePage: TInputOptionWizardPage;
   ServerPage: TInputQueryWizardPage;
+  ExitPage: TInputQueryWizardPage;
   SafeModeBox: TNewCheckBox;
   Connected: Boolean;
   ResultText: String;
@@ -145,6 +147,38 @@ begin
   SafeModeBox.Height := ScaleY(20);
   SafeModeBox.Caption := 'Test mode: only simulate restart, shutdown and lock';
   SafeModeBox.Checked := Lowercase(ExpandConstant('{param:SAFEMODE|off}')) = 'on';
+
+  ExitPage := CreateInputQueryPage(ServerPage.ID,
+    'Staff exit (Shift+F12)', 'The login staff use to leave the Gaming Shell for Windows.',
+    'On the Gaming Shell, staff press Shift+F12 and type this username and password to close the Shell and open the Windows desktop. ' +
+    'A Windows administrator account on this PC also works. On an update, leave these empty to keep the current login.');
+  ExitPage.Add('Username:', False);
+  ExitPage.Add('Password (at least 4 characters):', True);
+  ExitPage.Add('Password again:', True);
+  ExitPage.Values[0] := ExpandConstant('{param:EXITUSER|}');
+  ExitPage.Values[1] := ExpandConstant('{param:EXITPASS|}');
+  ExitPage.Values[2] := ExpandConstant('{param:EXITPASS|}');
+end;
+
+function ExitUser: String;
+begin
+  Result := Trim(ExitPage.Values[0]);
+end;
+
+function ValidateExitLogin: String;
+begin
+  Result := '';
+  if ExitUser = '' then
+  begin
+    if not AlreadyEnrolled then
+      Result := 'Choose a staff exit username and password. Staff need it to leave the Gaming Shell (Shift+F12).';
+  end
+  else if (Pos(' ', ExitUser) > 0) or (Length(ExitUser) > 64) then
+    Result := 'The staff exit username can''t contain spaces.'
+  else if Length(ExitPage.Values[1]) < 4 then
+    Result := 'The staff exit password needs at least 4 characters.'
+  else if ExitPage.Values[1] <> ExitPage.Values[2] then
+    Result := 'The two staff exit passwords don''t match.';
 end;
 
 function ShouldSkipPage(PageID: Integer): Boolean;
@@ -174,6 +208,15 @@ begin
       MsgBox(Err, mbError, MB_OK);
       Result := False;
     end;
+  end
+  else if CurPageID = ExitPage.ID then
+  begin
+    Err := ValidateExitLogin;
+    if Err <> '' then
+    begin
+      MsgBox(Err, mbError, MB_OK);
+      Result := False;
+    end;
   end;
 end;
 
@@ -183,6 +226,8 @@ begin
   // Wizard pages are skipped in /SILENT and /VERYSILENT, so validate here too.
   if WizardSilent and WantsEnrol then
     Result := ValidateInputs;
+  if (Result = '') and WizardSilent then
+    Result := ValidateExitLogin;
 end;
 
 function UpdateReadyMemo(Space, NewLine, MemoUserInfoInfo, MemoDirInfo, MemoTypeInfo, MemoComponentsInfo, MemoGroupInfo, MemoTasksInfo: String): String;
@@ -197,6 +242,10 @@ begin
   end
   else
     Result := 'Update the ArenaOS station software. The connection to your venue is kept.';
+  if ExitUser <> '' then
+    Result := Result + NewLine + NewLine + 'Staff exit (Shift+F12) username:' + NewLine + Space + ExitUser
+  else
+    Result := Result + NewLine + NewLine + 'Staff exit (Shift+F12): keep the current login';
 end;
 
 function RunLogged(Exe, Params, LogName: String; var Output: String): Integer;
@@ -268,6 +317,22 @@ begin
   end;
 end;
 
+// Username and password go to the agent on stdin from a temp file (never on a command line), then the file is deleted.
+function SaveExitLogin(var Output: String): Boolean;
+var
+  F: String;
+begin
+  Result := True;
+  if ExitUser = '' then Exit;
+  F := ExpandConstant('{tmp}\exit-login.txt');
+  SaveStringToFile(F, ExitUser + #13#10 + ExitPage.Values[1] + #13#10, False);
+  try
+    Result := RunLogged(ExpandConstant('{app}\Agent\ArenaAgent.exe'), 'staff-exit < "' + F + '"', 'staff-exit.log', Output) = 0;
+  finally
+    DeleteFile(F);
+  end;
+end;
+
 function HasWebView2: Boolean;
 var
   V: String;
@@ -306,8 +371,11 @@ begin
     Exit;
   end;
 
-  ResultText := Output;
-  if Output = '' then ResultText := 'This PC is connected.';
+  if not SaveExitLogin(InstallOut) then
+    ResultText := 'WARNING: the staff exit login was not saved: ' + InstallOut + #13#10#13#10;
+
+  ResultText := ResultText + Output;
+  if Output = '' then ResultText := ResultText + 'This PC is connected.';
   ResultText := ResultText + #13#10#13#10 + 'It should appear on the Live Floor within a few seconds. The Gaming Shell starts full-screen when a standard (non-administrator) Windows user signs in.';
   if not HasWebView2 then
     ResultText := ResultText + #13#10#13#10 + 'WARNING: Microsoft Edge WebView2 Runtime is missing. Install it (Evergreen) or the Gaming Shell won''t open: https://developer.microsoft.com/microsoft-edge/webview2/';

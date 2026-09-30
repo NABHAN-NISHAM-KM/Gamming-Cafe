@@ -2,10 +2,10 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { bridge } from "./bridge";
 
 /**
- * Shift+F12 → a Windows administrator's username and password → the agent
- * closes the Shell and opens the Windows desktop. Staff-only, so English only.
- * The agent checks the account with Windows and locks after repeated wrong
- * tries; this dialog only collects it.
+ * Shift+F12 → the staff exit login set at install (or a Windows administrator
+ * account) → the agent closes the Shell and opens the Windows desktop.
+ * Staff-only, so English only. The agent checks the login and locks after
+ * repeated wrong tries; this dialog only collects it.
  */
 const field = "rounded-xl border border-rim bg-void px-4 py-3 outline-none focus:border-glow focus:ring-4 focus:ring-glow/15";
 
@@ -81,7 +81,7 @@ export function StaffExit() {
       <form onSubmit={submit} className="grid gap-4 p-5">
         <div>
           <p className="font-display text-lg font-semibold">Staff exit</p>
-          <p className="mt-1 text-sm text-dim">Sign in with a Windows administrator account on this PC to close the Shell and open Windows.</p>
+          <p className="mt-1 text-sm text-dim">Enter the staff exit login to close the Shell and open Windows.</p>
         </div>
         <input
           autoFocus
@@ -90,8 +90,8 @@ export function StaffExit() {
           maxLength={120}
           value={username}
           onChange={(e) => setUsername(e.target.value)}
-          placeholder="Windows username"
-          aria-label="Windows username"
+          placeholder="Username"
+          aria-label="Username"
           className={field}
         />
         <input

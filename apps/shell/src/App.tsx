@@ -285,7 +285,7 @@ function SessionScreen({ state, t }: { state: ShellState; t: Strings }) {
         <div className="ml-auto flex items-center gap-5">
           {!state.connected && <WifiOff className="size-5 text-warn" aria-label={t.offline} />}
           <div className={cx("rounded-2xl border px-5 py-2 text-right", lastMinute ? "border-alarm/60 bg-alarm/15" : remaining !== null && remaining <= 5 * 60_000 ? "border-warn/50 bg-warn/10" : "border-rim bg-deck-2")}>
-            <p className="text-[11px] uppercase tracking-[0.2em] text-dim">{remaining === null ? t.openSession : t.timeLeft}</p>
+            <p className="text-[0.6875rem] uppercase tracking-[0.2em] text-dim">{remaining === null ? t.openSession : t.timeLeft}</p>
             <p className={cx("tabular font-mono text-2xl font-semibold", lastMinute && "text-alarm pulse")}>{remaining === null ? hms(serverNow - new Date(s.startedAt).getTime()) : hms(remaining)}</p>
           </div>
           <div className="flex items-center gap-3">
