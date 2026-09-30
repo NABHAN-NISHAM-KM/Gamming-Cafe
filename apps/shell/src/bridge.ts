@@ -95,7 +95,7 @@ export interface OpenWindow {
   active: boolean;
 }
 export type WindowAction = "focus" | "minimize" | "maximize" | "restore" | "close";
-/** desktop: the Shell fills the screen. bar: a game/app is in front and only the taskbar shows. */
+/** desktop: the Shell is in front. bar: a game/app is in front and the Shell is the desktop behind it. */
 export type ShellMode = "desktop" | "bar";
 
 export type HostMessage =

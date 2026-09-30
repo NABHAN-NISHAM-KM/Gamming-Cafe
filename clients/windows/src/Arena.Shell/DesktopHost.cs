@@ -15,10 +15,12 @@ namespace Arena.Shell;
 /// The Shell as a small desktop OS while a customer is signed in. With no
 /// Explorer on the kiosk account, this is the taskbar and window manager:
 ///
-///  - Two modes. "desktop": the Shell fills the screen (its own desktop,
-///    windows and taskbar). "bar": a game or app is in front, so the Shell
-///    shrinks to the taskbar strip, always on top, and the work area stops
-///    above it (maximized apps don't cover it). A fullscreen game hides it.
+///  - Two modes. "desktop": the Shell is in front (its own desktop, windows
+///    and taskbar). "bar": a game or app is in front, and the Shell stays
+///    full-screen BEHIND every window, like the Windows desktop: its wallpaper,
+///    icons and taskbar show around restored windows, and clicking the taskbar
+///    doesn't raise it over them. The work area stops above the taskbar, so
+///    maximized apps leave it visible; a fullscreen game simply covers it.
 ///  - Lists the customer's game/app windows for the taskbar, and focuses,
 ///    minimizes, maximizes, restores or closes them on request. Only windows
 ///    it listed itself can be touched.
@@ -41,6 +43,8 @@ internal sealed class DesktopHost(Window window, Action<string> post, Action<boo
     private IntPtr _fgHook;
     private LowLevelKeyboardProc? _kbProc;
     private IntPtr _kbHook;
+    private bool _keepBottom; // "bar": pinned behind every other window
+    private bool _hooked;
 
     public bool Active => _active;
 
@@ -50,6 +54,11 @@ internal sealed class DesktopHost(Window window, Action<string> post, Action<boo
         _hwnd = new WindowInteropHelper(window).Handle;
         if (inSession == _active) return;
         _active = inSession;
+        if (!_hooked && HwndSource.FromHwnd(_hwnd) is { } source)
+        {
+            source.AddHook(WndProc);
+            _hooked = true;
+        }
         if (inSession)
         {
             _fgProc = OnForegroundChanged;
@@ -66,6 +75,7 @@ internal sealed class DesktopHost(Window window, Action<string> post, Action<boo
             Stop();
             SetWorkArea(reserveBar: false);
             _mode = "";
+            _keepBottom = false;
             Place(fullScreen: true);
             window.Topmost = true;
             window.Activate();
@@ -114,18 +124,36 @@ internal sealed class DesktopHost(Window window, Action<string> post, Action<boo
 
     private void EnterDesktop()
     {
+        _keepBottom = false;
         window.Topmost = false;
         Place(fullScreen: true);
         window.Activate();
         SetMode("desktop");
     }
 
-    private void EnterBar(bool hidden)
+    /// <summary>A game/app is in front: the Shell becomes the desktop behind it.</summary>
+    private void EnterBar()
     {
-        Place(fullScreen: false);
-        window.Topmost = !hidden;
-        if (hidden) SetWindowPos(_hwnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        _keepBottom = true;
+        window.Topmost = false;
+        Place(fullScreen: true);
+        SetWindowPos(_hwnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
         SetMode("bar");
+    }
+
+    /// <summary>While pinned behind, every z-order change (e.g. a click on the taskbar) keeps it at the bottom.</summary>
+    private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        if (msg == WM_WINDOWPOSCHANGING && _keepBottom)
+        {
+            var pos = Marshal.PtrToStructure<WINDOWPOS>(lParam);
+            if ((pos.flags & SWP_NOZORDER) == 0)
+            {
+                pos.hwndInsertAfter = HWND_BOTTOM;
+                Marshal.StructureToPtr(pos, lParam, false);
+            }
+        }
+        return IntPtr.Zero;
     }
 
     private void SetMode(string mode)
@@ -165,7 +193,7 @@ internal sealed class DesktopHost(Window window, Action<string> post, Action<boo
     private void OnForegroundChanged(IntPtr hook, uint ev, IntPtr hwnd, int idObject, int idChild, uint thread, uint time)
     {
         if (!_active || hwnd == IntPtr.Zero || hwnd == _hwnd) return;
-        if (IsTaskWindow(hwnd)) EnterBar(hidden: IsFullscreen(hwnd));
+        if (IsTaskWindow(hwnd)) EnterBar();
     }
 
     private IntPtr OnKey(int code, IntPtr wParam, IntPtr lParam)
@@ -219,7 +247,6 @@ internal sealed class DesktopHost(Window window, Action<string> post, Action<boo
 
         // In bar mode with nothing left on screen above the taskbar, show the desktop again.
         if (_mode == "bar" && !seen.Any(h => !IsIconic(h))) EnterDesktop();
-        else if (_mode == "bar" && IsTaskWindow(fg)) EnterBar(hidden: IsFullscreen(fg));
 
         var json = JsonSerializer.Serialize(new { type = "windows", items });
         if (json != _lastPosted)
@@ -246,15 +273,6 @@ internal sealed class DesktopHost(Window window, Action<string> post, Action<boo
         if (DwmGetWindowAttribute(h, DWMWA_CLOAKED, out var cloaked, sizeof(int)) == 0 && cloaked != 0) return false;
         GetWindowThreadProcessId(h, out var pid);
         return pid != _pid;
-    }
-
-    private static bool IsFullscreen(IntPtr h)
-    {
-        if (!GetWindowRect(h, out var r)) return false;
-        var info = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
-        if (!GetMonitorInfo(MonitorFromWindow(h, MONITOR_DEFAULTTONEAREST), ref info)) return false;
-        var m = info.rcMonitor;
-        return r.Left <= m.Left && r.Top <= m.Top && r.Right >= m.Right && r.Bottom >= m.Bottom;
     }
 
     private static string Title(IntPtr h)
@@ -310,7 +328,7 @@ internal sealed class DesktopHost(Window window, Action<string> post, Action<boo
     private delegate IntPtr LowLevelKeyboardProc(int code, IntPtr wParam, IntPtr lParam);
 
     [StructLayout(LayoutKind.Sequential)] private struct RECT { public int Left, Top, Right, Bottom; }
-    [StructLayout(LayoutKind.Sequential)] private struct MONITORINFO { public int cbSize; public RECT rcMonitor, rcWork; public uint dwFlags; }
+    [StructLayout(LayoutKind.Sequential)] private struct WINDOWPOS { public IntPtr hwnd, hwndInsertAfter; public int x, y, cx, cy; public uint flags; }
 
     private const int ASFW_ANY = -1, GW_OWNER = 4, GWL_EXSTYLE = -20, DWMWA_CLOAKED = 14;
     private const long WS_EX_TOOLWINDOW = 0x80, WS_EX_APPWINDOW = 0x40000;
@@ -319,10 +337,11 @@ internal sealed class DesktopHost(Window window, Action<string> post, Action<boo
     private const int ICON_BIG = 1, ICON_SMALL2 = 2, GCLP_HICON = -14, GCLP_HICONSM = -34;
     private const uint EVENT_SYSTEM_FOREGROUND = 3, WINEVENT_OUTOFCONTEXT = 0;
     private const int WH_KEYBOARD_LL = 13, WM_KEYUP = 0x101, WM_SYSKEYUP = 0x105, VK_LWIN = 0x5B, VK_RWIN = 0x5C;
-    private const uint SPI_SETWORKAREA = 0x2F, SPIF_SENDCHANGE = 2, MONITOR_DEFAULTTONEAREST = 2;
+    private const uint SPI_SETWORKAREA = 0x2F, SPIF_SENDCHANGE = 2;
     private const int SM_CXSCREEN = 0, SM_CYSCREEN = 1;
     private static readonly IntPtr HWND_BOTTOM = new(1);
-    private const uint SWP_NOSIZE = 0x1, SWP_NOMOVE = 0x2, SWP_NOACTIVATE = 0x10;
+    private const uint SWP_NOSIZE = 0x1, SWP_NOMOVE = 0x2, SWP_NOZORDER = 0x4, SWP_NOACTIVATE = 0x10;
+    private const int WM_WINDOWPOSCHANGING = 0x46;
 
     [DllImport("user32.dll")] private static extern bool EnumWindows(EnumWindowsProc cb, IntPtr lParam);
     [DllImport("user32.dll")] private static extern bool IsWindow(IntPtr h);
@@ -341,9 +360,6 @@ internal sealed class DesktopHost(Window window, Action<string> post, Action<boo
     [DllImport("user32.dll")] private static extern bool ShowWindow(IntPtr h, int cmd);
     [DllImport("user32.dll")] private static extern bool PostMessage(IntPtr h, uint msg, IntPtr w, IntPtr l);
     [DllImport("user32.dll")] private static extern IntPtr SendMessageTimeout(IntPtr h, uint msg, IntPtr w, IntPtr l, uint flags, uint timeout, out IntPtr result);
-    [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr h, out RECT r);
-    [DllImport("user32.dll")] private static extern IntPtr MonitorFromWindow(IntPtr h, uint flags);
-    [DllImport("user32.dll")] private static extern bool GetMonitorInfo(IntPtr monitor, ref MONITORINFO info);
     [DllImport("user32.dll")] private static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags);
     [DllImport("user32.dll")] private static extern bool SystemParametersInfo(uint action, uint param, ref RECT r, uint flags);
     [DllImport("user32.dll")] private static extern int GetSystemMetrics(int index);

@@ -73,7 +73,9 @@ export function useWindowManager(area: () => DOMRect | undefined) {
   const zTop = useRef(1);
   const top = wins.filter((w) => !w.min).sort((a, b) => b.z - a.z)[0]?.id ?? null;
 
-  const open = (id: Section) =>
+  const open = (id: Section) => {
+    // Apps are in front of the Shell: bring the Shell forward so the window is seen.
+    if (mode === "bar") bridge.send({ type: "desktop_show" });
     setWins((ws) => {
       const z = ++zTop.current;
       const found = ws.find((w) => w.id === id);
@@ -84,6 +86,7 @@ export function useWindowManager(area: () => DOMRect | undefined) {
       const n = ws.length % 6;
       return [...ws, { id, w, h, x: Math.round((W - w) / 2) + (n - 2) * 28, y: Math.max(8, Math.round((H - h) / 2) + (n - 2) * 24), z, min: false, max: false }];
     });
+  };
   const update = (id: Section, patch: Partial<Win>) => setWins((ws) => ws.map((w) => (w.id === id ? { ...w, ...patch } : w)));
   const focus = (id: Section) => update(id, { z: ++zTop.current, min: false });
   const close = (id: Section) => setWins((ws) => ws.filter((w) => w.id !== id));

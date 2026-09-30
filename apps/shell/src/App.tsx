@@ -296,7 +296,7 @@ function PreviewFrontWindow() {
       <div>
         <AppWindow className="mx-auto size-12 opacity-60" />
         <p className="mt-3 font-display text-2xl text-text">{w?.title ?? "A game or app"}</p>
-        <p className="mt-1 text-sm">is in front (preview). On the PC the Shell shrinks to just this taskbar.</p>
+        <p className="mt-1 text-sm">is in front (preview). On the PC the desktop shows around it.</p>
       </div>
     </div>
   );
@@ -329,8 +329,9 @@ function SessionScreen({ state, t }: { state: ShellState; t: Strings }) {
 
   return (
     <main className="relative flex h-full flex-col">
-      {!bar ? <Desktop wm={wm} areaRef={areaRef} home={home} notify={notify} station={state.station.name} /> : bridge.mock ? <PreviewFrontWindow /> : null}
-      <Taskbar state={state} t={t} wm={wm} startOpen={startOpen && !bar} onStart={() => setStartOpen((o) => !o)} className={bar && !bridge.mock ? "h-full" : "h-[max(44px,5vh)]"} />
+      {/* On the PC the desktop stays drawn behind the game/app windows, like Windows'. The preview has no real windows, so it shows a stand-in. */}
+      {bar && bridge.mock ? <PreviewFrontWindow /> : <Desktop wm={wm} areaRef={areaRef} home={home} notify={notify} station={state.station.name} />}
+      <Taskbar state={state} t={t} wm={wm} startOpen={startOpen && !bar} onStart={() => setStartOpen((o) => !o)} className="h-[max(44px,5vh)]" />
       {startOpen && !bar && <StartMenu state={state} t={t} notify={notify} onOpen={wm.open} onClose={() => setStartOpen(false)} />}
 
       {note && (
