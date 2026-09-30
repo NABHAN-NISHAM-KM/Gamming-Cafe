@@ -70,7 +70,8 @@ function AddStations({ branch, zones, open, onClose, onCreated }: { branch: Bran
     onCreated();
   });
 
-  const apiUrl = typeof window !== "undefined" ? `${window.location.protocol}//${window.location.hostname}:4000` : "http://localhost:4000";
+  // Hosted: NEXT_PUBLIC_ARENA_API_URL (build time). Local/LAN dev: same host, port 4000.
+  const apiUrl = process.env["NEXT_PUBLIC_ARENA_API_URL"] || (typeof window !== "undefined" ? `${window.location.protocol}//${window.location.hostname}:4000` : "http://localhost:4000");
   const installCmd = created ? `ArenaAgent.exe enroll --api ${apiUrl} --code ${created.code}` : "";
 
   return (
