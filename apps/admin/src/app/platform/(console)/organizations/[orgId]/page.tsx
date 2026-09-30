@@ -30,7 +30,9 @@ function StatusDialog({ org, target, onClose, onDone }: { org: OrgDetail; target
   const copy: Partial<Record<OrgStatus, { title: string; text: string; cta: string; danger?: boolean }>> = {
     SUSPENDED: { title: `Suspend ${org.displayName}?`, text: "Every staff member is signed out now and can't sign in again until you reactivate. Stations keep running their current sessions.", cta: "Suspend", danger: true },
     CANCELLED: { title: `Cancel ${org.displayName}?`, text: "The organization is closed and its staff are signed out. Data is kept; you can reactivate later.", cta: "Cancel organization", danger: true },
-    ACTIVE: { title: `Reactivate ${org.displayName}?`, text: "Staff can sign in again straight away.", cta: "Reactivate" },
+    ACTIVE: org.status === "TRIAL"
+      ? { title: `Activate ${org.displayName}?`, text: "The venue leaves trial. Customers can find it in the Arena app straight away.", cta: "Activate" }
+      : { title: `Reactivate ${org.displayName}?`, text: "Staff can sign in again straight away.", cta: "Reactivate" },
   };
   const c = target ? copy[target] : null;
   const submit = async () => {
@@ -249,6 +251,7 @@ export default function OrganizationPage({ params }: { params: Promise<{ orgId: 
         actions={
           canStatus && (
             <>
+              {org.status === "TRIAL" && <Button variant="primary" onClick={() => setTarget("ACTIVE")}><PlayCircle className="size-4" /> Activate</Button>}
               {suspended ? (
                 <Button variant="primary" onClick={() => setTarget("ACTIVE")}><PlayCircle className="size-4" /> Reactivate</Button>
               ) : (
