@@ -19,7 +19,7 @@ public sealed class MainWindow : Window
 {
     private const string Origin = "https://shell.arena/";
     /// <summary>Forwarded to the agent (which validates again).</summary>
-    private static readonly HashSet<string> AllowedFromPage = ["ready", "login", "logout", "launch", "launch_app", "help", "repair", "menu_request", "place_order", "print_confirm", "print_cancel"];
+    private static readonly HashSet<string> AllowedFromPage = ["ready", "login", "logout", "launch", "launch_app", "help", "repair", "menu_request", "place_order", "print_confirm", "print_cancel", "staff_exit"];
     /// <summary>Handled here, in the customer's desktop session.</summary>
     private static readonly HashSet<string> HandledByHost = ["pointer_get", "pointer_apply"];
     /// <summary>The venue's pointer settings, restored when a session ends or the Shell closes.</summary>
@@ -210,7 +210,7 @@ public sealed class MainWindow : Window
 
     protected override void OnClosing(CancelEventArgs e)
     {
-        // Alt+F4 and friends. Staff exit / maintenance mode arrives with the admin tooling.
+        // Alt+F4 and friends. Staff leave with Shift+F12 + PIN; the agent closes the Shell.
         if (_kiosk) e.Cancel = true;
         base.OnClosing(e);
     }

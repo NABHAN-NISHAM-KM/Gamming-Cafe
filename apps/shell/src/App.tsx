@@ -7,6 +7,7 @@ import { useStation } from "./station";
 import { FoodScreen } from "./food";
 import { PrintApproval } from "./print";
 import { askConfirm } from "./confirm";
+import { StaffExit } from "./staff-exit";
 
 const cx = (...c: Array<string | false | null | undefined>) => c.filter(Boolean).join(" ");
 
@@ -420,6 +421,7 @@ export function App() {
         <LockScreen state={state} t={t} lang={lang} setLang={setLang} />
       )}
       <StaffMessage msg={msg} onClose={() => setMsg(null)} />
+      <StaffExit />
       {bridge.mock && (
         <div className="fixed bottom-3 right-3 flex items-center gap-1.5 rounded-full border border-rim bg-deck px-3 py-1 text-xs text-mute">
           <Wifi className="size-3" /> {import.meta.env.VITE_ARENA_DEMO === "1" ? `Live demo · ${state?.station.name ?? ""} · sign in as ahmed / ahmed123` : "Preview mode · try ahmed / ahmed123"}

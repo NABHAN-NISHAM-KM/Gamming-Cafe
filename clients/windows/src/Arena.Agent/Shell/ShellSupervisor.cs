@@ -13,12 +13,20 @@ namespace Arena.Agent.Shell;
 /// <see cref="ShellAutostartPolicy"/>: never in safe mode, never for
 /// administrators, and a back-off if the Shell keeps crashing.
 ///
+/// Also the kiosk lock for that user (<see cref="Kiosk"/>) and the staff exit:
+/// Shift+F12 plus the staff PIN closes the Shell and opens the normal Windows
+/// desktop in the same account, until that user signs out or the PC restarts.
+///
 /// Only runs as the Windows service: in a console (`ArenaAgent run`) the agent
 /// isn't SYSTEM and can't start programs on another user's desktop.
 /// </summary>
-public sealed class ShellSupervisor(AgentPaths paths, ILogger<ShellSupervisor> log) : BackgroundService
+public sealed class ShellSupervisor(AgentPaths paths, ShellHub hub, ILogger<ShellSupervisor> log) : BackgroundService
 {
     private static readonly TimeSpan Tick = TimeSpan.FromSeconds(3);
+    private readonly StaffPinGuard _pinGuard = new();
+    private readonly SemaphoreSlim _exitGate = new(1, 1);
+    private long _desktopSession = -1; // staff unlocked the desktop in this Windows session
+    private long _lockedSession = -1;  // kiosk lock applied for this Windows session
 
     /// <summary>ARENA_SHELL_EXE, else the installed layout: %ProgramFiles%\ArenaOS\{Agent,Shell}.</summary>
     public static string ShellExe =>
@@ -28,6 +36,7 @@ public sealed class ShellSupervisor(AgentPaths paths, ILogger<ShellSupervisor> l
     protected override async Task ExecuteAsync(CancellationToken stop)
     {
         if (!WindowsServiceHelpers.IsWindowsService() || !File.Exists(paths.Identity)) return;
+        hub.StaffExitRequested += OnStaffExit;
         var exe = ShellExe;
         var policy = new ShellAutostartPolicy(AgentIdentity.Load(paths.Identity).SafeMode, File.Exists(exe));
         if (!policy.Enabled)
@@ -47,7 +56,19 @@ public sealed class ShellSupervisor(AgentPaths paths, ILogger<ShellSupervisor> l
             {
                 var now = DateTimeOffset.UtcNow;
                 var user = Native.ConsoleUser();
-                var state = new ConsoleState(user is not null, user?.IsAdmin ?? false, user is { } u && ShellRunningIn(u.SessionId));
+                if (user is null) // signed out: the next sign-in is locked again, even if Windows reuses the session number
+                {
+                    Interlocked.Exchange(ref _desktopSession, -1);
+                    Interlocked.Exchange(ref _lockedSession, -1);
+                }
+                var onDesktop = user is { } du && du.SessionId == Interlocked.Read(ref _desktopSession);
+                if (user is { IsAdmin: false } lu && !onDesktop && lu.SessionId != Interlocked.Read(ref _lockedSession))
+                {
+                    Kiosk.SetLockdown(lu.Sid, true);
+                    Interlocked.Exchange(ref _lockedSession, lu.SessionId);
+                }
+                // Staff are on the desktop: report it as "no user" so the Shell stays closed.
+                var state = new ConsoleState(user is not null && !onDesktop, user?.IsAdmin ?? false, user is { } u && ShellRunningIn(u.SessionId));
                 if (policy.ShouldLaunch(state, now))
                 {
                     var pid = Native.StartInUserSession(exe, "--kiosk", Path.GetDirectoryName(exe));
@@ -65,6 +86,57 @@ public sealed class ShellSupervisor(AgentPaths paths, ILogger<ShellSupervisor> l
                 log.LogDebug("Shell autostart: {Message}", ex.Message);
             }
         } while (await timer.WaitForNextTickAsync(stop).ConfigureAwait(false));
+    }
+
+    private async Task OnStaffExit(ShellRequest.StaffExit request)
+    {
+        void Reply(bool ok, string? error = null, string? message = null) =>
+            hub.Broadcast(ShellProtocol.Result("staff_exit_result", request.RequestId, ok, error, message));
+
+        if (!await _exitGate.WaitAsync(0)) return; // one at a time
+        try
+        {
+            var now = DateTimeOffset.UtcNow;
+            if (_pinGuard.IsLocked(now)) { Reply(false, "locked", "Too many wrong PINs. Try again in 5 minutes."); return; }
+            if (!File.Exists(paths.StaffPin)) { Reply(false, "not_set", "No staff PIN is set on this PC. Run setup-player.ps1 as administrator."); return; }
+            var ok = StaffPin.Verify(await File.ReadAllTextAsync(paths.StaffPin), request.Pin);
+            _pinGuard.Record(ok, now);
+            if (!ok)
+            {
+                log.LogWarning("Wrong staff PIN entered on the Gaming Shell.");
+                Reply(false, "wrong_pin", "Wrong PIN.");
+                return;
+            }
+            if (Native.ConsoleUser() is not { } user) { Reply(false, "no_user", "Nobody is signed in to Windows."); return; }
+
+            log.LogWarning("Staff PIN accepted: leaving the Gaming Shell for the Windows desktop (session {Session}).", user.SessionId);
+            Reply(true);
+            Interlocked.Exchange(ref _desktopSession, user.SessionId);
+            Kiosk.SetLockdown(user.Sid, false);
+            Interlocked.Exchange(ref _lockedSession, -1);
+            await Task.Delay(500); // let the Shell show "Opening Windows…"
+            await Kiosk.OpenDesktopAsync(user.Sid, () => CloseShellIn(user.SessionId));
+        }
+        catch (Exception e)
+        {
+            log.LogError(e, "Staff exit failed");
+            Reply(false, "failed", "Couldn't open the Windows desktop. Try again or restart the PC.");
+        }
+        finally
+        {
+            _exitGate.Release();
+        }
+    }
+
+    private static void CloseShellIn(uint sessionId)
+    {
+        foreach (var p in Process.GetProcessesByName("ArenaShell"))
+        {
+            using (p)
+            {
+                if (p.SessionId == sessionId) p.Kill(entireProcessTree: true);
+            }
+        }
     }
 
     private static bool ShellRunningIn(uint sessionId)

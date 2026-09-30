@@ -82,18 +82,14 @@ public sealed class AgentPipe(bool requireServiceServer) : IDisposable
         }
     }
 
-    private static bool ServerIsService(NamedPipeClientStream pipe)
-    {
-        if (!GetNamedPipeServerProcessId(pipe.SafePipeHandle, out var pid)) return false;
-        if (!ProcessIdToSessionId(pid, out var session)) return false;
-        return session == 0;
-    }
+    // Read the server's session from the pipe itself. (Looking up its process id and calling
+    // ProcessIdToSessionId needs query rights on a SYSTEM process, which a standard user lacks,
+    // so the customer's Shell refused the real agent and showed "Reconnecting" forever.)
+    private static bool ServerIsService(NamedPipeClientStream pipe) =>
+        GetNamedPipeServerSessionId(pipe.SafePipeHandle, out var session) && session == 0;
 
     [DllImport("kernel32.dll", SetLastError = true)]
-    private static extern bool GetNamedPipeServerProcessId(Microsoft.Win32.SafeHandles.SafePipeHandle pipe, out uint serverProcessId);
-
-    [DllImport("kernel32.dll", SetLastError = true)]
-    private static extern bool ProcessIdToSessionId(uint processId, out uint sessionId);
+    private static extern bool GetNamedPipeServerSessionId(Microsoft.Win32.SafeHandles.SafePipeHandle pipe, out uint serverSessionId);
 
     public void Dispose()
     {

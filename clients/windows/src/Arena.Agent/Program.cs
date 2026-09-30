@@ -9,6 +9,7 @@ using Microsoft.Extensions.Hosting.WindowsServices;
 //   run [--data-dir <dir>]           run in this console (development / troubleshooting)
 //   status [--data-dir <dir>]
 //   safe-mode on|off [--data-dir <dir>]
+//   staff-pin [--data-dir <dir>]    reads the Shift+F12 staff PIN (4-12 digits) from stdin
 //   (no verb when started by the Windows Service Control Manager)
 
 var paths = AgentPaths.Resolve(args);
@@ -40,6 +41,15 @@ switch (verb)
         Console.WriteLine($"Safe mode {value}. Restart the ArenaAgent service to apply.");
         return 0;
 
+    case "staff-pin":
+        if (!Console.IsInputRedirected) Console.Write("Staff PIN for Shift+F12 (4-12 digits): ");
+        var pin = Console.ReadLine()?.Trim();
+        if (!StaffPin.IsValidFormat(pin)) { Console.Error.WriteLine("The PIN must be 4-12 digits."); return 1; }
+        Directory.CreateDirectory(paths.DataDir);
+        File.WriteAllText(paths.StaffPin, StaffPin.Hash(pin!));
+        Console.WriteLine("Staff PIN saved. Shift+F12 on the Gaming Shell now asks for it.");
+        return 0;
+
     case null when WindowsServiceHelpers.IsWindowsService():
     case "run":
         var builder = Host.CreateApplicationBuilder(args);
@@ -67,7 +77,7 @@ switch (verb)
         return 0;
 
     default:
-        Console.WriteLine("ArenaOS station agent\n\n  ArenaAgent enroll --api <url> --code <code> [--name PC-17] [--safe-mode on|off]\n  ArenaAgent run        (console mode)\n  ArenaAgent status\n  ArenaAgent safe-mode on|off\n\nInstall as a Windows service with install-agent.ps1 (as Administrator).");
+        Console.WriteLine("ArenaOS station agent\n\n  ArenaAgent enroll --api <url> --code <code> [--name PC-17] [--safe-mode on|off]\n  ArenaAgent run        (console mode)\n  ArenaAgent status\n  ArenaAgent safe-mode on|off\n  ArenaAgent staff-pin  (PIN for Shift+F12 on the Shell)\n\nInstall as a Windows service with install-agent.ps1 (as Administrator).");
         return verb is null ? 0 : 1;
 }
 

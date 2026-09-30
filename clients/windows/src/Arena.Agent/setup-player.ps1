@@ -1,12 +1,15 @@
 <#
   Turns this PC into a kiosk: Windows signs in to a standard "Player" account
   automatically, and Player gets the Gaming Shell INSTEAD of Explorer (no Start
-  menu, no taskbar, the Windows key does nothing). Administrator accounts are
-  untouched and keep the normal desktop, which is how staff do maintenance:
-  Ctrl+Alt+Del -> Sign out, then sign in with an admin account.
+  menu, no taskbar, the Windows key does nothing). The agent also empties the
+  Ctrl+Alt+Del screen for Player (no sign out, lock, switch user, Task Manager).
+
+  Staff leave the Shell with Shift+F12 and the staff PIN: the Shell closes and
+  the normal Windows desktop opens in the same account, until the next sign-in
+  or restart. Administrator accounts are never locked down.
 
   Run as Administrator, after install-agent.ps1:
-    .\setup-player.ps1               # asks for the Player password
+    .\setup-player.ps1               # asks for the Player password and the staff PIN
     .\setup-player.ps1 -Password <player password>
     .\setup-player.ps1 -Off          # stop signing in automatically, give Player Explorer back
 
@@ -17,6 +20,8 @@ param([string]$User = "Player", [string]$Password, [switch]$Off)
 $ErrorActionPreference = "Stop"
 $winlogon = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon"
 $shellExe = Join-Path $env:ProgramFiles "ArenaOS\Shell\ArenaShell.exe"
+$agentExe = Join-Path $env:ProgramFiles "ArenaOS\Agent\ArenaAgent.exe"
+$machinePolicies = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"
 
 # Runs $action against the user's registry hive (HKU\<sid> or a temporarily loaded NTUSER.DAT).
 function With-UserHive($sid, [scriptblock]$action) {
@@ -33,9 +38,17 @@ if ($Off) {
     Set-ItemProperty $winlogon AutoAdminLogon "0"
     Remove-ItemProperty $winlogon DefaultPassword -ErrorAction SilentlyContinue
     if ($account -and (Get-CimInstance Win32_UserProfile -Filter "SID='$($account.SID)'")) {
-        With-UserHive $account.SID { param($hive) Remove-ItemProperty "$hive\Software\Microsoft\Windows NT\CurrentVersion\Winlogon" Shell -ErrorAction SilentlyContinue }
+        With-UserHive $account.SID {
+            param($hive)
+            Remove-ItemProperty "$hive\Software\Microsoft\Windows NT\CurrentVersion\Winlogon" Shell -ErrorAction SilentlyContinue
+            # The agent's Ctrl+Alt+Del lockdown (it re-applies it while this PC is in kiosk mode).
+            Remove-ItemProperty "$hive\Software\Microsoft\Windows\CurrentVersion\Policies\System" DisableTaskMgr, DisableLockWorkstation, DisableChangePassword -ErrorAction SilentlyContinue
+            Remove-ItemProperty "$hive\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" NoLogoff, NoClose -ErrorAction SilentlyContinue
+        }
     }
+    Remove-ItemProperty $machinePolicies HideFastUserSwitching -ErrorAction SilentlyContinue
     Write-Host "Automatic sign-in off; $User gets the normal desktop again at next sign-in." -ForegroundColor Green
+    Write-Host "While this PC is in kiosk mode the Shell still starts for standard users. For an office PC: ArenaAgent.exe safe-mode on" -ForegroundColor Yellow
     return
 }
 
@@ -44,6 +57,14 @@ if (-not $Password) {
     if (-not $Password) { throw "A password is required for the $User account." }
 }
 if (-not (Test-Path $shellExe)) { throw "Gaming Shell not found at $shellExe. Run install-agent.ps1 first." }
+
+# Staff PIN for Shift+F12. The agent keeps only a salted hash, readable by SYSTEM and Administrators.
+$pin = [Net.NetworkCredential]::new("", (Read-Host "Staff PIN for Shift+F12 (4-12 digits, Enter keeps the current one)" -AsSecureString)).Password
+if ($pin) {
+    $pin | & $agentExe staff-pin
+    if ($LASTEXITCODE) { throw "Couldn't save the staff PIN." }
+}
+
 $secure = ConvertTo-SecureString $Password -AsPlainText -Force
 
 if ($account) {
@@ -64,7 +85,7 @@ if (-not (Get-CimInstance Win32_UserProfile -Filter "SID='$($account.SID)'")) {
 With-UserHive $account.SID {
     param($hive)
     $key = "$hive\Software\Microsoft\Windows NT\CurrentVersion\Winlogon"
-    New-Item $key -Force | Out-Null
+    if (-not (Test-Path $key)) { New-Item $key | Out-Null }
     Set-ItemProperty $key Shell "`"$shellExe`" --kiosk"
 }
 
@@ -78,6 +99,10 @@ Remove-ItemProperty $winlogon AutoLogonCount -ErrorAction SilentlyContinue
 # Windows 11 ignores automatic sign-in while "Windows Hello sign-in only" is on.
 $pwless = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\PasswordLess\Device"
 if (Test-Path $pwless) { Set-ItemProperty $pwless DevicePasswordLessBuildVersion 0 }
+# No "Switch user" on the Ctrl+Alt+Del screen or at sign-in. (Never New-Item -Force an existing
+# registry key: it recreates the key and wipes its other values.)
+if (-not (Test-Path $machinePolicies)) { New-Item $machinePolicies | Out-Null }
+Set-ItemProperty $machinePolicies HideFastUserSwitching 1 -Type DWord
 
 Write-Host "Done. After a restart Windows signs in to $User and shows only the Gaming Shell." -ForegroundColor Green
-Write-Host "Staff: Ctrl+Alt+Del -> Sign out, then sign in as an administrator for the normal desktop." -ForegroundColor Green
+Write-Host "Staff: press Shift+F12 on the Shell and enter the staff PIN for the Windows desktop." -ForegroundColor Green

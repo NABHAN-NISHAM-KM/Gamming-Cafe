@@ -362,10 +362,10 @@ Then:
 2. Create the `Player` account, sign Windows in to it automatically, and give it the Gaming Shell instead of Explorer (no Start menu or taskbar). Same Administrator PowerShell:
 
 ```powershell
-& "C:\Program Files\ArenaOS\Agent\setup-player.ps1" -Password <a password for Player>
+& "C:\Program Files\ArenaOS\Agent\setup-player.ps1"
 ```
 
-Administrator accounts always keep the normal desktop, which is how staff do maintenance. Undo with `setup-player.ps1 -Off`; hold **Shift** while Windows starts to skip the automatic sign-in once.
+It asks for Player's password and a **staff PIN**. On the Shell, **Shift+F12** + the staff PIN closes the Shell and opens the normal Windows desktop in the same account until the next restart. The Ctrl+Alt+Del screen offers nothing to customers (no sign out, lock, switch user or Task Manager). Administrator accounts are never locked down. Undo with `setup-player.ps1 -Off`; hold **Shift** while Windows starts to skip the automatic sign-in once.
 
 ⚠️ With Test mode off, **Restart / Shut down / Lock** from the admin really do that to your laptop. Save your work first.
 
@@ -374,7 +374,7 @@ Administrator accounts always keep the normal desktop, which is how staff do mai
 | # | Do | Expect |
 |---|---|---|
 | - [ ] 3B.1 | Restart Windows | It signs in to **Player** by itself and the Gaming Shell opens **full-screen** with no taskbar (the Windows key does nothing) on its lock screen: My Arena, Main Hall, big clock, **Station PC-01**, sign-in box |
-| - [ ] 3B.2 | Press **Alt+F4** | Nothing happens |
+| - [ ] 3B.2 | Press **Alt+F4**, then **Ctrl+Alt+Del** | Alt+F4 does nothing; Ctrl+Alt+Del shows only **Cancel** |
 | - [ ] 3B.3 | Sign in: **sam** / **player1234** | Countdown starts at about **3:15:00** (Sam's prepaid time). Owner → Live Floor: PC-01 turns **in use** by Sam |
 | - [ ] 3B.4 | **Home** | Welcome, Sam; featured games from 2D.5 |
 | - [ ] 3B.5 | **Games** → click a game | It launches; the admin drawer shows what's being played |
@@ -385,7 +385,7 @@ Administrator accounts always keep the normal desktop, which is how staff do mai
 | - [ ] 3B.10 | **Log out** (top-right door icon) | Confirm → back to the lock screen; unused time goes back to Sam's balance |
 | - [ ] 3B.11 | On the lock screen press **العربية** | Right-to-left Arabic layout; switch back to English |
 
-Sign in as sam again and leave the session running for Part 4. To reach your own desktop at any time: **Ctrl+Alt+Del → Sign out**, then sign in with your own account.
+Sign in as sam again and leave the session running for Part 4. To reach the Windows desktop at any time: **Shift+F12** → staff PIN → **Open Windows**. Restart to go back to the Shell.
 
 ---
 

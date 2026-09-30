@@ -96,18 +96,20 @@ internal static partial class Native
     /// The signed-in console user's session and whether they are a Windows
     /// administrator (with UAC on, an admin's token is "limited" or "full"; with
     /// UAC off it is "default" but in the Administrators group). Null when
-    /// nobody is signed in at the console. Requires the SYSTEM account.
+    /// nobody is signed in at the console. Sid is the user's, for their HKEY_USERS hive.
+    /// Requires the SYSTEM account.
     /// </summary>
-    public static (uint SessionId, bool IsAdmin)? ConsoleUser()
+    public static (uint SessionId, bool IsAdmin, string Sid)? ConsoleUser()
     {
         var session = WTSGetActiveConsoleSessionId();
         if (session == INVALID_SESSION || !WTSQueryUserToken(session, out var token)) return null;
         try
         {
-            if (GetTokenInformation(token, TokenElevationType, out var type, sizeof(int), out _) && type != TokenElevationTypeDefault)
-                return (session, true);
             using var identity = new System.Security.Principal.WindowsIdentity(token);
-            return (session, new System.Security.Principal.WindowsPrincipal(identity).IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator));
+            var sid = identity.User!.Value;
+            if (GetTokenInformation(token, TokenElevationType, out var type, sizeof(int), out _) && type != TokenElevationTypeDefault)
+                return (session, true, sid);
+            return (session, new System.Security.Principal.WindowsPrincipal(identity).IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator), sid);
         }
         finally
         {

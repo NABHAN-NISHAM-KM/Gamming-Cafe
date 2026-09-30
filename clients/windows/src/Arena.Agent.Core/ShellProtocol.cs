@@ -26,6 +26,8 @@ public abstract record ShellRequest
     public sealed record PlaceOrder(string RequestId, OrderLine[] Lines, string? Notes, string PayWith) : ShellRequest;
     public sealed record PrintConfirm(string JobKey, string PayWith) : ShellRequest;
     public sealed record PrintCancel(string JobKey) : ShellRequest;
+    /// <summary>Shift+F12 on the Shell: staff leave for the Windows desktop (the agent checks the PIN).</summary>
+    public sealed record StaffExit(string RequestId, string Pin) : ShellRequest;
 }
 
 public sealed record OrderLine(string ProductId, int Quantity, string[] ModifierIds);
@@ -127,6 +129,12 @@ public static partial class ShellProtocol
                 {
                     var key = Str(root, "jobKey");
                     return key is not null && JobKeyPattern().IsMatch(key) ? new ShellRequest.PrintCancel(key) : null;
+                }
+                case "staff_exit":
+                {
+                    var rid = Str(root, "requestId");
+                    var pin = Str(root, "pin");
+                    return rid is not null && RequestIdPattern().IsMatch(rid) && StaffPin.IsValidFormat(pin) ? new ShellRequest.StaffExit(rid, pin!) : null;
                 }
                 case "login":
                     var requestId = Str(root, "requestId");

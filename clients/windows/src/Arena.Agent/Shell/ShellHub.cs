@@ -32,6 +32,8 @@ public sealed class ShellHub(SessionManager sessions, ILogger<ShellHub> log) : B
     public event Func<Task>? LogoutRequested;
     /// <summary>Launch / help / self-repair requests (already validated by ShellProtocol.Parse).</summary>
     public event Func<ShellRequest, Task>? RequestReceived;
+    /// <summary>Shift+F12 with a staff PIN: leave the Shell for the Windows desktop.</summary>
+    public event Func<ShellRequest.StaffExit, Task>? StaffExitRequested;
     /// <summary>A Shell (re)loaded and wants everything it shows.</summary>
     public event Action? ClientReady;
 
@@ -146,6 +148,9 @@ public sealed class ShellHub(SessionManager sessions, ILogger<ShellHub> log) : B
                     break;
                 case ShellRequest.Logout:
                     if (LogoutRequested is { } onLogout) await onLogout();
+                    break;
+                case ShellRequest.StaffExit exit:
+                    if (StaffExitRequested is { } onExit) await onExit(exit);
                     break;
                 case ShellRequest.Launch or ShellRequest.LaunchApp or ShellRequest.Help or ShellRequest.Repair or ShellRequest.MenuRequest or ShellRequest.PlaceOrder:
                     if (RequestReceived is { } onRequest) await onRequest(request!);

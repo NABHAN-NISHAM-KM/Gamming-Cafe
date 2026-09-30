@@ -83,7 +83,7 @@ export type HostMessage =
   | { type: "login_result"; requestId: string; ok: boolean; error?: string; message?: string }
   | { type: "message"; title: string; text: string }
   | { type: "library"; games: ShellGame[]; apps: ShellAppItem[]; presets: PointerPreset[] }
-  | ({ type: "launch_result" | "help_result" | "repair_result" } & RequestResult)
+  | ({ type: "launch_result" | "help_result" | "repair_result" | "staff_exit_result" } & RequestResult)
   | { type: "playing"; gameId: string | null; title: string | null }
   | { type: "network"; probe: Probe }
   | { type: "peripherals"; items: Peripheral[] }
@@ -127,7 +127,8 @@ export type ShellMessage =
   | { type: "menu_request"; requestId: string }
   | { type: "place_order"; requestId: string; lines: OrderLine[]; notes?: string; payWith: "BILL" | "WALLET" }
   | { type: "print_confirm"; jobKey: string; payWith: "BILL" | "WALLET" }
-  | { type: "print_cancel"; jobKey: string };
+  | { type: "print_cancel"; jobKey: string }
+  | { type: "staff_exit"; requestId: string; pin: string };
 
 type Listener = (m: HostMessage) => void;
 
@@ -387,6 +388,9 @@ function mockBridge(): Bridge {
           break;
         case "repair":
           setTimeout(() => emit({ type: "repair_result", requestId: m.requestId, ok: true, message: "Done." }), 900);
+          break;
+        case "staff_exit":
+          setTimeout(() => emit({ type: "staff_exit_result", requestId: m.requestId, ok: false, error: "preview", message: "Only on a gaming PC. (Preview: nothing to exit to.)" }), 400);
           break;
         case "pointer_get":
           emit({ type: "pointer", ...pointer });
