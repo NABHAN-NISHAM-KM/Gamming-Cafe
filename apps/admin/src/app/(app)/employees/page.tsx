@@ -7,7 +7,8 @@ import { api } from "@/lib/client/api";
 import { useAction, useApi } from "@/lib/client/hooks";
 import { useCan } from "@/lib/client/me";
 import { EMP_TONE, statusLabel, type Branch, type Employee, type Role } from "@/lib/client/types";
-import { QuickEdit, RecordActions } from "@/components/records";
+import { RecordActions } from "@/components/records";
+import { EditEmployee } from "@/components/employee-form";
 import { Badge, Button, Card, Empty, ErrorNote, Field, Input, PasswordInput, Modal, PageHeader, Select, Spinner, Table } from "@/components/ui";
 
 function InviteModal({ open, onClose, onDone, branches }: { open: boolean; onClose: () => void; onDone: () => void; branches: Branch[] }) {
@@ -18,7 +19,7 @@ function InviteModal({ open, onClose, onDone, branches }: { open: boolean; onClo
     const branchId = f.homeBranchId || null;
     await api("/employees", {
       method: "POST",
-      action: "Add employee",
+      action: `Add ${f.displayName.trim()}`,
       body: {
         email: f.email,
         displayName: f.displayName,
@@ -173,11 +174,7 @@ export default function EmployeesPage() {
           void employees.reload();
         }}
       />
-      <QuickEdit
-        title={editing ? `Edit ${editing.displayName}` : ""} open={!!editing} onClose={() => setEditing(null)} onDone={() => { setEditing(null); void employees.reload(); }}
-        fields={[{ key: "displayName", label: "Name", required: true }]} initial={{ displayName: editing?.displayName ?? "" }}
-        save={(v) => api(`/employees/${editing!.id}`, { method: "PATCH", body: { displayName: v["displayName"]!.trim() } })}
-      />
+      <EditEmployee employee={editing} branches={branches.data ?? []} onClose={() => setEditing(null)} onDone={() => { setEditing(null); void employees.reload(); }} />
     </>
   );
 }

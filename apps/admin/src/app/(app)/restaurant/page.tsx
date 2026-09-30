@@ -228,7 +228,25 @@ function MenuAdmin({ branchId }: { branchId: string }) {
 
   return (
     <div className="grid gap-4">
+      <div className="grid gap-3 md:grid-cols-3">
+        <SetupCard
+          step="1" title="Categories" help="Sections of your menu, e.g. Drinks, Snacks, Meals." add="Add category" onAdd={() => setAddingCat(true)}
+          empty="No categories yet — add one first."
+          items={m.data.categories.map((c) => ({ id: c.id, label: c.name, sub: `${m.data!.products.filter((p) => p.categoryId === c.id).length} items · click to edit`, onClick: () => setEditingCat(c) }))}
+        />
+        <SetupCard
+          step="2" title="Kitchen stations" help="Where orders get made, e.g. Kitchen, Bar. Each gets its own column on the kitchen screen." add="Add station" onAdd={() => setAddingStation(true)}
+          empty="None at this branch — items are handed over at once."
+          items={m.data.stations.filter((s) => s.branchId === branchId).map((s) => ({ id: s.id, label: s.name }))}
+        />
+        <SetupCard
+          step="3" title="Option groups" help="Choices a customer picks for an item, e.g. Size (S/M/L) or Sauce." add="Add option group" onAdd={() => setAddingGroup(true)}
+          empty="No option groups yet — optional."
+          items={m.data.modifierGroups.map((g) => ({ id: g.id, label: g.name, sub: g.modifiers.map((x) => x.name).join(", ") }))}
+        />
+      </div>
       <div className="flex flex-wrap items-center gap-1.5">
+        <span className="mr-1 text-sm font-semibold">4. Menu items</span>
         {[{ id: "all", name: "All" }, ...m.data.categories].map((c) => (
           <button key={c.id} onClick={() => setCat(c.id)} className={cx("rounded-full border px-3 py-1 text-sm", cat === c.id ? "border-accent bg-accent-soft text-accent" : "border-line text-ink-2")}>{c.name}</button>
         ))}
@@ -238,10 +256,7 @@ function MenuAdmin({ branchId }: { branchId: string }) {
         })()}
         <div className="ml-auto flex gap-2">
           <Button size="sm" variant={costView ? "primary" : "ghost"} onClick={() => setCostView(!costView)}><ChefHat className="size-4" /> Food cost</Button>
-          <Button size="sm" variant="ghost" onClick={() => setAddingStation(true)} title="Where orders are prepared: Kitchen, Bar…"><Plus className="size-4" /> Kitchen station</Button>
-          <Button size="sm" variant="ghost" onClick={() => setAddingCat(true)}><Plus className="size-4" /> Category</Button>
-          <Button size="sm" variant="ghost" onClick={() => setAddingGroup(true)}><Plus className="size-4" /> Options group</Button>
-          <Button size="sm" variant="primary" onClick={() => setEditing("new")}><Plus className="size-4" /> Product</Button>
+          <Button size="sm" variant="primary" onClick={() => setEditing("new")}><Plus className="size-4" /> Add menu item</Button>
         </div>
       </div>
       <ErrorNote>{toggle.error}</ErrorNote>
@@ -271,10 +286,10 @@ function MenuAdmin({ branchId }: { branchId: string }) {
             );
           })}
         </Table>
-        {products.length === 0 && <p className="p-6 text-center text-sm text-ink-3">No products in this category.</p>}
+        {products.length === 0 && <p className="p-6 text-center text-sm text-ink-3">{m.data.categories.length ? "No items here yet — click “Add menu item”." : "Add a category first (step 1), then add menu items."}</p>}
       </Card>
 
-      <Modal open={!!editing} onClose={() => setEditing(null)} title={editing === "new" ? "New product" : editing ? `Edit ${editing.name}` : ""} wide>
+      <Modal open={!!editing} onClose={() => setEditing(null)} title={editing === "new" ? "New menu item" : editing ? `Edit ${editing.name}` : ""} wide>
         {editing && <ProductForm m={m.data} branchId={branchId} p={editing === "new" ? null : editing} defaultCategory={cat === "all" ? m.data.categories[0]?.id : cat} onDone={() => { setEditing(null); void m.reload(); }} />}
       </Modal>
       <Modal open={!!recipeFor} onClose={() => setRecipeFor(null)} title={recipeFor ? `${recipeFor.type === "STOCK_ITEM" ? "Stock item" : "Recipe"} · ${recipeFor.name}` : ""} wide>
@@ -292,7 +307,7 @@ function MenuAdmin({ branchId }: { branchId: string }) {
       <Modal open={addingStation} onClose={() => setAddingStation(false)} title="New kitchen station">
         {addingStation && <StationForm branchId={branchId} existing={m.data.stations.filter((s) => s.branchId === branchId).map((s) => s.name)} onDone={() => { setAddingStation(false); void m.reload(); }} />}
       </Modal>
-      <Modal open={addingGroup} onClose={() => setAddingGroup(false)} title="New options group">
+      <Modal open={addingGroup} onClose={() => setAddingGroup(false)} title="New option group">
         {addingGroup && <GroupForm onDone={() => { setAddingGroup(false); void m.reload(); }} />}
       </Modal>
     </div>
@@ -314,7 +329,7 @@ function ProductForm({ m, branchId, p, defaultCategory, onDone }: { m: Manage; b
       price: f.price, taxAppliesTo: f.taxAppliesTo, kitchenStationId: f.kitchenStationId || null, prepTimeMinutes: f.prepTimeMinutes ? Number(f.prepTimeMinutes) : null,
       availableInShell: f.availableInShell, isActive: f.isActive, modifierGroupIds: f.modifierGroupIds,
     };
-    const saved = p ? await api<{ id: string }>(`/products/${p.id}`, { method: "PATCH", body }) : await api<{ id: string }>("/products", { method: "POST", body });
+    const saved = p ? await api<{ id: string }>(`/products/${p.id}`, { method: "PATCH", body, done: `${body.name} saved.` }) : await api<{ id: string }>("/products", { method: "POST", body, done: `${body.name} added to the menu.` });
     const want = f.branchPrice || null;
     if ((bp?.price ? Number(bp.price).toFixed(2) : null) !== want) await api(`/products/${saved.id}/branches/${branchId}`, { method: "PUT", body: { price: want } });
     onDone();
@@ -367,20 +382,48 @@ function ProductForm({ m, branchId, p, defaultCategory, onDone }: { m: Manage; b
   );
 }
 
+/** One step of menu setup: what it is, what already exists, and a button to add more. */
+function SetupCard({ step, title, help, add, onAdd, items, empty }: {
+  step: string; title: string; help: string; add: string; onAdd: () => void; empty: string;
+  items: Array<{ id: string; label: string; sub?: string; onClick?: () => void }>;
+}) {
+  return (
+    <Card className="flex flex-col p-4">
+      <div className="mb-1 flex items-center gap-2">
+        <span className="grid size-6 place-items-center rounded-full bg-accent-soft text-xs font-semibold text-accent">{step}</span>
+        <h3 className="font-semibold">{title}</h3>
+        <Badge>{items.length}</Badge>
+      </div>
+      <p className="mb-3 text-xs text-ink-3">{help}</p>
+      <div className="mb-3 flex flex-1 flex-wrap content-start gap-1.5">
+        {items.length === 0 && <p className="text-xs italic text-ink-3">{empty}</p>}
+        {items.map((i) => (
+          <button key={i.id} type="button" onClick={i.onClick} disabled={!i.onClick} title={i.sub} className={cx("rounded-md border border-line bg-panel-2 px-2 py-1 text-left text-sm", i.onClick && "hover:border-accent")}>
+            {i.label}
+            {i.sub && <span className="block max-w-40 truncate text-[11px] text-ink-3">{i.sub}</span>}
+          </button>
+        ))}
+      </div>
+      <Button size="sm" onClick={onAdd}><Plus className="size-4" /> {add}</Button>
+    </Card>
+  );
+}
+
 /** A prep station at this branch. Products are routed to it, and it gets its own column on the kitchen screen. */
 function StationForm({ branchId, existing, onDone }: { branchId: string; existing: string[]; onDone: () => void }) {
   const [name, setName] = useState(existing.includes("Kitchen") ? "Bar" : "Kitchen");
   const save = useAction(async () => {
-    await api(`/branches/${branchId}/kitchen-stations`, { method: "POST", body: { name: name.trim() } });
+    await api(`/branches/${branchId}/kitchen-stations`, { method: "POST", body: { name: name.trim() }, done: `Kitchen station “${name.trim()}” created.` });
     onDone();
   });
   return (
     <form className="grid gap-3" onSubmit={(e) => { e.preventDefault(); void save.run(); }}>
-      <Field label="Name" hint={existing.length ? `Already here: ${existing.join(", ")}` : "e.g. Kitchen, Bar, Grill"}>
+      <p className="text-sm text-ink-3">A place where orders are prepared. Menu items sent to it show up in its own column on the kitchen screen.</p>
+      <Field label="Station name" hint={existing.length ? `Already here: ${existing.join(", ")}` : "e.g. Kitchen, Bar, Grill"}>
         <Input value={name} onChange={(e) => setName(e.target.value)} required maxLength={40} autoFocus />
       </Field>
       <ErrorNote>{save.error}</ErrorNote>
-      <div className="flex justify-end"><Button type="submit" variant="primary" pending={save.pending}>Add station</Button></div>
+      <div className="flex justify-end"><Button type="submit" variant="primary" pending={save.pending}>Create station</Button></div>
     </form>
   );
 }
@@ -389,16 +432,16 @@ function CategoryForm({ c, onDone }: { c?: Manage["categories"][number]; onDone:
   const [f, setF] = useState({ name: c?.name ?? "", sortOrder: String(c?.sortOrder ?? 0), showInShell: c?.showInShell ?? true });
   const save = useAction(async () => {
     const body = { name: f.name.trim(), sortOrder: Number(f.sortOrder) || 0, showInShell: f.showInShell };
-    await api(c ? `/product-categories/${c.id}` : "/product-categories", { method: c ? "PATCH" : "POST", body });
+    await api(c ? `/product-categories/${c.id}` : "/product-categories", { method: c ? "PATCH" : "POST", body, done: `Category “${body.name}” ${c ? "saved" : "created"}.` });
     onDone();
   });
   return (
     <form className="grid gap-3" onSubmit={(e) => { e.preventDefault(); void save.run(); }}>
-      <Field label="Name"><Input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} required maxLength={60} placeholder="Desserts" /></Field>
-      <Field label="Position" hint="Lower comes first"><Input type="number" min={0} value={f.sortOrder} onChange={(e) => setF({ ...f, sortOrder: e.target.value })} /></Field>
+      <Field label="Category name"><Input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} required maxLength={60} placeholder="Desserts" autoFocus /></Field>
+      <Field label="Order on the menu" hint="Lower numbers are shown first"><Input type="number" min={0} value={f.sortOrder} onChange={(e) => setF({ ...f, sortOrder: e.target.value })} /></Field>
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={f.showInShell} onChange={(e) => setF({ ...f, showInShell: e.target.checked })} /> Show on customers' PCs</label>
       <ErrorNote>{save.error}</ErrorNote>
-      <div className="flex justify-end"><Button type="submit" variant="primary" pending={save.pending}>{c ? "Save" : "Add category"}</Button></div>
+      <div className="flex justify-end"><Button type="submit" variant="primary" pending={save.pending}>{c ? "Save" : "Create category"}</Button></div>
     </form>
   );
 }
@@ -408,17 +451,23 @@ function GroupForm({ onDone }: { onDone: () => void }) {
   const [mods, setMods] = useState([{ name: "", priceDelta: "0" }, { name: "", priceDelta: "0" }]);
   const filled = mods.filter((x) => x.name.trim());
   const save = useAction(async () => {
-    await api("/modifier-groups", { method: "POST", body: { name: f.name.trim(), minSelect: Number(f.minSelect), maxSelect: Math.min(Number(f.maxSelect), filled.length), modifiers: filled.map((x) => ({ name: x.name.trim(), priceDelta: x.priceDelta || "0" })) } });
+    await api("/modifier-groups", { method: "POST", done: `Option group “${f.name.trim()}” created.`, body: { name: f.name.trim(), minSelect: Number(f.minSelect), maxSelect: Math.min(Number(f.maxSelect), filled.length), modifiers: filled.map((x) => ({ name: x.name.trim(), priceDelta: x.priceDelta || "0" })) } });
     onDone();
   });
   return (
     <form className="grid gap-3" onSubmit={(e) => { e.preventDefault(); void save.run(); }}>
-      <Field label="Name"><Input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} required placeholder="Sauce" /></Field>
+      <p className="text-sm text-ink-3">A question the customer answers when ordering, e.g. <b>Size</b> → Small / Medium / Large. Then tick it on the menu items it applies to.</p>
+      <Field label="Group name"><Input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} required placeholder="Size" autoFocus /></Field>
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Must choose at least"><Input type="number" min={0} max={10} value={f.minSelect} onChange={(e) => setF({ ...f, minSelect: e.target.value })} /></Field>
-        <Field label="Can choose up to"><Input type="number" min={1} max={20} value={f.maxSelect} onChange={(e) => setF({ ...f, maxSelect: e.target.value })} /></Field>
+        <Field label="Must the customer pick?">
+          <Select value={f.minSelect === "0" ? "0" : "1"} onChange={(e) => setF({ ...f, minSelect: e.target.value })}>
+            <option value="0">No — optional</option>
+            <option value="1">Yes — required</option>
+          </Select>
+        </Field>
+        <Field label="How many can they pick?"><Input type="number" min={1} max={20} value={f.maxSelect} onChange={(e) => setF({ ...f, maxSelect: e.target.value })} /></Field>
       </div>
-      <p className="text-xs text-ink-3">Choices (price change can be negative)</p>
+      <p className="text-xs text-ink-3">Choices and extra price (0 = no extra charge)</p>
       {mods.map((x, i) => (
         <div key={i} className="grid grid-cols-[1fr_100px] gap-2">
           <Input value={x.name} onChange={(e) => setMods(mods.map((y, j) => (j === i ? { ...y, name: e.target.value } : y)))} placeholder={`Choice ${i + 1}`} />
@@ -427,7 +476,7 @@ function GroupForm({ onDone }: { onDone: () => void }) {
       ))}
       {mods.length < 30 && <Button type="button" size="sm" variant="ghost" onClick={() => setMods([...mods, { name: "", priceDelta: "0" }])}><Plus className="size-4" /> Choice</Button>}
       <ErrorNote>{save.error}</ErrorNote>
-      <div className="flex justify-end"><Button type="submit" variant="primary" pending={save.pending} disabled={!filled.length || Number(f.minSelect) > filled.length}>Add group</Button></div>
+      <div className="flex justify-end"><Button type="submit" variant="primary" pending={save.pending} disabled={!filled.length || Number(f.minSelect) > filled.length}>Create option group</Button></div>
     </form>
   );
 }

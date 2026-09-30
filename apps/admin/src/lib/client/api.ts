@@ -1,6 +1,6 @@
 "use client";
 
-import { askText } from "@/components/ui";
+import { askText, toast } from "@/components/ui";
 
 export class ApiError extends Error {
   constructor(
@@ -201,8 +201,10 @@ interface Opts {
   method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
   body?: unknown;
   reason?: string;
-  /** Label shown in the reason dialog. */
+  /** Label shown in the reason dialog, and in the "done" toast after a successful change. */
   action?: string;
+  /** Success toast text; defaults to "<action> — done." when `action` is set. false = no toast. */
+  done?: string | false;
 }
 
 /**
@@ -239,6 +241,8 @@ export async function api<T = any>(path: string, opts: Opts = {}): Promise<T> {
     throw new ApiError(401, body);
   }
   if (!res.ok) throw new ApiError(res.status, body);
+  const done = opts.done ?? (opts.action && opts.method && opts.method !== "GET" && opts.method !== "DELETE" ? `${opts.action} — done.` : false);
+  if (done) toast(done);
   return body as T;
 }
 

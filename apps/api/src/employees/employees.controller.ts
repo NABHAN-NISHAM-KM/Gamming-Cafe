@@ -120,8 +120,9 @@ export class EmployeesController {
 
   @RequirePermission("employee.view")
   @Get(":employeeId")
-  get(@Param("employeeId") employeeId: string) {
-    return tx().employee.findUniqueOrThrow({ where: { id: employeeId }, select: PUBLIC_FIELDS });
+  async get(@Param("employeeId") employeeId: string) {
+    const { pinHash, ...e } = await tx().employee.findUniqueOrThrow({ where: { id: employeeId }, select: { ...PUBLIC_FIELDS, pinHash: true } });
+    return { ...e, hasPin: pinHash !== null };
   }
 
   /** Target = the new employee's home branch (branch managers hire for their own branch). */

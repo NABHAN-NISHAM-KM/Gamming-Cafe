@@ -453,7 +453,7 @@ function Campaigns() {
     await list.reload();
   });
   const send = useAction(async (id: string) => {
-    const r = await api<Record<string, unknown>>(`/campaigns/${id}/send`, { method: "POST", action: "Send campaign" });
+    const r = await api<Record<string, unknown>>(`/campaigns/${id}/send`, { method: "POST", action: "Send campaign", done: false });
     if ("targeted" in r) toast(`Sent to ${r["sent"]} · waiting for their next login ${r["queued"]} · failed ${r["failed"]} · no marketing consent ${r["withoutConsent"]}`);
     await list.reload();
   });

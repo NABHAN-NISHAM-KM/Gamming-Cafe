@@ -178,7 +178,7 @@ function CustomerDetail({ id, onChanged, onErased }: { id: string; onChanged: ()
   const erase = useAction(async () => {
     const who = c.data!.displayName;
     if (!(await askConfirm(`Erase ${who}? Their name, phone, email, birthday and logins are deleted for good and they can't sign in again. Bills, payments and points stay in the books, without their name. This can't be undone.`))) return;
-    await api(`/customers/${id}/erase`, { method: "POST", action: `Erase ${who}` });
+    await api(`/customers/${id}/erase`, { method: "POST", action: `Erase ${who}`, done: false });
     toast(`${who} was erased.`);
     onErased();
   });

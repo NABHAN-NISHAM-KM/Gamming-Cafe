@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { use, useState } from "react";
-import { ArrowLeft, KeyRound, Plus, ShieldCheck, Trash2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, KeyRound, Pencil, Plus, ShieldCheck, Trash2 } from "lucide-react";
+import { EditEmployee } from "@/components/employee-form";
 import { api } from "@/lib/client/api";
 import { useAction, useApi } from "@/lib/client/hooks";
 import { useCan, useMe } from "@/lib/client/me";
@@ -62,10 +63,10 @@ function GrantRole({ employeeId, branches, onDone }: { employeeId: string; branc
   );
 }
 
-function SetPin({ employeeId, onDone }: { employeeId: string; onDone: () => void }) {
+function SetPin({ employeeId, hasPin, onDone }: { employeeId: string; hasPin: boolean; onDone: () => void }) {
   const [pin, setPin] = useState("");
   const save = useAction(async () => {
-    await api(`/employees/${employeeId}/pin`, { method: "POST", body: { pin }, action: "Set staff PIN" });
+    await api(`/employees/${employeeId}/pin`, { method: "POST", body: { pin }, action: hasPin ? "Change PIN" : "Set PIN", done: hasPin ? "PIN changed." : "PIN saved — they can now sign in at the POS with it." });
     onDone();
   });
   return (
@@ -76,13 +77,14 @@ function SetPin({ employeeId, onDone }: { employeeId: string; onDone: () => void
         void save.run();
       }}
     >
-      <Field label="New PIN" hint="4–8 digits. Used at the POS and for maintenance mode on stations.">
+      {hasPin && <p className="flex items-center gap-2 rounded-lg bg-ok/10 px-3 py-2 text-sm text-ok"><CheckCircle2 className="size-4" /> A PIN is already set. Saving replaces it.</p>}
+      <Field label={hasPin ? "New PIN" : "PIN"} hint="4–8 digits. Used at the POS and for maintenance mode on stations.">
         <PasswordInput inputMode="numeric" pattern="\d{4,8}" maxLength={8} required value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))} />
       </Field>
       <ErrorNote>{save.error}</ErrorNote>
       <div className="flex justify-end">
         <Button type="submit" variant="primary" pending={save.pending}>
-          Save PIN
+          {hasPin ? "Change PIN" : "Save PIN"}
         </Button>
       </div>
     </form>
@@ -93,9 +95,9 @@ export default function EmployeePage({ params }: { params: Promise<{ employeeId:
   const employeeId = useRouteId(use(params).employeeId);
   const me = useMe();
   const can = useCan();
-  const emp = useApi<Employee>(`/employees/${employeeId}`);
+  const emp = useApi<Employee & { hasPin: boolean }>(`/employees/${employeeId}`);
   const branches = useApi<Branch[]>(can("branch.view") ? "/branches" : null);
-  const [modal, setModal] = useState<"grant" | "pin" | null>(null);
+  const [modal, setModal] = useState<"grant" | "pin" | "edit" | null>(null);
 
   const setStatus = useAction(async (status: Employee["status"]) => {
     await api(`/employees/${employeeId}`, { method: "PATCH", body: { status }, action: `Set status to ${statusLabel(status)}` });
@@ -125,13 +127,17 @@ export default function EmployeePage({ params }: { params: Promise<{ employeeId:
             {e.jobTitle && <>· {e.jobTitle}</>}
             <Badge tone={EMP_TONE[e.status]}>{statusLabel(e.status)}</Badge>
             {isMe && <Badge tone="accent">You</Badge>}
+            {e.hasPin ? <Badge tone="ok">PIN set</Badge> : <Badge tone="warn">No PIN yet</Badge>}
           </span>
         }
         actions={
           can("employee.manage") && (
             <>
+              <Button onClick={() => setModal("edit")}>
+                <Pencil className="size-4" /> Edit details
+              </Button>
               <Button onClick={() => setModal("pin")}>
-                <KeyRound className="size-4" /> Set PIN
+                <KeyRound className="size-4" /> {e.hasPin ? "Change PIN" : "Set PIN"}
               </Button>
               {!isMe && e.status === "ACTIVE" && (
                 <Button variant="danger" pending={setStatus.pending} onClick={() => void setStatus.run("SUSPENDED")}>
@@ -200,8 +206,9 @@ export default function EmployeePage({ params }: { params: Promise<{ employeeId:
         )}
       </Modal>
       <Modal open={modal === "pin"} onClose={() => setModal(null)} title={`PIN for ${e.displayName}`}>
-        {modal === "pin" && <SetPin employeeId={e.id} onDone={() => setModal(null)} />}
+        {modal === "pin" && <SetPin employeeId={e.id} hasPin={e.hasPin} onDone={() => { setModal(null); void emp.reload(); }} />}
       </Modal>
+      <EditEmployee employee={modal === "edit" ? e : null} branches={branches.data ?? []} onClose={() => setModal(null)} onDone={() => { setModal(null); void emp.reload(); }} />
     </>
   );
 }
