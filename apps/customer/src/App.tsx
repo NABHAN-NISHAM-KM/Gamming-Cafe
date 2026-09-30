@@ -309,12 +309,16 @@ function BookingsScreen({ bookings, reload, toast }: { bookings: Booking[]; relo
 // ── shop ────────────────────────────────────────────────────────────────────
 
 interface Shop {
-  plans: Array<{ id: string; name: string; currency: string; zone: { name: string } | null; pricingPackages: Array<{ id: string; name: string; durationMinutes: number; bonusMinutes: number; price: string }> }>;
+  plans: Array<{
+    id: string; name: string; currency: string; zone: { name: string } | null;
+    rate?: string; billingMode?: string; paymentTiming?: string; schedule?: Array<{ days: string[]; from: string; to: string }>;
+    passStartTime?: string | null; passEndTime?: string | null; membershipTier?: { name: string } | null;
+    pricingPackages: Array<{ id: string; name: string; durationMinutes: number; bonusMinutes: number; price: string }> }>;
   tiers: Array<{ id: string; name: string; code: string; color: string | null; price: string; durationDays: number; gamingDiscountPct: string; bonusMinutesMonthly: number; bookingWindowDays: number; priorityBooking: boolean }>;
 }
 
 function ShopScreen({ venue, me, onBought, toast }: { venue: Venue; me: Me; onBought: () => void; toast: (t: string, ok?: boolean) => void }) {
-  const branchId = venue.branches[0]?.id ?? "";
+  const [branchId, setBranch] = useState(venue.branches[0]?.id ?? "");
   const shop = useLoad(() => api<Shop>(`/shop?branchId=${branchId}`), [branchId]);
   const [busy, setBusy] = useState<string | null>(null);
   const buy = async (id: string, path: string, body: Record<string, unknown>, what: string) => {
@@ -333,9 +337,15 @@ function ShopScreen({ venue, me, onBought, toast }: { venue: Venue; me: Me; onBo
   const cur = me.wallet.currency;
   return (
     <Screen title="Shop" action={<span className="tabular rounded-full bg-deck-2 px-3 py-1.5 text-sm">{cur} {me.wallet.total}</span>}>
+      {venue.branches.length > 1 && (
+        <select className="field mb-5" value={branchId} onChange={(e) => setBranch(e.target.value)}>
+          {venue.branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+        </select>
+      )}
       <p className="mb-3 text-sm uppercase tracking-widest text-mute">Play time</p>
       {!shop.data ? <p className="text-dim">Loading…</p> : (
         <div className="grid gap-3">
+          {!shop.data.plans.some((p) => p.pricingPackages.length) && <p className="text-dim">No play-time packages here yet — ask at the counter.</p>}
           {shop.data.plans.flatMap((p) =>
             p.pricingPackages.map((k) => (
               <div key={k.id} className="card flex items-center gap-4 p-5">
@@ -351,6 +361,32 @@ function ShopScreen({ venue, me, onBought, toast }: { venue: Venue; me: Me; onBo
             )),
           )}
         </div>
+      )}
+      {shop.data?.plans.some((p) => p.rate) && (
+        <>
+          <p className="mb-3 mt-8 text-sm uppercase tracking-widest text-mute">Prices</p>
+          <div className="card divide-y divide-rim">
+            {shop.data.plans.filter((p) => p.rate).map((p) => {
+              const when = [
+                ...(p.schedule ?? []).map((w) => `${w.days.map((d) => d[0].toUpperCase() + d.slice(1)).join(", ")} ${w.from}–${w.to}`),
+                p.passStartTime && p.passEndTime ? `${p.passStartTime}–${p.passEndTime}` : "",
+                p.zone ? `${p.zone.name} only` : "",
+                p.membershipTier ? `${p.membershipTier.name} members` : "",
+                p.paymentTiming === "POSTPAID" ? "pay after you play" : "",
+              ].filter(Boolean).join(" · ");
+              const unit = p.billingMode === "PER_HOUR" ? "/hr" : p.billingMode === "PER_MINUTE" ? "/min" : p.billingMode === "DAY_PASS" ? " day pass" : p.billingMode === "NIGHT_PASS" ? " night pass" : "";
+              return (
+                <div key={p.id} className="flex items-center justify-between gap-3 px-5 py-4">
+                  <div className="min-w-0">
+                    <p className="font-semibold">{p.name}</p>
+                    {when && <p className="text-sm text-dim">{when}</p>}
+                  </div>
+                  <p className="tabular shrink-0 font-semibold">{p.currency} {Number(p.rate).toFixed(0)}<span className="text-sm font-normal text-dim">{unit}</span></p>
+                </div>
+              );
+            })}
+          </div>
+        </>
       )}
       <p className="mb-3 mt-8 text-sm uppercase tracking-widest text-mute">Membership</p>
       <div className="grid gap-3">

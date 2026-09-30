@@ -101,7 +101,13 @@ export function RewardsScreen({ toast, onChanged }: { toast: Toast; onChanged: (
         <div className="card mt-6 p-5">
           <p className="flex items-center gap-2 font-semibold"><Users className="size-5 text-glow-2" /> Invite a friend</p>
           <p className="mt-1 text-sm text-dim">They sign up with your code; you get bonus points when they first play.</p>
-          <p className="mt-3 rounded-xl bg-void/60 py-3 text-center font-mono text-2xl tracking-widest">{d.referralCode}</p>
+          <button
+            className="mt-3 w-full rounded-xl bg-void/60 py-3 text-center font-mono text-2xl tracking-widest"
+            onClick={() => navigator.clipboard.writeText(d.referralCode!).then(() => toast("Invite code copied!"), () => toast("Couldn't copy — long-press to select it.", false))}
+          >
+            {d.referralCode}
+          </button>
+          <p className="mt-1 text-center text-xs text-dim">Tap to copy</p>
         </div>
       )}
       <h2 className="mb-2 mt-6 font-display text-lg font-semibold">History</h2>

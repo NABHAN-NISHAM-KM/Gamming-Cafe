@@ -301,8 +301,9 @@ export class CustomerAppController {
   shop(@Req() req: Request, @Query("branchId") branchId?: string) {
     return this.as(req, async (t) => {
       const plans = await t.pricingPlan.findMany({
-        where: { isActive: true, pricingPackages: { some: { isActive: true } }, ...(branchId && /^[0-9a-f-]{36}$/i.test(branchId) ? { OR: [{ branchId: null }, { branchId }] } : { branchId: null }) },
-        select: { id: true, name: true, stationClass: true, currency: true, zone: { select: { name: true } }, pricingPackages: { where: { isActive: true }, select: { id: true, name: true, durationMinutes: true, bonusMinutes: true, price: true }, orderBy: { sortOrder: "asc" } } },
+        // Every live rate, for the price list; the ones with packages are also sold as play time.
+        where: { isActive: true, AND: [{ OR: [{ validTo: null }, { validTo: { gt: new Date() } }] }], ...(branchId && /^[0-9a-f-]{36}$/i.test(branchId) ? { OR: [{ branchId: null }, { branchId }] } : { branchId: null }) },
+        select: { id: true, name: true, stationClass: true, currency: true, rate: true, billingMode: true, paymentTiming: true, schedule: true, passStartTime: true, passEndTime: true, membershipTier: { select: { name: true } }, zone: { select: { name: true } }, pricingPackages:{ where: { isActive: true }, select: { id: true, name: true, durationMinutes: true, bonusMinutes: true, price: true }, orderBy: { sortOrder: "asc" } } },
         orderBy: { name: "asc" },
       });
       const tiers = await t.membershipTier.findMany({
