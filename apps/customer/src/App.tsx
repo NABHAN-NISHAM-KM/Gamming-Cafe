@@ -425,7 +425,7 @@ function ShopScreen({ venue, me, onBought, toast }: { venue: Venue; me: Me; onBo
 const TX_LABEL: Record<string, string> = { TOPUP: "Top-up", SPEND: "Payment", REFUND: "Refund", ADJUSTMENT: "Adjustment", BONUS_GRANT: "Bonus", BONUS_EXPIRE: "Bonus expired" };
 
 function WalletScreen({ me }: { me: Me }) {
-  const w = useLoad(() => api<{ ledger: LedgerRow[] }>("/wallet"));
+  const w = useLoad(() => api<{ ledger: LedgerRow[] }>("/wallet"), [me]); // reloads with every live refresh of `me`
   return (
     <Screen title="Wallet">
       <div className="grid grid-cols-3 gap-3">
@@ -523,11 +523,24 @@ export function App() {
       void refreshUnread();
     }
   }, [authed, refresh, refreshUnread]);
+  // Near-live: refresh while the app is on screen and the moment it comes back.
+  // ponytail: 10 s polling, a customer event stream if that's not live enough.
   useEffect(() => {
-    const onFocus = () => void refresh();
-    addEventListener("focus", onFocus);
-    return () => removeEventListener("focus", onFocus);
-  }, [refresh]);
+    if (!authed) return;
+    const tick = () => {
+      if (document.visibilityState !== "visible") return;
+      void refresh();
+      void refreshUnread();
+    };
+    const t = setInterval(tick, 10_000);
+    addEventListener("focus", tick);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      clearInterval(t);
+      removeEventListener("focus", tick);
+      document.removeEventListener("visibilitychange", tick);
+    };
+  }, [authed, refresh, refreshUnread]);
 
   if (!slug) return <VenuePicker onPick={pick} />;
   if (venue.error)

@@ -203,9 +203,9 @@ export async function installDemo(app: "admin" | "customer" | "shell"): Promise<
     private off: (() => void) | null = null;
     constructor(readonly url: string) {
       super();
-      const m = /\/branches\/([^/]+)\/(floor|kitchen)\/events/.exec(url);
+      const m = /\/branches\/([^/]+)\/(?:(floor|kitchen)\/events|(notifications))/.exec(url);
       const branchId = m?.[1];
-      const kind = m?.[2];
+      const kind = m?.[2] ?? m?.[3];
       setTimeout(() => {
         this.readyState = 1;
         this.send("ready", { at: nowIso() });
@@ -213,6 +213,12 @@ export async function installDemo(app: "admin" | "customer" | "shell"): Promise<
       this.off = engine.on((ev) => {
         if (ev.type === "changed") return this.send(kind === "kitchen" ? "kitchen" : "booking", {});
         if (!("branchId" in ev) || ev.branchId !== branchId) return;
+        if (kind === "notifications") {
+          if (ev.type === "alert") this.send("alert", { alert: ev.alert });
+          if (ev.type === "kitchen") this.send("kitchen", {});
+          if (ev.type === "order") this.send("order", { change: ev.change, order: ev.order });
+          return;
+        }
         if (kind === "kitchen") {
           if (ev.type === "kitchen") this.send("kitchen", {});
           return;

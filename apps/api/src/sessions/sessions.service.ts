@@ -404,7 +404,8 @@ export class SessionsService {
    * finalize billing, refund unused prepaid time, release pooled game
    * accounts, free the station and tell the PC to lock.
    */
-  async end(t: TenantTx, sessionId: string, reason: "EXPIRED" | "STAFF_ENDED" | "CUSTOMER_LOGOUT" | "DEVICE_FAILURE" | "ADMIN_FORCE", actor: Actor) {
+  /** `toSignIn`: back to the Shell's sign-in screen, skipping the PC's usual after-session action (restart, log off…). */
+  async end(t: TenantTx, sessionId: string, reason: "EXPIRED" | "STAFF_ENDED" | "CUSTOMER_LOGOUT" | "DEVICE_FAILURE" | "ADMIN_FORCE", actor: Actor, opts: { toSignIn?: boolean } = {}) {
     const s = await t.gamingSession.findUnique({ where: { id: sessionId }, include: { device: { select: { name: true, cleaningRequired: true, postSessionAction: true, agentless: true } }, bill: true } });
     if (!s) throw new NotFoundException({ error: "not_found" });
     if (!(LIVE_STATUSES as readonly string[]).includes(s.status)) return this.view(t, s.id); // already ended — idempotent
@@ -448,7 +449,7 @@ export class SessionsService {
       await this.commands.issue(t, {
         deviceId: s.deviceId,
         type: "END_SESSION",
-        payload: { sessionId: s.id, reason, postSessionAction: s.device.postSessionAction, serverTime: endedAt.toISOString() },
+        payload: { sessionId: s.id, reason, postSessionAction: opts.toSignIn ? "LOCK" : s.device.postSessionAction, serverTime: endedAt.toISOString() },
         requestedBy: actor.type === "EMPLOYEE" ? { type: "EMPLOYEE", id: actor.id } : { type: "SYSTEM", id: null },
       });
     }

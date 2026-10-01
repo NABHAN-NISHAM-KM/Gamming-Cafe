@@ -12,6 +12,7 @@ import { useApi } from "@/lib/client/hooks";
 import { MeProvider, type Me } from "@/lib/client/me";
 import { cx, Kbd } from "@/components/ui";
 import { CommandPalette, type Command } from "@/components/command";
+import { LiveNotices } from "@/components/live-notices";
 
 interface NavItem {
   href: string;
@@ -262,6 +263,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         </div>
       </div>
       <CommandPalette open={palette} onClose={() => setPalette(false)} commands={commands} />
+      <LiveNotices />
     </MeProvider>
   );
 }

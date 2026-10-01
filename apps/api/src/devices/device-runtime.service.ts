@@ -203,9 +203,15 @@ export class DeviceRuntimeService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  async openAlert(tx: TenantTx, c: { deviceId: string; organizationId: string; branchId: string }, type: string, severity: "INFO" | "WARNING" | "CRITICAL", title: string, detail: object) {
+  /** `renotify`: a repeat (e.g. asking for help again) re-opens the alert and tells staff again instead of being swallowed. */
+  async openAlert(tx: TenantTx, c: { deviceId: string; organizationId: string; branchId: string }, type: string, severity: "INFO" | "WARNING" | "CRITICAL", title: string, detail: object, opts: { renotify?: boolean } = {}) {
     const dedupeKey = `${type}:${c.deviceId}`;
     const existing = await tx.alert.findFirst({ where: { dedupeKey, status: { in: ["OPEN", "ACKNOWLEDGED"] } } });
+    if (existing && opts.renotify) {
+      const alert = await tx.alert.update({ where: { id: existing.id }, data: { severity, title, detail, status: "OPEN", openedAt: new Date(), acknowledgedAt: null, acknowledgedById: null } });
+      this.bus.publish(c.organizationId, c.branchId, { type: "alert", alert });
+      return;
+    }
     if (existing) {
       if (existing.severity !== severity) await tx.alert.update({ where: { id: existing.id }, data: { severity, title, detail } });
       return;

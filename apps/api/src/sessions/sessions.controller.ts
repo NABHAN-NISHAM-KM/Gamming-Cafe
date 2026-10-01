@@ -36,7 +36,7 @@ const Extend = z
   .object({ minutes: z.number().int().min(1).max(720).optional(), packageId: z.uuid().optional(), payment: Payment, idempotencyKey: z.string().min(8).max(100) })
   .strict()
   .refine((e) => e.minutes || e.packageId, "minutes or packageId required");
-const End = z.object({ reason: z.string().max(200).optional() }).strict();
+const End = z.object({ reason: z.string().max(200).optional(), toSignIn: z.boolean().optional() }).strict();
 const Move = z.object({ toDeviceId: z.uuid(), reason: z.string().max(200).nullish() }).strict();
 
 const employee = () => ({ type: "EMPLOYEE" as const, id: principal().employeeId });
@@ -83,8 +83,8 @@ export class SessionsController {
   @RequirePermission("station.end_session")
   @Post("sessions/:sessionId/end")
   @HttpCode(200)
-  end(@Param("sessionId") sessionId: string, @Body(new ZodPipe(End)) _body: z.infer<typeof End>) {
-    return this.sessions.end(tx(), sessionId, "STAFF_ENDED", employee());
+  end(@Param("sessionId") sessionId: string, @Body(new ZodPipe(End)) body: z.infer<typeof End>) {
+    return this.sessions.end(tx(), sessionId, "STAFF_ENDED", employee(), { toSignIn: body.toSignIn });
   }
 
   @RequirePermission("station.move_session")

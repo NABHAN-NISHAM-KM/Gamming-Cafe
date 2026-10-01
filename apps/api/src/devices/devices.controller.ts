@@ -12,6 +12,9 @@ import { COMMAND_PERMISSION, CommandsService } from "./commands.service.js";
 import { DEVICE_FIELDS, DeviceRuntimeService } from "./device-runtime.service.js";
 import { hashEnrollmentCode, newEnrollmentCode } from "./enrollment.js";
 import { DeviceHub, LiveBus, type FloorEvent } from "./live.js";
+import { DB } from "../common/db.module.js";
+import type { Db } from "@arena/db";
+import { holdsPermission } from "@arena/rbac";
 
 const NewToken = z
   .object({
@@ -85,6 +88,7 @@ export class DevicesController {
     @Inject(DeviceRuntimeService) private readonly runtime: DeviceRuntimeService,
     @Inject(DeviceHub) private readonly hub: DeviceHub,
     @Inject(LiveBus) private readonly bus: LiveBus,
+    @Inject(DB) private readonly db: Db,
   ) {}
 
   // ── Enrolment codes ─────────────────────────────────────────────────────
@@ -278,6 +282,43 @@ export class DevicesController {
       const ping = setInterval(() => sub.next({ type: "ping", data: { at: new Date().toISOString() } }), 20_000);
       sub.next({ type: "ready", data: { at: new Date().toISOString() } });
       return () => {
+        off();
+        clearInterval(ping);
+      };
+    });
+  }
+
+  /**
+   * The admin's always-on feed (any page): help requests from the Shell and orders,
+   * each only for staff who may act on it. Pop-ups and sounds are the admin's job.
+   */
+  @AnyStaff()
+  @LongLived()
+  @Sse("branches/:branchId/notifications")
+  notifications(@Param("branchId") branchId: string): Observable<MessageEvent> {
+    const org = orgId();
+    const p = principal();
+    return new Observable<MessageEvent>((sub) => {
+      let off = () => {};
+      let closed = false;
+      void this.db
+        .withTenant({ organizationId: org, actorType: "EMPLOYEE", actorId: p.employeeId }, (t) => t.branch.findUnique({ where: { id: branchId }, select: { brandId: true } }))
+        .then((b) => {
+          if (closed) return;
+          if (!b) return sub.error(new NotFoundException({ error: "branch_not_found" }));
+          const target = { organizationId: org, brandId: b.brandId, branchId };
+          const help = holdsPermission(p, "station.view", target);
+          const orders = holdsPermission(p, "pos.sell", target) || holdsPermission(p, "kds.view", target);
+          off = this.bus.subscribe(org, branchId, (e: FloorEvent) => {
+            if (help && e.type === "alert") sub.next({ type: "alert", data: e });
+            else if (orders && (e.type === "order" || e.type === "kitchen")) sub.next({ type: e.type, data: e });
+          });
+          sub.next({ type: "ready", data: { help, orders } });
+        })
+        .catch((err) => sub.error(err));
+      const ping = setInterval(() => sub.next({ type: "ping", data: { at: new Date().toISOString() } }), 20_000);
+      return () => {
+        closed = true;
         off();
         clearInterval(ping);
       };

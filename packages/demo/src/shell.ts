@@ -80,7 +80,7 @@ export function createShellLink(e: Engine, staff: StaffBackend, stationName: str
       const d = station();
       if (!d?.session) return { ok: false, error: "no_session", message: "Sign in first." };
       const res = await api("POST", `/branches/${d.branchId}/orders`, {
-        type: "GAMING_SEAT", deviceId: d.id, customerId: d.session.customer?.id ?? null, lines, notes: notes ?? null,
+        type: "GAMING_SEAT", channel: "SHELL", deviceId: d.id, customerId: d.session.customer?.id ?? null, lines, notes: notes ?? null,
         payments: payWith === "WALLET" ? [{ method: "WALLET" }] : undefined, idempotencyKey: uuid(),
       });
       if (res.status >= 400) return { ok: false, error: res.body?.error, message: res.body?.error === "insufficient_funds" ? "Not enough credit in your wallet." : "Couldn't place the order." };
@@ -91,7 +91,8 @@ export function createShellLink(e: Engine, staff: StaffBackend, stationName: str
     help(topic) {
       const d = station();
       if (!d) return;
-      const alert = { id: uuid(), deviceId: d.id, type: "HELP_REQUEST", severity: "WARNING", status: "OPEN", title: `${d.name} needs help: ${topic}`, openedAt: nowIso() };
+      const who = d.session?.customer?.displayName ?? null;
+      const alert = { id: uuid(), deviceId: d.id, type: "HELP_REQUESTED", severity: "WARNING", status: "OPEN", title: `${d.name}: ${who ? `${who} needs` : "customer needs"} help (${topic})`, openedAt: nowIso(), detail: { topic, device: d.name, customer: who } };
       e.get("staff", `/branches/${d.branchId}/floor`)?.alerts?.unshift(alert);
       e.emit({ type: "alert", branchId: d.branchId, alert });
       e.commit();

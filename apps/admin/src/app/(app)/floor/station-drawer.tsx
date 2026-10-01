@@ -57,6 +57,16 @@ export function StationDrawer({ device, allDevices, liveCommands, alerts, onClos
   const b = device.branchId;
   const commands = (detail.data?.commands ?? []).map((c) => ({ ...c, ...liveCommands[c.id] }));
 
+  // Lock = sign the player out to the Shell's sign-in screen (like their own "Log out"), never the Windows lock screen.
+  const live = device.session && ["ACTIVE", "PAUSED", "PENDING"].includes(device.session.status) ? device.session : null;
+  const lock = useAction(async () => {
+    if (!live) return send.run("LOCK", undefined, "Lock");
+    const who = live.customer?.displayName ?? live.guestLabel ?? "the player";
+    if (!(await askConfirm(`Sign ${who} out of ${device.name}? Their session ends now (unused prepaid time goes back to their account) and the PC shows the sign-in screen.`))) return;
+    await api(`/sessions/${live.id}/end`, { method: "POST", body: { reason: "Locked by staff", toSignIn: true }, action: `Lock ${device.name}` });
+    onChange();
+  });
+
   const act = (type: string, label: string, confirmText?: string, payload?: Record<string, unknown>) => async () => {
     if (confirmText && !(await askConfirm(confirmText))) return;
     void send.run(type, payload, label);
@@ -92,7 +102,7 @@ export function StationDrawer({ device, allDevices, liveCommands, alerts, onClos
               </Button>
             )}
             {can("station.lock", b) && (
-              <Button size="sm" onClick={act("LOCK", "Lock")}>
+              <Button size="sm" pending={lock.pending} onClick={() => void lock.run()}>
                 <Lock className="size-3.5" /> Lock
               </Button>
             )}
@@ -132,7 +142,7 @@ export function StationDrawer({ device, allDevices, liveCommands, alerts, onClos
             </form>
           )}
           {notice && <p className="mt-3 text-xs text-ok">{notice}</p>}
-          <ErrorNote>{send.error}</ErrorNote>
+          <ErrorNote>{send.error ?? lock.error}</ErrorNote>
         </section>
 
         {alerts.length > 0 && (

@@ -542,7 +542,7 @@ export function staffBackend(e: Engine) {
     const deliverTo = dev ? `${dev.name}` : table ? table.name : null;
     const kitchenItems = items.filter((i: any) => i.station);
     const order = {
-      id: uuid(), branchId, number: `A${String(e.nextSeq()).padStart(3, "0")}`, channel: "POS", type: b.type, status: kitchenItems.length ? "NEW" : "COMPLETED", paymentState: "UNPAID",
+      id: uuid(), branchId, number: `${b.channel === "SHELL" ? "S" : "A"}${String(e.nextSeq()).padStart(3, "0")}`, channel: b.channel ?? "POS", type: b.type, status: kitchenItems.length ? "NEW" : "COMPLETED", paymentState: "UNPAID",
       billId: bill.id, customerId: cust?.id ?? null, deviceId: dev?.id ?? null, tableId: table?.id ?? null, deliverTo, subtotal: money(subtotal), discountTotal: money(discount), taxTotal: "0.00",
       total: money(total), notes: b.notes ?? null, createdAt: nowIso(), customer: cust ? { id: cust.id, displayName: cust.displayName } : null,
       orderItems: items.map(({ station: _s, ...i }: any) => i),
@@ -573,6 +573,7 @@ export function staffBackend(e: Engine) {
       }
       e.emit({ type: "kitchen", branchId });
     }
+    e.emit({ type: "order", branchId, change: "placed", order: { id: order.id, number: order.number, type: order.type, channel: order.channel, deliverTo, customer: cust?.displayName ?? null, total: order.total, currency: currency(), notes: order.notes, items: items.map((i: any) => ({ name: i.nameSnapshot, quantity: i.quantity })) } });
     return created({ ...order, bill: { id: bill.id, number: bill.number }, change });
   });
   r.get("/branches/:id/bills", (q) => {
@@ -620,10 +621,27 @@ export function staffBackend(e: Engine) {
       const bill = o.billId ? e.get("staff", `/bills/${o.billId}`) : null;
       return {
         ...o, status: ORDER_STATUS[o.status] ?? o.status, currency: o.currency ?? currency(), items: o.items ?? o.orderItems ?? [], kitchenTickets: o.kitchenTickets ?? [],
-        bill: bill ? { id: bill.id, number: bill.number, status: bill.status, due: bill.due } : o.bill ?? null,
+        bill: bill ? { id: bill.id, number: bill.number, status: bill.status, total: bill.total, paidTotal: bill.paidTotal, due: bill.due } : o.bill ?? null,
       };
     });
     return q.query.get("open") ? rows.filter((o: any) => ["PLACED", "ACCEPTED", "IN_PROGRESS", "READY"].includes(o.status)) : rows;
+  });
+  r.post("/orders/:id/move-to-seat", (q) => {
+    const id = q.params["id"]!;
+    const d = allDevices().find((x) => x.id === q.body?.deviceId) ?? fail(404, "device_not_found");
+    const to = d.session ? e.get("staff", `/bills/${e.get("staff", `/sessions/${d.session.id}`)?.bill?.id}`) : null;
+    if (!to) fail(409, "no_session", { hint: "Nobody is playing on that PC." });
+    const from = Object.values(e.docs("staff")).find((v: any) => v && v.number && Array.isArray(v.orders) && v.orders.some((o: any) => o.id === id)) as any;
+    if (from?.id === to.id) fail(409, "already_on_bill");
+    const line = from?.orders.find((o: any) => o.id === id);
+    if (from) {
+      from.orders = from.orders.filter((o: any) => o.id !== id);
+      recalcBill(from);
+    }
+    if (line) to.orders.push(line);
+    recalcBill(to);
+    e.patchById(id, { billId: to.id, paymentState: "ON_BILL" });
+    return e.findById(id);
   });
   r.post("/orders/:id/cancel", (q) => {
     const id = q.params["id"]!;

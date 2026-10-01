@@ -219,6 +219,19 @@ describe.skipIf(!HAS_DB)("POS, kitchen, tables, in-seat ordering & shifts (e2e)"
     });
   });
 
+  it("an unpaid counter order moves onto a playing PC's bill; a paid one can't", async () => {
+    const a = await newStation();
+    const s = (await call(cashierT, "POST", `/devices/${a.identity!.deviceId}/sessions`, { planId: regularPlan, request: { kind: "minutes", minutes: 30 }, payment: { method: "CARD" }, idempotencyKey: key() })).body;
+    const o = (await call(cashierT, "POST", `/branches/${dxb1}/orders`, { type: "TAKEAWAY", lines: [{ productId: P["BRG-CLASSIC"].id, quantity: 1 }], idempotencyKey: key() })).body;
+    const moved = await call(cashierT, "POST", `/orders/${o.id}/move-to-seat`, { deviceId: a.identity!.deviceId });
+    expect(moved.status, JSON.stringify(moved.body)).toBe(200);
+    const bill = (await call(cashierT, "GET", `/bills/${(await call(cashierT, "GET", `/sessions/${s.id}`)).body.bill.id}`)).body;
+    expect(bill.orders.some((x: any) => x.id === o.id)).toBe(true);
+    expect((await call(cashierT, "GET", `/bills/${o.bill.id}`)).body.total).toBe("0.00");
+    expect((await call(cashierT, "POST", `/orders/${o.id}/move-to-seat`, { deviceId: a.identity!.deviceId })).body.error).toBe("already_on_bill");
+    await call(cashierT, "POST", `/sessions/${s.id}/end`, { reason: "t" });
+  });
+
   describe("voids, cancels, refunds", () => {
     it("void before the kitchen starts is fine; after, only a manager (with a reason) can", async () => {
       const t5 = tables.find((t) => t.name === "T5");

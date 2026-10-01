@@ -45,7 +45,8 @@ function StartForm({ device, onStarted }: { device: FloorDevice; onStarted: () =
       const r = await api<QuoteResponse>(`/devices/${device.id}/sessions/quote`, { method: "POST", body: { customerId: customer?.id ?? null, planId, request: method === "TIME_BALANCE" ? undefined : req, players, promoCode: promoCode.trim() || null } }).catch(() => null);
       if (alive && r) {
         setQuote(r);
-        if (!planId && r.plans[0]) setPlanId(r.plans[0].id);
+        // No rate yet, or the chosen one doesn't apply here (any more): take the first that does.
+        if (r.plans[0] && !r.plans.some((p) => p.id === planId)) setPlanId(r.plans[0].id);
       }
     }, 150);
     return () => {
@@ -330,7 +331,8 @@ export function SessionPanel({ device, allDevices, onChange }: { device: FloorDe
   if (!can("station.start_session", device.branchId)) return <p className="text-sm text-ink-3">Available.</p>;
   if (device.status === "CLEANING") return <MarkCleaned device={device} onDone={onChange} />;
   if (device.status !== "AVAILABLE" && device.status !== "RESERVED") return <p className="text-sm text-ink-3">This station is {device.status.toLowerCase().replace("_", " ")}.</p>;
-  return <StartForm device={device} onStarted={onChange} />;
+  // Keyed by station: a PC's rate, time and customer must not carry over to the next station clicked.
+  return <StartForm key={device.id} device={device} onStarted={onChange} />;
 }
 
 /** VR headsets and shared gear are wiped down between players before the next session. */

@@ -262,6 +262,14 @@ export class OrdersService {
 
     await auditAs(t, actor, { action: "order.place", entityType: "Order", entityId: order.id, branchId: branch.id, after: { number: order.number, type: i.type, channel: i.channel, total: fromMinor(priced.totalMinor, unit).toFixed(unit), items: i.lines.length } });
     for (const [stationId, ticketId] of ticketFor) this.bus.publish(branch.organizationId, branch.id, { type: "kitchen", ticket: { id: ticketId, stationId, status: "NEW", orderId: order.id } });
+    const who = customerId ? (await t.customer.findUnique({ where: { id: customerId }, select: { displayName: true } }))?.displayName ?? null : null;
+    this.bus.publish(branch.organizationId, branch.id, {
+      type: "order", change: "placed",
+      order: {
+        id: order.id, number: order.number, type: i.type, channel: i.channel, deliverTo, customer: who, total: fromMinor(priced.totalMinor, unit).toFixed(unit), currency: branch.currency, notes: i.notes ?? null,
+        items: priceInputs.map((x) => ({ name: x.product.name, quantity: Number(x.line.quantity) })),
+      },
+    });
     return this.view(t, order.id);
   }
 
@@ -269,7 +277,7 @@ export class OrdersService {
 
   /** Pays a bill with one or more tenders (split payment). Cash needs an open shift; change is worked out. */
   async pay(t: TenantTx, billId: string, payments: PayInput[], actor: OrderActor, key: string, orderId: string | null = null, forAmountMinor: number | null = null) {
-    const bill = await t.bill.findUnique({ where: { id: billId }, select: { id: true, branchId: true, currency: true, customerId: true, total: true, paidTotal: true, status: true } });
+    const bill = await t.bill.findUnique({ where: { id: billId }, select: { id: true, organizationId: true, branchId: true, currency: true, customerId: true, total: true, paidTotal: true, status: true } });
     if (!bill) throw new NotFoundException({ error: "bill_not_found" });
     if (bill.status === "VOID") throw new ConflictException({ error: "bill_void" });
     const unit = await minorUnit(t, bill.currency);
@@ -303,6 +311,7 @@ export class OrdersService {
         await t.restaurantTable.update({ where: { id: table.tableId }, data: { status: "CLEANING" } });
       }
     }
+    for (const o of await t.order.findMany({ where: { billId: bill.id }, select: { id: true } })) this.bus.publish(bill.organizationId, bill.branchId, { type: "order", change: "updated", order: { id: o.id } });
     return { ...(await this.billView(t, bill.id)), change: change.length ? fromMinor(change.reduce((a, b) => a + b, 0), unit).toFixed(unit) : null };
   }
 
@@ -338,6 +347,32 @@ export class OrdersService {
     if (o.billId) await recomputeBill(t, o.billId);
     await auditAs(t, actor, { action: "order.cancel", entityType: "Order", entityId: orderId, branchId: o.branchId, after: { reason } });
     for (const tk of tickets) this.bus.publish(o.organizationId, o.branchId, { type: "kitchen", ticket: { id: tk.id, stationId: tk.stationId, status: "CANCELLED", orderId } });
+    this.bus.publish(o.organizationId, o.branchId, { type: "order", change: "updated", order: { id: orderId } });
+    return this.view(t, orderId);
+  }
+
+  /** Puts an unpaid order on the bill of whoever is playing at a PC (pay it with their session). */
+  async moveToSeat(t: TenantTx, orderId: string, deviceId: string, actor: Extract<OrderActor, { type: "EMPLOYEE" }>) {
+    const o = await t.order.findUnique({ where: { id: orderId }, select: { id: true, number: true, status: true, billId: true, organizationId: true, branchId: true, paymentState: true } });
+    if (!o) throw new NotFoundException({ error: "not_found" });
+    if (["CANCELLED", "REFUNDED"].includes(o.status)) throw new ConflictException({ error: "not_movable", status: o.status });
+    if (o.paymentState === "PAID" || (await t.payment.count({ where: { orderId, status: "CAPTURED" } }))) throw new ConflictException({ error: "order_paid" });
+    const device = await t.device.findFirst({ where: { id: deviceId, branchId: o.branchId }, select: { id: true, name: true, zone: { select: { name: true } } } });
+    if (!device) throw new NotFoundException({ error: "device_not_found" });
+    const s = await t.gamingSession.findFirst({ where: { deviceId, status: { in: [...LIVE_SESSION] } }, select: { id: true, billId: true } });
+    if (!s?.billId) throw new ConflictException({ error: "no_session", hint: "Nobody is playing on that PC." });
+    if (s.billId === o.billId) throw new ConflictException({ error: "already_on_bill" });
+    await t.order.update({ where: { id: orderId }, data: { billId: s.billId, gamingSessionId: s.id, paymentState: "ON_BILL" } });
+    await t.orderItem.updateMany({ where: { orderId }, data: { gamingSessionId: s.id } });
+    await recomputeBill(t, s.billId);
+    if (o.billId) {
+      const left = await recomputeBill(t, o.billId);
+      if (left.status === "SETTLED" && left.tableId && !(await t.bill.count({ where: { tableId: left.tableId, status: { in: ["OPEN", "PARTIALLY_PAID"] } } }))) {
+        await t.restaurantTable.update({ where: { id: left.tableId }, data: { status: "CLEANING" } });
+      }
+    }
+    this.bus.publish(o.organizationId, o.branchId, { type: "order", change: "updated", order: { id: orderId } });
+    await auditAs(t, actor, { action: "order.move_to_seat", entityType: "Order", entityId: orderId, branchId: o.branchId, after: { number: o.number, to: `${device.name} · ${device.zone.name}` } });
     return this.view(t, orderId);
   }
 

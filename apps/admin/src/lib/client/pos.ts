@@ -138,10 +138,14 @@ export interface OrderView {
   deliverTo: string | null;
   notes: string | null;
   currency: string;
+  subtotal: string;
+  discountTotal: string;
+  taxTotal: string;
   total: string;
   createdAt: string;
+  cancelReason: string | null;
   customer: { id: string; displayName: string } | null;
-  items: Array<{ id: string; nameSnapshot: string; quantity: number; status: string }>;
+  items: Array<{ id: string; nameSnapshot: string; quantity: number; unitPrice: string; lineTotal: string; modifiers: Array<{ name: string }> | null; notes: string | null; status: string }>;
   kitchenTickets: Array<{ id: string; status: string; station: { name: string } }>;
-  bill: { id: string; number: string; status: string; due: string } | null;
+  bill: { id: string; number: string; status: string; total: string; paidTotal: string; due: string } | null;
 }

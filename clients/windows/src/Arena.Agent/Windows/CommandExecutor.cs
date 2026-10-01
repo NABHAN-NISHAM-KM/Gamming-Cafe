@@ -55,6 +55,9 @@ public sealed class CommandExecutor(ILogger<CommandExecutor> log)
                     return await WakeOnLanAsync(Str(p, "macAddress"), ct);
 
                 case "LOCK":
+                    // The Shell's sign-in screen is the lock: with nobody playing it's already showing, and a
+                    // Windows lock screen on top would need the Windows password. Only lock Windows without a Shell.
+                    if (System.Diagnostics.Process.GetProcessesByName("ArenaShell").Length > 0) return ExecResult.Success(new { lockedBy = "shell" });
                     if (IsService) Native.StartInUserSession(Path.Combine(Environment.SystemDirectory, "rundll32.exe"), "user32.dll,LockWorkStation", null);
                     else if (!Native.LockWorkStation()) return ExecResult.Fail("LOCK_FAILED", "LockWorkStation failed");
                     return ExecResult.Success();

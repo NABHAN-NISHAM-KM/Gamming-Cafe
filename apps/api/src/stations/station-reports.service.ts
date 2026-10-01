@@ -127,7 +127,7 @@ export class StationReportsService implements OnModuleInit {
       const d = await t.device.findUniqueOrThrow({ where: { id: c.deviceId }, select: { name: true } });
       const session = await t.gamingSession.findFirst({ where: { deviceId: c.deviceId, status: { in: ["ACTIVE", "ENDING", "PAUSED"] } }, select: { id: true, customer: { select: { displayName: true } } } });
       const who = session?.customer?.displayName;
-      await this.runtime.openAlert(t, c, "HELP_REQUESTED", "WARNING", `${d.name}: ${who ? `${who} needs` : "customer needs"} help (${topic})`, { topic, note, sessionId: session?.id ?? null });
+      await this.runtime.openAlert(t, c, "HELP_REQUESTED", "WARNING", `${d.name}: ${who ? `${who} needs` : "customer needs"} help (${topic})`, { topic, note, sessionId: session?.id ?? null, customer: who ?? null, device: d.name }, { renotify: true });
     });
     return { ok: true };
   }

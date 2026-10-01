@@ -64,6 +64,7 @@ export type DemoEvent =
   | { type: "alert"; branchId: string; alert: any }
   | { type: "booking"; branchId: string }
   | { type: "kitchen"; branchId: string }
+  | { type: "order"; branchId: string; change: "placed" | "updated"; order: any }
   | { type: "changed" };
 
 export interface Fixtures {

@@ -20,7 +20,21 @@ export type FloorEvent =
   | { type: "inventory"; deviceId: string }
   | { type: "booking"; booking: { id: string; status: string; deviceIds?: string[] } }
   | { type: "kitchen"; ticket: { id: string; stationId: string; status: string; orderId: string } }
-  | { type: "print"; jobId: string };
+  | { type: "print"; jobId: string }
+  /** An order was placed ("placed", with what's needed for a staff pop-up) or changed (paid, cancelled, moved). */
+  | { type: "order"; change: "placed" | "updated"; order: { id: string } & Partial<OrderNotice> };
+
+export interface OrderNotice {
+  number: string;
+  type: string;
+  channel: string;
+  deliverTo: string | null;
+  customer: string | null;
+  total: string;
+  currency: string;
+  notes: string | null;
+  items: Array<{ name: string; quantity: number }>;
+}
 
 @Injectable()
 export class LiveBus {

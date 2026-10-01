@@ -67,6 +67,7 @@ const TableStatus = z.object({ status: z.enum(["AVAILABLE", "OCCUPIED", "RESERVE
 const OpenShift = z.object({ cashDrawerId: z.uuid(), openingCash: money }).strict();
 const Movement = z.object({ type: z.enum(["PAY_IN", "PAY_OUT", "SAFE_DROP"]), amount: money, reason: z.string().min(2).max(200) }).strict();
 const CloseShift = z.object({ countedCash: money, denominations: z.record(z.string().regex(/^\d+(\.\d+)?$/), z.number().int().min(0).max(100_000)).nullish(), notes: z.string().max(300).nullish() }).strict();
+const MoveToSeat = z.object({ deviceId: z.uuid() }).strict();
 const Drawer = z.object({ name: z.string().min(1).max(40) }).strict();
 const Station = z.object({ name: z.string().min(1).max(40) }).strict();
 
@@ -283,6 +284,14 @@ export class PosController {
   async cancel(@Param("id") id: string, @Body(new ZodPipe(Reason)) body: z.infer<typeof Reason>) {
     authorizeFor("restaurant.cancel_order", await branchOf("order", id));
     return this.orders.cancel(tx(), id, body.reason, me());
+  }
+
+  @AnyStaff()
+  @Post("orders/:id/move-to-seat")
+  @HttpCode(200)
+  async moveToSeat(@Param("id") id: string, @Body(new ZodPipe(MoveToSeat)) body: z.infer<typeof MoveToSeat>) {
+    authorizeFor("pos.sell", await branchOf("order", id));
+    return this.orders.moveToSeat(tx(), id, body.deviceId, me());
   }
 
   /** Before the kitchen starts: pos.void_item. After: restaurant.cancel_order (sensitive). */
