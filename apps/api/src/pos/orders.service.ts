@@ -64,7 +64,7 @@ export class OrdersService {
           where: { isActive: true, type: { in: [...FOOD_TYPES] }, ...(opts.shellOnly ? { availableInShell: true } : {}) },
           orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
           select: {
-            id: true, name: true, description: true, imageUrl: true, price: true, currency: true, type: true, sku: true, taxAppliesTo: true, prepTimeMinutes: true, requiresAgeCheck: true, inventoryItemId: true,
+            id: true, name: true, description: true, imageUrl: true, price: true, currency: true, type: true, sku: true, barcode: true, taxAppliesTo: true, prepTimeMinutes: true, requiresAgeCheck: true, inventoryItemId: true,
             kitchenStation: { select: { id: true, name: true } },
             productBranchPrices: { where: { branchId }, select: { price: true, isAvailable: true } },
             productModifierGroups: {
@@ -77,15 +77,26 @@ export class OrdersService {
     });
     // Stock items the branch has run out of show as sold out (on the POS and on customers' PCs).
     const onHand = await stockForProducts(t, branchId, cats.flatMap((c) => c.products.map((p) => ({ id: p.id, type: p.type, inventoryItemId: p.inventoryItemId, stationName: p.kitchenStation?.name ?? null }))));
+    // The till's "Top sellers" tab: what this branch sold most in the last 30 days.
+    const top = opts.shellOnly
+      ? []
+      : await t.orderItem.groupBy({
+          by: ["productId"],
+          where: { order: { branchId }, createdAt: { gte: new Date(Date.now() - 30 * 86_400_000) }, status: { notIn: ["VOIDED", "REFUNDED"] }, productType: { in: [...FOOD_TYPES] } },
+          _sum: { quantity: true },
+          orderBy: { _sum: { quantity: "desc" } },
+          take: 12,
+        });
     return {
       currency: branch.currency,
+      topProductIds: top.map((r) => r.productId),
       categories: cats
         .map((c) => ({
           id: c.id, name: c.name, imageUrl: c.imageUrl, showInShell: c.showInShell,
           products: c.products.map((p) => {
             const bp = p.productBranchPrices[0];
             return {
-              id: p.id, name: p.name, description: p.description, imageUrl: p.imageUrl, sku: p.sku, type: p.type, taxClass: p.taxAppliesTo, prepTimeMinutes: p.prepTimeMinutes,
+              id: p.id, name: p.name, description: p.description, imageUrl: p.imageUrl, sku: p.sku, barcode: p.barcode, type: p.type, taxClass: p.taxAppliesTo, prepTimeMinutes: p.prepTimeMinutes,
               price: (bp?.price ?? p.price).toFixed(unit), available: (bp ? bp.isAvailable : true) && !(onHand.get(p.id)?.lte(0) ?? false), station: p.kitchenStation?.name ?? null,
               modifierGroups: p.productModifierGroups.map(({ modifierGroup: g }) => ({ id: g.id, name: g.name, minSelect: g.minSelect, maxSelect: g.maxSelect, modifiers: g.modifiers.map((m) => ({ id: m.id, name: m.name, priceDelta: m.priceDelta.toFixed(unit) })) })),
             };

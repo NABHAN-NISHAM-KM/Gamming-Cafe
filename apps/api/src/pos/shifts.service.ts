@@ -1,6 +1,7 @@
-import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
+import { ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma, type TenantTx } from "@arena/db";
 import { auditAs } from "../common/audit.service.js";
+import { LiveBus } from "../devices/live.js";
 import { fromMinor, minorUnit, toMinor } from "./bills.js";
 
 type Actor = { type: "EMPLOYEE"; id: string };
@@ -16,6 +17,8 @@ const DEFAULT_VARIANCE_THRESHOLD = 5;
  */
 @Injectable()
 export class ShiftsService {
+  constructor(@Inject(LiveBus) private readonly bus: LiveBus) {}
+
   async open(t: TenantTx, i: { branchId: string; cashDrawerId: string; openingCash: string }, actor: Actor) {
     const drawer = await t.cashDrawer.findFirst({ where: { id: i.cashDrawerId, branchId: i.branchId, isActive: true } });
     if (!drawer) throw new NotFoundException({ error: "drawer_not_found" });
@@ -107,6 +110,18 @@ export class ShiftsService {
       },
     });
     await auditAs(t, actor, { action: "shift.close", entityType: "Shift", entityId: shiftId, branchId: shift.branchId, after: { expected: fromMinor(expected, unit).toFixed(unit), counted: c.countedCash, variance: fromMinor(variance, unit).toFixed(unit), status: after.status } });
+    if (after.status === "PENDING_APPROVAL") {
+      // Over the branch limit: tell the managers now, not at the next report.
+      const amount = fromMinor(variance, unit).toFixed(unit);
+      const alert = await t.alert.create({
+        data: {
+          organizationId: shift.organizationId, branchId: shift.branchId, type: "CASH_VARIANCE", severity: "WARNING", dedupeKey: `CASH_VARIANCE:${shiftId}`,
+          title: `${report.employee} closed ${report.drawer} ${variance > 0 ? "over" : "short"} by ${shift.currency} ${amount.replace("-", "")}`,
+          detail: { shiftId, employee: report.employee, drawer: report.drawer, expected: fromMinor(expected, unit).toFixed(unit), counted: fromMinor(counted, unit).toFixed(unit), variance: amount },
+        },
+      });
+      this.bus.publish(shift.organizationId, shift.branchId, { type: "alert", alert });
+    }
     return this.report(t, shiftId);
   }
 
@@ -116,6 +131,10 @@ export class ShiftsService {
     if (shift.status !== "PENDING_APPROVAL") throw new ConflictException({ error: "nothing_to_approve", status: shift.status });
     if (shift.employeeId === actor.id) throw new ConflictException({ error: "cannot_approve_own_shift" });
     await t.shift.update({ where: { id: shiftId }, data: { status: "APPROVED", approvedById: actor.id, approvedAt: new Date(), notes: note ? `${shift.notes ? `${shift.notes}\n` : ""}Approved: ${note}` : shift.notes } });
+    for (const a of await t.alert.findMany({ where: { dedupeKey: `CASH_VARIANCE:${shiftId}`, status: { in: ["OPEN", "ACKNOWLEDGED"] } } })) {
+      const alert = await t.alert.update({ where: { id: a.id }, data: { status: "RESOLVED", resolvedAt: new Date() } });
+      this.bus.publish(shift.organizationId, shift.branchId, { type: "alert", alert });
+    }
     await auditAs(t, actor, { action: "shift.approve", entityType: "Shift", entityId: shiftId, branchId: shift.branchId, after: { variance: shift.variance?.toString(), note } });
     return this.report(t, shiftId);
   }

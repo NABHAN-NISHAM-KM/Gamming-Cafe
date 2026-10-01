@@ -167,6 +167,43 @@ export class AuthService {
     });
   }
 
+  // ── Switch staff by PIN (authenticated, shared counter PC) ────────────────
+
+  /**
+   * Hand a signed-in counter PC to a colleague with their PIN. The previous
+   * person is signed out on this browser. Accounts with 2-step sign-in must
+   * use their password and code instead: a PIN is never a way around MFA.
+   * Wrong PINs count towards the same lock-out as wrong passwords.
+   */
+  async pinSwitch(employee: { userId: string; status: string; pinHash: string | null }, pin: string, current: { organizationId: string; sessionId: string }, meta: ClientMeta): Promise<TokenPair> {
+    const user = await this.db.global.user.findUnique({ where: { id: employee.userId } });
+    if (!user || user.isDisabled || employee.status !== "ACTIVE" || !employee.pinHash) {
+      await burnVerify(pin);
+      throw INVALID();
+    }
+    if (user.lockedUntil && user.lockedUntil > new Date()) throw new HttpException({ error: "account_locked", retryAfter: user.lockedUntil.toISOString() }, 423);
+    if (!(await verifySecret(employee.pinHash, pin))) {
+      const failures = user.failedLogins + 1;
+      const lock = failures >= this.cfg.LOGIN_MAX_FAILURES;
+      await this.db.global.user.update({
+        where: { id: user.id },
+        data: lock ? { failedLogins: 0, lockedUntil: new Date(Date.now() + this.cfg.LOGIN_LOCK_MINUTES * 60_000) } : { failedLogins: failures },
+      });
+      throw INVALID();
+    }
+    if (user.mfaRequired || (await this.confirmedTotp(user.id))) throw new ForbiddenException({ error: "full_sign_in_required" });
+    await this.db.global.user.update({ where: { id: user.id }, data: { failedLogins: 0, lockedUntil: null, lastLoginAt: new Date() } });
+    const membership = await this.membershipById(user.id, current.organizationId);
+    await this.revokeFamily(current.sessionId, "pin_switch");
+    return this.issue(user.id, membership, meta, { mfaSetupRequired: false });
+  }
+
+  /** The signed-in user's own counter PIN; needs their password so a walk-up can't set one. */
+  async setOwnPin(userId: string, password: string) {
+    const user = await this.db.global.user.findUniqueOrThrow({ where: { id: userId }, select: { passwordHash: true } });
+    if (!user.passwordHash || !(await verifySecret(user.passwordHash, password))) throw new UnprocessableEntityException({ error: "invalid_current_password" });
+  }
+
   // ── internals ─────────────────────────────────────────────────────────────
 
   private async memberships(userId: string): Promise<Membership[]> {

@@ -10,26 +10,65 @@ const rid = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? cry
 
 // ── menu grid + options ─────────────────────────────────────────────────────
 
+const TOP = "__top";
+
 export function MenuGrid({ menu, onAdd }: { menu: Menu; onAdd: (l: CartLine) => void }) {
-  const [cat, setCat] = useState(menu.categories[0]?.id ?? "");
+  const all = useMemo(() => menu.categories.flatMap((c) => c.products), [menu]);
+  const top = useMemo(() => (menu.topProductIds ?? []).map((id) => all.find((p) => p.id === id)).filter((p): p is MenuProduct => !!p), [menu, all]);
+  const [cat, setCat] = useState(top.length ? TOP : (menu.categories[0]?.id ?? ""));
   const [q, setQ] = useState("");
+  const [miss, setMiss] = useState<string | null>(null);
   const [picking, setPicking] = useState<MenuProduct | null>(null);
   const products = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    if (needle) return menu.categories.flatMap((c) => c.products).filter((p) => p.name.toLowerCase().includes(needle) || p.sku.toLowerCase().includes(needle));
+    if (needle) return all.filter((p) => p.name.toLowerCase().includes(needle) || p.sku.toLowerCase().includes(needle) || p.barcode === q.trim());
+    if (cat === TOP) return top;
     return menu.categories.find((c) => c.id === cat)?.products ?? [];
-  }, [menu, cat, q]);
+  }, [menu, all, top, cat, q]);
   const pick = (p: MenuProduct) =>
     p.modifierGroups.length ? setPicking(p) : onAdd({ key: rid(), productId: p.id, name: p.name, quantity: 1, modifierIds: [], optionNames: [], unit: Number(p.price) });
+  // A barcode scanner types the code and presses Enter: an exact barcode/SKU match goes straight on the order.
+  const scan = () => {
+    const code = q.trim();
+    if (!code) return;
+    const hit = all.find((p) => p.barcode === code || p.sku.toLowerCase() === code.toLowerCase()) ?? (products.length === 1 ? products[0] : undefined);
+    if (!hit) return setMiss(code);
+    if (!hit.available) return setMiss(`${hit.name} — sold out`);
+    pick(hit);
+    setQ("");
+    setMiss(null);
+  };
 
   return (
     <div className="space-y-3">
       <div className="relative">
         <Search className="pointer-events-none absolute left-3 top-2.5 size-4 text-ink-3" />
-        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search menu or SKU…" className="pl-9" />
+        <Input
+          value={q}
+          onChange={(e) => {
+            setQ(e.target.value);
+            setMiss(null);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              scan();
+            }
+          }}
+          placeholder="Search, or scan a barcode…"
+          className="pl-9"
+          autoFocus
+          aria-label="Search the menu or scan a barcode"
+        />
       </div>
+      {miss && <p className="text-xs text-reserved" role="status">Nothing matches “{miss}”.</p>}
       {!q && (
         <div className="flex flex-wrap gap-1.5">
+          {top.length > 0 && (
+            <button onClick={() => setCat(TOP)} className={cx("rounded-full border px-3 py-1 text-sm", cat === TOP ? "border-accent bg-accent-soft text-accent" : "border-line text-ink-2 hover:text-ink")}>
+              ★ Top sellers
+            </button>
+          )}
           {menu.categories.map((c) => (
             <button key={c.id} onClick={() => setCat(c.id)} className={cx("rounded-full border px-3 py-1 text-sm", cat === c.id ? "border-accent bg-accent-soft text-accent" : "border-line text-ink-2 hover:text-ink")}>
               {c.name}

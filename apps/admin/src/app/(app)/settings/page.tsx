@@ -51,6 +51,7 @@ export default function SettingsPage() {
       </Card>
       <ShellLook />
       <ChangePassword />
+      <CounterPin />
       <Card className="max-w-2xl p-6">
         <div className="flex items-start gap-3">
           <Smartphone className="mt-0.5 size-5 text-accent" />
@@ -154,6 +155,49 @@ function ChangePassword() {
           <ErrorNote>{save.error}</ErrorNote>
           <div>
             <Button type="submit" variant="primary" pending={save.pending} disabled={mismatch || next.length < 12 || !current}>Change password</Button>
+          </div>
+        </form>
+      </div>
+    </Card>
+  );
+}
+
+/** A 4–8 digit PIN so a colleague can hand the counter PC over to you (Switch staff, top bar). */
+function CounterPin() {
+  const [password, setPassword] = useState("");
+  const [pin, setPin] = useState("");
+  const save = useAction(async () => {
+    await api("/auth/pin", { method: "POST", body: { password, pin } });
+    setPassword("");
+    setPin("");
+    toast("Counter PIN saved. Colleagues can now hand the counter to you with \"Switch staff\".");
+  });
+  return (
+    <Card className="mb-4 max-w-2xl p-6">
+      <div className="flex items-start gap-3">
+        <KeyRound className="mt-0.5 size-5 text-accent" />
+        <form
+          className="grid flex-1 gap-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void save.run();
+          }}
+        >
+          <div>
+            <h2 className="font-semibold">My counter PIN</h2>
+            <p className="mt-1 text-sm text-ink-2">
+              On a shared counter PC, press <strong>Switch staff</strong> at the top, pick your name and type this PIN — no need to sign the last person out. People with 2-step sign-in turned on still sign in with their password and code.
+            </p>
+          </div>
+          <Field label="New PIN" hint="4 to 8 digits. Don't reuse your bank PIN.">
+            <Input type="password" inputMode="numeric" autoComplete="off" pattern="\d{4,8}" maxLength={8} value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))} required />
+          </Field>
+          <Field label="Your password" hint="To confirm it's you.">
+            <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />
+          </Field>
+          <ErrorNote>{save.error}</ErrorNote>
+          <div>
+            <Button type="submit" variant="primary" pending={save.pending} disabled={pin.length < 4 || !password}>Save PIN</Button>
           </div>
         </form>
       </div>

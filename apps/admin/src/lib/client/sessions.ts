@@ -13,12 +13,13 @@ export interface SessionSummary {
   customer: { id: string; displayName: string } | null;
   guestLabel: string | null;
   planName: string | null;
+  /** How the time was paid: CASH, CARD, WALLET, TIME_BALANCE, PAY_LATER. */
+  fundedBy?: string | null;
 }
 
 export interface SessionView extends SessionSummary {
   deviceId: string;
   deviceName: string;
-  fundedBy: string | null;
   allocatedMinutes: number | null;
   endedAt: string | null;
   endReason: string | null;
@@ -81,3 +82,20 @@ export function useTick(ms = 1000) {
 }
 
 export const idem = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+
+/**
+ * What ending a session now means for the customer's money, in plain words —
+ * shown before staff press End or Lock. Mirrors the API: postpaid bills the
+ * time used, saved hours get the unused minutes back, cash/card time doesn't.
+ */
+export function endConsequence(s: SessionSummary) {
+  const who = s.customer?.displayName ?? s.guestLabel ?? "The player";
+  if (s.paymentTiming === "POSTPAID") {
+    const used = Math.max(1, Math.ceil((serverNow() - new Date(s.startedAt ?? serverNow()).getTime()) / 60_000));
+    return `${who} pays for the ${used} min used — it goes on their bill.`;
+  }
+  const left = Math.max(0, Math.floor((remaining(s.expiresAt) ?? 0) / 60_000));
+  if (left === 0) return `${who}'s time is used up.`;
+  if (s.fundedBy === "TIME_BALANCE") return `${left} min unused go back to ${who}'s saved hours.`;
+  return `${left} min are left and are NOT refunded — ${who} paid ${s.currency} ${s.amountDue}.`;
+}

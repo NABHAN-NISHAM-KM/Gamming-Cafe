@@ -1,10 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { API_URL, AT_COOKIE, RT_COOKIE, clearTokens, csrfOk, forwardHeaders, json, refreshOnce, setTokens, type TokenPair } from "@/lib/server/session";
 
+/** API routes that answer with tokens: only the /api/session/* routes may call them, so tokens never reach browser JavaScript. */
+const TOKEN_ROUTES = new Set(["auth/login", "auth/refresh", "auth/mfa/verify", "auth/pin-switch"]);
+
 /** Relays /api/v1/* to the ArenaOS API with the session's access token, refreshing it transparently. */
 async function relay(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
   if (!csrfOk(req)) return json(403, { error: "csrf" });
   const { path } = await ctx.params;
+  if (TOKEN_ROUTES.has(path.join("/").toLowerCase())) return json(404, { error: "not_found" });
   const url = `${API_URL}/v1/${path.map(encodeURIComponent).join("/")}${req.nextUrl.search}`;
   const body = req.method === "GET" || req.method === "HEAD" ? undefined : await req.text();
   const base = forwardHeaders(req);

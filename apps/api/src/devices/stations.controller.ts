@@ -37,6 +37,7 @@ const Accessory = z
 const Check = z.object({ items: z.array(z.object({ accessoryId: z.uuid(), status: z.enum(ACCESSORY_STATUS) }).strict()).min(1).max(40), note: z.string().max(200).nullish() }).strict();
 const Power = z.object({ on: z.boolean() }).strict();
 const Bridge = z.object({ enabled: z.boolean() }).strict();
+const OutOfOrder = z.object({ reason: z.string().trim().min(2).max(200) }).strict();
 
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 /** 8 characters, no look-alikes (0/O, 1/I/L): easy to type on a TV remote, ~40 bits. */
@@ -156,6 +157,38 @@ export class StationsController {
     await tx().device.update({ where: { id: deviceId }, data: { status: "AVAILABLE" } });
     const wiped = await tx().deviceAccessory.updateMany({ where: { deviceId, status: "NEEDS_CLEANING" }, data: { status: "OK" } });
     await this.audit.record({ action: "station.cleaned", entityType: "Device", entityId: deviceId, branchId: d.branchId, after: { accessories: wiped.count } });
+    return this.runtime.view(await this.publish(deviceId));
+  }
+
+  /**
+   * A broken seat: nobody can start a session on it until it's back in service
+   * (sessions refuse MAINTENANCE). Anyone who may lock a station may do it;
+   * the reason also goes on the shift handover so the next shift knows.
+   */
+  @RequirePermission("station.lock")
+  @Post("devices/:deviceId/out-of-order")
+  @HttpCode(200)
+  async outOfOrder(@Param("deviceId") deviceId: string, @Body(new ZodPipe(OutOfOrder)) body: z.infer<typeof OutOfOrder>) {
+    const d = await tx().device.findUniqueOrThrow({ where: { id: deviceId }, select: { status: true, branchId: true, name: true, metadata: true } });
+    if (["OCCUPIED", "STARTING", "SESSION_ENDING"].includes(d.status)) throw new ConflictException({ error: "station_in_use", hint: "End or move the session first." });
+    const reason = body.reason;
+    await tx().device.update({ where: { id: deviceId }, data: { status: "MAINTENANCE", metadata: { ...(d.metadata as object), outOfOrder: { reason, at: new Date().toISOString(), by: principal().displayName } } } });
+    await tx().handoverNote.create({ data: { organizationId: orgId(), branchId: d.branchId, authorId: principal().employeeId, body: `${d.name} is out of order: ${reason}`.slice(0, 500) } });
+    await this.audit.record({ action: "station.out_of_order", entityType: "Device", entityId: deviceId, branchId: d.branchId, after: { reason } });
+    return this.runtime.view(await this.publish(deviceId));
+  }
+
+  @RequirePermission("station.lock")
+  @Post("devices/:deviceId/back-in-service")
+  @HttpCode(200)
+  async backInService(@Param("deviceId") deviceId: string) {
+    const d = await tx().device.findUniqueOrThrow({ where: { id: deviceId }, select: { status: true, branchId: true, name: true, metadata: true } });
+    if (d.status !== "MAINTENANCE") throw new ConflictException({ error: "not_out_of_order", status: d.status });
+    // The handover note "Out of order" left is now done.
+    await tx().handoverNote.updateMany({ where: { branchId: d.branchId, resolvedAt: null, body: { startsWith: `${d.name} is out of order: ` } }, data: { resolvedAt: new Date(), resolvedById: principal().employeeId } });
+    const { outOfOrder: _gone, ...metadata } = d.metadata as Record<string, unknown>;
+    await tx().device.update({ where: { id: deviceId }, data: { status: "AVAILABLE", metadata: metadata as Prisma.InputJsonValue } });
+    await this.audit.record({ action: "station.back_in_service", entityType: "Device", entityId: deviceId, branchId: d.branchId });
     return this.runtime.view(await this.publish(deviceId));
   }
 

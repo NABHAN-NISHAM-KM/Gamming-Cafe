@@ -133,6 +133,16 @@ export function holdsPermission(p: Principal, permission: PermissionKey, target:
   return p.grants.some((g) => (!g.expiresAt || g.expiresAt > now) && g.permissions.has(permission) && covers(g, target));
 }
 
+/**
+ * Does the principal work at `target` at all — any live role there, whatever it
+ * grants? For a staff member's own routine actions (clocking in, handover
+ * notes) that every role at a branch may do.
+ */
+export function worksAt(p: Principal, target: Target, now = new Date()): boolean {
+  if (target.organizationId !== p.organizationId) return false;
+  return p.grants.some((g) => (!g.expiresAt || g.expiresAt > now) && covers(g, target));
+}
+
 /** Permissions from `wanted` the principal does NOT hold over `target` (empty = OK to delegate). */
 export function missingForDelegation(p: Principal, wanted: Iterable<PermissionKey>, target: Target, now = new Date()): PermissionKey[] {
   return [...wanted].filter((k) => !holdsPermission(p, k, target, now));

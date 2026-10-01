@@ -21,6 +21,8 @@ public abstract record ShellRequest
     public sealed record Launch(string RequestId, string GameId) : ShellRequest;
     public sealed record LaunchApp(string RequestId, string AppId) : ShellRequest;
     public sealed record Help(string RequestId, string Topic, string? Note) : ShellRequest;
+    /// <summary>The player's 1–5 star rating at log-out; the server attaches it to their session.</summary>
+    public sealed record Feedback(int Rating, string? Comment) : ShellRequest;
     public sealed record Repair(string RequestId, string Action) : ShellRequest;
     public sealed record MenuRequest(string RequestId) : ShellRequest;
     public sealed record PlaceOrder(string RequestId, OrderLine[] Lines, string? Notes, string PayWith) : ShellRequest;
@@ -88,6 +90,12 @@ public static partial class ShellProtocol
                     var note = Str(root, "note");
                     if (rid is null || !RequestIdPattern().IsMatch(rid) || !HelpTopics.Contains(topic) || note is { Length: > 300 }) return null;
                     return new ShellRequest.Help(rid, topic, string.IsNullOrWhiteSpace(note) ? null : note.Trim());
+                }
+                case "feedback":
+                {
+                    var comment = Str(root, "comment");
+                    if (!root.TryGetProperty("rating", out var r) || r.ValueKind != JsonValueKind.Number || !r.TryGetInt32(out var rating) || rating is < 1 or > 5 || comment is { Length: > 300 }) return null;
+                    return new ShellRequest.Feedback(rating, string.IsNullOrWhiteSpace(comment) ? null : comment.Trim());
                 }
                 case "repair":
                 {

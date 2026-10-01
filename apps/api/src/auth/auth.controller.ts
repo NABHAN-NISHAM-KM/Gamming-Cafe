@@ -4,6 +4,8 @@ import { z } from "zod";
 import { PERMISSIONS } from "@arena/rbac";
 import { AnyStaff, Public } from "../common/decorators.js";
 import { principal, tx } from "../common/request-state.js";
+import { auditAs } from "../common/audit.service.js";
+import { hashSecret } from "./crypto.js";
 import { ZodPipe } from "../common/zod.pipe.js";
 import { AuthService, type ClientMeta } from "./auth.service.js";
 
@@ -16,6 +18,9 @@ const MfaVerify = z.object({ mfaToken: z.string().min(1), code: z.string().regex
 const Refresh = z.object({ refreshToken: z.string().min(20).max(200) });
 const Code = z.object({ code: z.string().regex(/^\d{6}$/) });
 const ChangePassword = z.object({ currentPassword: z.string().min(1).max(256), newPassword: z.string().min(12).max(256) });
+
+const PinSwitch = z.object({ employeeId: z.uuid(), pin: z.string().regex(/^\d{4,8}$/) }).strict();
+const OwnPin = z.object({ password: z.string().min(1).max(256), pin: z.string().regex(/^\d{4,8}$/) }).strict();
 
 const meta = (req: Request): ClientMeta => ({ ip: req.ip ?? null, userAgent: req.headers["user-agent"] ?? null });
 
@@ -99,6 +104,39 @@ export class AuthController {
     const p = principal();
     if (p.impersonatorId) throw new ForbiddenException({ error: "impersonating" });
     await this.auth.changePassword(p.userId, p.sessionId, body.currentPassword, body.newPassword);
+  }
+
+  /** Colleagues who can take over this counter with a PIN (names only). */
+  @AnyStaff()
+  @Get("pin-staff")
+  async pinStaff() {
+    const rows = await tx().employee.findMany({ where: { status: "ACTIVE", pinHash: { not: null } }, select: { id: true, displayName: true }, orderBy: { displayName: "asc" } });
+    return rows.filter((r) => r.id !== principal().employeeId);
+  }
+
+  @AnyStaff()
+  @Post("pin-switch")
+  @HttpCode(200)
+  async pinSwitch(@Body(new ZodPipe(PinSwitch)) body: z.infer<typeof PinSwitch>, @Req() req: Request) {
+    const p = principal();
+    if (p.impersonatorId) throw new ForbiddenException({ error: "impersonating" });
+    const e = await tx().employee.findUnique({ where: { id: body.employeeId }, select: { userId: true, status: true, pinHash: true } });
+    // Unknown (or another org's) employee: same answer as a wrong PIN.
+    const tokens = await this.auth.pinSwitch(e ?? { userId: "00000000-0000-0000-0000-000000000000", status: "NONE", pinHash: null }, body.pin, { organizationId: p.organizationId, sessionId: p.sessionId }, meta(req));
+    await auditAs(tx(), { type: "EMPLOYEE", id: p.employeeId }, { action: "auth.pin_switch", entityType: "Employee", entityId: body.employeeId });
+    return tokens;
+  }
+
+  /** Set my own counter PIN (password required). */
+  @AnyStaff()
+  @Post("pin")
+  @HttpCode(204)
+  async setOwnPin(@Body(new ZodPipe(OwnPin)) body: z.infer<typeof OwnPin>) {
+    const p = principal();
+    if (p.impersonatorId) throw new ForbiddenException({ error: "impersonating" });
+    await this.auth.setOwnPin(p.userId, body.password);
+    await tx().employee.update({ where: { id: p.employeeId }, data: { pinHash: await hashSecret(body.pin) } });
+    await auditAs(tx(), { type: "EMPLOYEE", id: p.employeeId }, { action: "employee.set_own_pin", entityType: "Employee", entityId: p.employeeId });
   }
 }
 

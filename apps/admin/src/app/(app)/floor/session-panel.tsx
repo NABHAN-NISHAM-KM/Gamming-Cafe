@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ArrowRightLeft, Clock, CreditCard, Hourglass, Plus, Search, Square, UserRound, Wallet } from "lucide-react";
+import { ArrowRightLeft, ChevronDown, Clock, CreditCard, Hourglass, Plus, Search, Square, UserRound, Wallet } from "lucide-react";
+import { useT } from "@/lib/client/i18n";
 import { api } from "@/lib/client/api";
 import { useAction, useApi } from "@/lib/client/hooks";
 import { useCan } from "@/lib/client/me";
 import type { FloorDevice } from "@/lib/client/floor";
-import { fmtCountdown, idem, money, remaining, useTick, type QuoteResponse, type SessionSummary } from "@/lib/client/sessions";
+import { endConsequence, fmtCountdown, idem, money, remaining, useTick, type QuoteResponse, type SessionSummary } from "@/lib/client/sessions";
 import { Button, ErrorNote, Field, Input, Select, cx, askConfirm } from "@/components/ui";
 
 type Req = { kind: "minutes"; minutes: number } | { kind: "package"; packageId: string } | { kind: "pass" } | { kind: "open" };
@@ -17,7 +18,8 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
     <button
       type="button"
       onClick={onClick}
-      className={cx("rounded-md border px-2.5 py-1.5 text-xs transition", active ? "border-accent bg-accent/15 text-accent" : "border-line-strong text-ink-2 hover:border-ink-3")}
+      aria-pressed={active}
+      className={cx("min-h-9 rounded-md border px-3 py-1.5 text-sm transition", active ? "border-accent bg-accent/15 text-accent" : "border-line-strong text-ink-2 hover:border-ink-3")}
     >
       {children}
     </button>
@@ -26,6 +28,8 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
 
 /** Start-session form: who, which rate, how long, how they pay — with a live server quote. */
 function StartForm({ device, onStarted }: { device: FloorDevice; onStarted: () => void }) {
+  const t = useT();
+  const [more, setMore] = useState(false);
   const [q, setQ] = useState("");
   const [customer, setCustomer] = useState<{ id: string; displayName: string; username: string } | null>(null);
   const [planId, setPlanId] = useState<string | null>(null);
@@ -98,7 +102,7 @@ function StartForm({ device, onStarted }: { device: FloorDevice; onStarted: () =
 
   return (
     <div className="grid gap-4">
-      <Field label="Customer">
+      <Field label={t("start.customer")}>
         {customer ? (
           <div className="flex items-center gap-2 rounded-md border border-line-strong px-3 py-2 text-sm">
             <UserRound className="size-4 text-accent" />
@@ -112,7 +116,7 @@ function StartForm({ device, onStarted }: { device: FloorDevice; onStarted: () =
         ) : (
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-2.5 size-4 text-ink-3" />
-            <Input className="pl-9" placeholder="Search name, username or phone — or leave empty for a guest" value={q} onChange={(e) => setQ(e.target.value)} />
+            <Input className="pl-9 rtl:pl-3 rtl:pr-9" inputMode="search" placeholder={t("start.customer.ph")} value={q} onChange={(e) => setQ(e.target.value)} />
             {search.data && search.data.length > 0 && q.trim().length >= 2 && (
               <ul className="absolute z-10 mt-1 w-full overflow-hidden rounded-md border border-line-strong bg-panel shadow-xl">
                 {search.data.slice(0, 6).map((c) => (
@@ -129,8 +133,8 @@ function StartForm({ device, onStarted }: { device: FloorDevice; onStarted: () =
         )}
       </Field>
 
-      {method !== "TIME_BALANCE" && (
-        <Field label="Rate">
+      {method !== "TIME_BALANCE" && (more || (quote && !quote.plans.length)) && (
+        <Field label={t("start.rate")}>
           <Select value={plan?.id ?? ""} onChange={(e) => setPlanId(e.target.value)}>
             {quote?.plans.map((p) => (
               <option key={p.id} value={p.id}>
@@ -144,7 +148,7 @@ function StartForm({ device, onStarted }: { device: FloorDevice; onStarted: () =
       )}
 
       {plan && plan.paymentTiming !== "POSTPAID" && !isPass && (
-        <Field label="Time">
+        <Field label={t("start.time")}>
           <div className="flex flex-wrap gap-1.5">
             {isTime &&
               [30, 60, 120, 180].map((m) => (
@@ -163,7 +167,7 @@ function StartForm({ device, onStarted }: { device: FloorDevice; onStarted: () =
       )}
 
       {maxPlayers > 1 && (
-        <Field label="Players" hint={plan?.extraPlayerRateMinor && (plan.includedPlayers ?? 1) < maxPlayers ? `${plan.includedPlayers ?? 1} included · each extra ${money(plan.extraPlayerRateMinor, unit, cur)}/${plan.billingMode === "PER_MINUTE" ? "min" : "h"}` : undefined}>
+        <Field label={t("start.players")} hint={plan?.extraPlayerRateMinor && (plan.includedPlayers ?? 1) < maxPlayers ? `${plan.includedPlayers ?? 1} included · each extra ${money(plan.extraPlayerRateMinor, unit, cur)}/${plan.billingMode === "PER_MINUTE" ? "min" : "h"}` : undefined}>
           <div className="flex flex-wrap gap-1.5">
             {Array.from({ length: maxPlayers }, (_, i) => i + 1).map((n) => (
               <Chip key={n} active={players === n} onClick={() => setPlayers(n)}>
@@ -180,29 +184,29 @@ function StartForm({ device, onStarted }: { device: FloorDevice; onStarted: () =
         </label>
       )}
 
-      {method !== "TIME_BALANCE" && plan?.paymentTiming !== "POSTPAID" && (
-        <Field label="Promo code (optional)">
+      {more && method !== "TIME_BALANCE" && plan?.paymentTiming !== "POSTPAID" && (
+        <Field label={t("start.promo")}>
           <Input value={promoCode} onChange={(e) => setPromoCode(e.target.value.toUpperCase())} placeholder="Automatic offers apply by themselves" maxLength={40} />
         </Field>
       )}
 
-      <Field label="Payment">
+      <Field label={t("start.payment")}>
         <div className="flex flex-wrap gap-1.5">
           {plan?.paymentTiming === "POSTPAID" ? (
             <Chip active onClick={() => undefined}>
-              <Hourglass className="mr-1 inline size-3" /> Pay at the end
+              <Hourglass className="mr-1 inline size-3" /> {t("start.payEnd")}
             </Chip>
           ) : (
             <>
               <Chip active={method === "CASH"} onClick={() => setMethod("CASH")}>
-                Cash
+                {t("start.cash")}
               </Chip>
               <Chip active={method === "CARD"} onClick={() => setMethod("CARD")}>
-                <CreditCard className="mr-1 inline size-3" /> Card
+                <CreditCard className="mr-1 inline size-3" /> {t("start.card")}
               </Chip>
               {customer && balance > 0 && (
                 <Chip active={method === "TIME_BALANCE"} onClick={() => setMethod("TIME_BALANCE")}>
-                  <Wallet className="mr-1 inline size-3" /> Prepaid time
+                  <Wallet className="mr-1 inline size-3" /> {t("start.saved")} ({fmtCountdown(balance * 60_000, false)})
                 </Chip>
               )}
             </>
@@ -210,9 +214,15 @@ function StartForm({ device, onStarted }: { device: FloorDevice; onStarted: () =
         </div>
       </Field>
 
+      {method !== "TIME_BALANCE" && plan?.paymentTiming !== "POSTPAID" && (
+        <button type="button" onClick={() => setMore((v) => !v)} aria-expanded={more} className="flex items-center gap-1 justify-self-start text-xs text-ink-3 hover:text-ink">
+          <ChevronDown className={cx("size-3.5 transition-transform", more && "rotate-180")} /> {more ? t("start.less") : t("start.more")}
+          {!more && plan && <span className="text-ink-3">· {plan.name}</span>}
+        </button>
+      )}
       <div className="rounded-lg border border-line bg-bg p-3">
         {method === "TIME_BALANCE" ? (
-          <p className="text-sm">{minutes} min from {customer?.displayName}&apos;s prepaid time · unused time returns to the account</p>
+          <p className="text-sm">{minutes} min from {customer?.displayName}&apos;s saved hours · unused time goes back to them</p>
         ) : quote?.quote ? (
           <>
             {quote.quote.lines.map((l) => (
@@ -229,10 +239,13 @@ function StartForm({ device, onStarted }: { device: FloorDevice; onStarted: () =
           <p className="text-xs text-danger">{quote?.error ?? "Choose a rate"}</p>
         )}
       </div>
-      {!device.isOnline && <p className="text-xs text-reserved">This PC is offline — switch it on first.</p>}
+      {!device.isOnline && <p className="text-xs text-reserved">{t("start.offline")}</p>}
       <ErrorNote>{start.error}</ErrorNote>
-      <Button variant="primary" pending={start.pending} disabled={!canStart} onClick={() => void start.run()}>
-        <Clock className="size-4" /> Start session{method !== "TIME_BALANCE" && quote?.quote && total > 0 ? ` · ${money(total, unit, cur)}` : ""}
+      <Button variant="primary" className="min-h-12 text-base" pending={start.pending} disabled={!canStart} onClick={() => void start.run()}>
+        <Clock className="size-4" /> {t("start.go")}
+        {minutes ? ` · ${minutes < 60 || minutes % 60 ? `${minutes} min` : `${minutes / 60} h`}` : ""}
+        {method === "TIME_BALANCE" ? ` · ${t("start.saved")}` : plan?.paymentTiming === "POSTPAID" ? ` · ${t("start.payEnd")}` : ` · ${method === "CARD" ? t("start.card") : t("start.cash")}`}
+        {method !== "TIME_BALANCE" && quote?.quote && total > 0 ? ` · ${money(total, unit, cur)}` : ""}
       </Button>
     </div>
   );
@@ -250,7 +263,7 @@ function RunningSession({ device, session, available, onChange }: { device: Floo
     onChange();
   });
   const end = useAction(async () => {
-    if (!(await askConfirm(`End ${session.customer?.displayName ?? session.guestLabel ?? "this"} session on ${device.name} now?`))) return;
+    if (!(await askConfirm(`End the session on ${device.name} now? ${endConsequence(session)}`))) return;
     await api(`/sessions/${session.id}/end`, { method: "POST", action: "End session", body: {} });
     onChange();
   });
@@ -330,6 +343,7 @@ export function SessionPanel({ device, allDevices, onChange }: { device: FloorDe
   if (device.session) return <RunningSession device={device} session={device.session} available={available} onChange={onChange} />;
   if (!can("station.start_session", device.branchId)) return <p className="text-sm text-ink-3">Available.</p>;
   if (device.status === "CLEANING") return <MarkCleaned device={device} onDone={onChange} />;
+  if (device.status === "MAINTENANCE") return <p className="text-sm text-ink-3">Put it back in service to start a session.</p>;
   if (device.status !== "AVAILABLE" && device.status !== "RESERVED") return <p className="text-sm text-ink-3">This station is {device.status.toLowerCase().replace("_", " ")}.</p>;
   // Keyed by station: a PC's rate, time and customer must not carry over to the next station clicked.
   return <StartForm key={device.id} device={device} onStarted={onChange} />;

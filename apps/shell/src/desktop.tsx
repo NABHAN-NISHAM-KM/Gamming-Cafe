@@ -6,7 +6,15 @@ import { AppIcon, AppsScreen, ConnectivityScreen, GamesScreen, PeripheralsScreen
 import { useStation } from "./station";
 import { NetworkTray, NotificationsTray, ScreenshotButton, ShowDesktopButton, VolumeTray } from "./tray";
 import { FoodScreen } from "./food";
-import { askConfirm } from "./confirm";
+import { askConfirm, askRating } from "./confirm";
+
+/** Log out: confirm, then ask for a quick rating (skippable) — it reaches the venue before the session ends. */
+async function logOut(t: Strings) {
+  if (!(await askConfirm(t.logoutConfirm, { ok: t.logout }))) return;
+  const r = await askRating({ title: t.rateTitle, comment: t.rateComment, send: t.rateSend, skip: t.rateSkip });
+  if (r) bridge.send({ type: "feedback", rating: r.rating, comment: r.comment });
+  bridge.send({ type: "logout" });
+}
 
 const cx = (...c: Array<string | false | null | undefined>) => c.filter(Boolean).join(" ");
 
@@ -367,7 +375,7 @@ export function Taskbar({ state, t, wm, onStart, startOpen, onAddTime, className
           <span className="hidden text-sm xl:inline">{s.customerName}</span>
         </span>
         <button
-          onClick={async () => { toDesktop(); if (await askConfirm(t.logoutConfirm, { ok: t.logout })) bridge.send({ type: "logout" }); }}
+          onClick={() => { toDesktop(); void logOut(t); }}
           aria-label={t.logout} title={t.logout}
           className="press grid size-9 place-items-center rounded-lg text-dim hover:bg-alarm/15 hover:text-alarm"
         >
@@ -454,7 +462,7 @@ export function StartMenu({ state, t, notify, onOpen, onClose }: { state: ShellS
         </div>
         <div className="mt-4 flex justify-end border-t border-rim pt-3">
           <button
-            onClick={async () => { onClose(); if (await askConfirm(t.logoutConfirm, { ok: t.logout })) bridge.send({ type: "logout" }); }}
+            onClick={() => { onClose(); void logOut(t); }}
             className="press flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-dim hover:bg-alarm/15 hover:text-alarm"
           >
             <LogOut className="size-4" /> {t.logout}

@@ -102,6 +102,9 @@ public static class Outgoing
     public static string HelpRequest(string requestId, string topic, string? note) =>
         JsonSerializer.Serialize(new { type = "help_request", requestId, topic, note }, Json.Options);
 
+    public static string SessionFeedback(int rating, string? comment) =>
+        JsonSerializer.Serialize(new { type = "session_feedback", rating, comment }, Json.Options);
+
     public static string MenuRequest(string requestId) => JsonSerializer.Serialize(new { type = "menu_request", requestId }, Json.Options);
 
     public static string ScreenshotBegin(string id, int sizeBytes, int width, int height, byte[] thumb) =>

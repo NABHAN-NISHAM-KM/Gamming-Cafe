@@ -15,6 +15,7 @@ export interface MenuProduct {
   name: string;
   description: string | null;
   sku: string;
+  barcode?: string | null;
   type: string;
   price: string;
   available: boolean;
@@ -24,6 +25,8 @@ export interface MenuProduct {
 
 export interface Menu {
   currency: string;
+  /** Best sellers at this branch over the last 30 days (shown first on the till). */
+  topProductIds?: string[];
   categories: Array<{ id: string; name: string; products: MenuProduct[] }>;
 }
 

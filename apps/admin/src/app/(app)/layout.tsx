@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
-  BarChart3, Boxes, Building2, CalendarClock, ChefHat, Coins, Cpu, Gamepad2, Gauge, Joystick, LayoutGrid, LogOut,
+  BarChart3, Boxes, Building2, CalendarClock, ChefHat, ChevronDown, Coins, Cpu, Gamepad2, Gauge, Joystick, LayoutGrid, LogOut, MonitorPlay,
   Megaphone, Menu, Printer, ReceiptText, Search, Settings, ShieldAlert, ShieldCheck, ShoppingCart, Tag, Timer, Trophy, Truck, UserRound, Users, UtensilsCrossed, X,
 } from "lucide-react";
 import { session } from "@/lib/client/api";
@@ -13,6 +13,8 @@ import { MeProvider, type Me } from "@/lib/client/me";
 import { cx, Kbd } from "@/components/ui";
 import { CommandPalette, type Command } from "@/components/command";
 import { LiveNotices } from "@/components/live-notices";
+import { StaffBar } from "@/components/staff-bar";
+import { applyDir, useLang, useT, type TKey } from "@/lib/client/i18n";
 
 interface NavItem {
   href: string;
@@ -21,15 +23,18 @@ interface NavItem {
   phase?: number; // not built yet → shown disabled with its phase
   /** Shown if the user holds any of these (the permission the page's data needs). Omitted = everyone. */
   anyOf?: string[];
+  /** Kept in the short menu counter staff see by default. */
+  everyday?: boolean;
 }
 
 const NAV: Array<{ group: string; items: NavItem[] }> = [
   { group: "Operate", items: [
-    { href: "/", label: "Dashboard", icon: Gauge },
-    { href: "/floor", label: "Live Floor", icon: LayoutGrid, anyOf: ["station.view"] },
+    { href: "/counter", label: "Counter", icon: MonitorPlay, anyOf: ["station.start_session", "pos.sell"], everyday: true },
+    { href: "/", label: "Dashboard", icon: Gauge, everyday: true },
+    { href: "/floor", label: "Live Floor", icon: LayoutGrid, anyOf: ["station.view"], everyday: true },
     { href: "/sessions", label: "Sessions", icon: Timer, anyOf: ["station.view"] },
-    { href: "/bookings", label: "Bookings", icon: CalendarClock, anyOf: ["booking.view"] },
-    { href: "/customers", label: "Customers", icon: UserRound, anyOf: ["customer.view"] },
+    { href: "/bookings", label: "Bookings", icon: CalendarClock, anyOf: ["booking.view"], everyday: true },
+    { href: "/customers", label: "Customers", icon: UserRound, anyOf: ["customer.view"], everyday: true },
     { href: "/printing", label: "Printing", icon: Printer, anyOf: ["print.view"] },
   ] },
   { group: "Gaming", items: [
@@ -40,9 +45,9 @@ const NAV: Array<{ group: string; items: NavItem[] }> = [
   ] },
   { group: "Food & sales", items: [
     { href: "/restaurant", label: "Restaurant", icon: UtensilsCrossed, anyOf: ["restaurant.order", "restaurant.menu_manage"] },
-    { href: "/pos", label: "POS", icon: ShoppingCart, anyOf: ["pos.sell"] },
-    { href: "/orders", label: "Orders", icon: ReceiptText, anyOf: ["pos.sell"] },
-    { href: "/kitchen", label: "Kitchen", icon: ChefHat, anyOf: ["kds.view"] },
+    { href: "/pos", label: "POS", icon: ShoppingCart, anyOf: ["pos.sell"], everyday: true },
+    { href: "/orders", label: "Orders", icon: ReceiptText, anyOf: ["pos.sell"], everyday: true },
+    { href: "/kitchen", label: "Kitchen", icon: ChefHat, anyOf: ["kds.view"], everyday: true },
     { href: "/inventory", label: "Inventory", icon: Boxes, anyOf: ["inventory.view"] },
     { href: "/purchasing", label: "Purchasing", icon: Truck, anyOf: ["purchasing.view"] },
   ] },
@@ -54,15 +59,41 @@ const NAV: Array<{ group: string; items: NavItem[] }> = [
     { href: "/finance", label: "Finance", icon: Coins, anyOf: ["accounting.view"] },
     { href: "/reports", label: "Reports", icon: BarChart3, anyOf: ["reports.operational", "reports.financial", "reports.staff"] },
     { href: "/marketing", label: "Marketing", icon: Megaphone, anyOf: ["promotion.view", "loyalty.view", "crm.view"] },
-    { href: "/settings", label: "Settings", icon: Settings },
+    { href: "/settings", label: "Settings", icon: Settings, everyday: true },
   ] },
 ];
 
-/** The menu for this user: items they can't use are left out, and empty groups disappear. */
-const navFor = (me: Me) => {
+/** The menu for this user: items they can't use are left out, and empty groups disappear. `short`: the everyday items only. */
+const navFor = (me: Me, short = false) => {
   const held = new Set(me.grants.flatMap((g) => g.permissions));
-  return NAV.map((g) => ({ ...g, items: g.items.filter((it) => !it.anyOf || it.anyOf.some((p) => held.has(p))) })).filter((g) => g.items.length);
+  return NAV.map((g) => ({ ...g, items: g.items.filter((it) => (!it.anyOf || it.anyOf.some((p) => held.has(p))) && (!short || it.everyday)) })).filter((g) => g.items.length);
 };
+
+const SHORT_KEY = "arena.shortMenu";
+/** Counter staff (no organization-wide role) start with the short menu; anyone can switch, remembered in this browser. */
+function useShortMenu(me: Me | undefined) {
+  const [short, setShort] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!me || short !== null) return;
+    let saved: string | null = null;
+    try {
+      saved = localStorage.getItem(SHORT_KEY);
+    } catch {
+      /* storage unavailable */
+    }
+    setShort(saved === null ? !me.grants.some((g) => g.scope === "ORGANIZATION") : saved === "1");
+  }, [me, short]);
+  const toggle = () =>
+    setShort((v) => {
+      try {
+        localStorage.setItem(SHORT_KEY, v ? "0" : "1");
+      } catch {
+        /* ignore */
+      }
+      return !v;
+    });
+  return [!!short, toggle] as const;
+}
 
 const isActive = (path: string, href: string) => (href === "/" ? path === "/" : path.startsWith(href));
 
@@ -75,13 +106,14 @@ function BrandMark({ className }: { className?: string }) {
   );
 }
 
-function Sidebar({ nav, onNavigate }: { nav: typeof NAV; onNavigate?: () => void }) {
+function Sidebar({ nav, onNavigate, short, onToggleShort }: { nav: typeof NAV; onNavigate?: () => void; short: boolean; onToggleShort: () => void }) {
   const path = usePathname();
+  const t = useT();
   return (
     <nav className="flex flex-col gap-6 px-3 py-5" aria-label="Main">
       {nav.map((g) => (
         <div key={g.group}>
-          <p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-3">{g.group}</p>
+          <p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-3">{t(`nav.${g.group}` as TKey)}</p>
           <ul className="grid gap-0.5">
             {g.items.map((it) => {
               const on = isActive(path, it.href);
@@ -103,9 +135,9 @@ function Sidebar({ nav, onNavigate }: { nav: typeof NAV; onNavigate?: () => void
                         on ? "bg-accent-soft font-medium text-ink" : "text-ink-2 hover:bg-panel-2 hover:text-ink",
                       )}
                     >
-                      {on && <span className="absolute inset-y-1.5 -left-3 w-1 rounded-r-full bg-accent shadow-[0_0_12px_var(--color-accent)]" aria-hidden />}
+                      {on && <span className="absolute inset-y-1.5 -left-3 w-1 rounded-r-full bg-accent shadow-[0_0_12px_var(--color-accent)] rtl:-right-3 rtl:left-auto rtl:rounded-l-full rtl:rounded-r-none" aria-hidden />}
                       <it.icon className={cx("size-4 transition-colors", on ? "text-accent" : "text-ink-3 group-hover:text-ink-2")} />
-                      {it.label}
+                      {t(`nav.${it.label}` as TKey)}
                     </Link>
                   )}
                 </li>
@@ -114,6 +146,9 @@ function Sidebar({ nav, onNavigate }: { nav: typeof NAV; onNavigate?: () => void
           </ul>
         </div>
       ))}
+      <button onClick={onToggleShort} className="press flex items-center gap-2 rounded-lg px-3 py-2 text-xs text-ink-3 hover:bg-panel-2 hover:text-ink">
+        <ChevronDown className={cx("size-3.5 transition-transform", !short && "rotate-180")} /> {short ? t("nav.more") : t("nav.less")}
+      </button>
     </nav>
   );
 }
@@ -129,6 +164,10 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const { data: me, error } = useApi<Me>("/auth/me");
   const [menu, setMenu] = useState(false);
   const [palette, setPalette] = useState(false);
+  const [short, toggleShort] = useShortMenu(me);
+  const lang = useLang();
+  const t = useT();
+  useEffect(() => applyDir(lang), [lang]);
 
   useEffect(() => setMenu(false), [path]);
   useEffect(() => {
@@ -147,14 +186,15 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     router.replace("/login");
   };
 
-  const nav = useMemo(() => (me ? navFor(me) : []), [me]);
+  const nav = useMemo(() => (me ? navFor(me, short) : []), [me, short]);
+  const allNav = useMemo(() => (me ? navFor(me) : []), [me]);
   const commands = useMemo<Command[]>(
     () => [
-      ...nav.flatMap((g) => g.items.filter((it) => !it.phase).map((it) => ({ id: it.href, label: it.label, group: g.group, icon: it.icon, href: it.href }))),
+      ...allNav.flatMap((g) => g.items.filter((it) => !it.phase).map((it) => ({ id: it.href, label: it.label, group: g.group, icon: it.icon, href: it.href }))),
       { id: "logout", label: "Sign out", group: "Account", icon: LogOut, run: () => void logout(), keywords: "logout exit" },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [nav],
+    [allNav],
   );
 
   if (error) {
@@ -195,12 +235,12 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               onClick={() => setPalette(true)}
               className="press flex h-9 w-full items-center gap-2 rounded-lg border border-line bg-bg/60 px-3 text-sm text-ink-3 hover:border-line-strong hover:text-ink-2"
             >
-              <Search className="size-4" /> Search
+              <Search className="size-4" /> {t("nav.search")}
               <span className="ml-auto flex gap-1"><Kbd>Ctrl</Kbd><Kbd>K</Kbd></span>
             </button>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto">
-            <Sidebar nav={nav} />
+            <Sidebar nav={nav} short={short} onToggleShort={toggleShort} />
           </div>
           <div className="border-t border-line p-3">
             <div className="flex items-center gap-3 rounded-lg px-2 py-1.5">
@@ -230,7 +270,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               <BrandMark />
               <button onClick={() => setMenu(false)} className="press rounded-lg p-2 hover:bg-panel-2" aria-label="Close menu"><X className="size-5" /></button>
             </div>
-            <Sidebar nav={nav} onNavigate={() => setMenu(false)} />
+            <Sidebar nav={nav} short={short} onToggleShort={toggleShort} onNavigate={() => setMenu(false)} />
           </aside>
         </div>
 
@@ -241,9 +281,10 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               <p className="truncate text-[11px] uppercase tracking-[0.14em] text-ink-3">
                 {me.organization.displayName} <span className="text-line-strong">/</span> {here.group}
               </p>
-              <p className="truncate font-display text-base font-semibold">{here.label}</p>
+              <p className="truncate font-display text-base font-semibold">{t(`nav.${here.label}` as TKey)}</p>
             </div>
-            <div className="ml-auto flex items-center gap-2">
+            <div className="ml-auto flex items-center gap-1.5 rtl:ml-0 rtl:mr-auto">
+              <StaffBar />
               {!me.user.mfaEnabled && (
                 <Link href="/settings" className="press hidden items-center gap-1.5 rounded-full border border-reserved/40 bg-reserved/10 px-3 py-1 text-[11px] font-medium text-reserved hover:bg-reserved/15 sm:flex">
                   <ShieldAlert className="size-3.5" /> Enable 2-step sign-in

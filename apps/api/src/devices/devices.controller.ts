@@ -69,6 +69,7 @@ async function liveSessionSummaries(branchId: string, deviceId?: string) {
         id: r.id, status: r.status, startedAt: r.startedAt, expiresAt: r.expiresAt, paymentTiming: r.paymentTiming, currency: r.currency,
         amountDue: r.amountDue.toFixed((r.rateSnapshot as { minorUnit?: number })?.minorUnit ?? 2),
         customer: r.customer, guestLabel: r.guestLabel, planName: (r.rateSnapshot as { quote?: { planName?: string } })?.quote?.planName ?? null,
+        fundedBy: (r.rateSnapshot as { fundedBy?: string })?.fundedBy ?? null,
       },
     ]),
   );

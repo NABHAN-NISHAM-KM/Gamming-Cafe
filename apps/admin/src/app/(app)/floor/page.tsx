@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { AlertTriangle, BellRing, Cpu, Gamepad2, LayoutGrid, Megaphone, Move, Plus, RotateCcw, Wifi, WifiOff } from "lucide-react";
+import { AlertTriangle, BellRing, CircleHelp, Cpu, Gamepad2, LayoutGrid, Megaphone, Move, Plus, RotateCcw, Wifi, WifiOff, Wrench } from "lucide-react";
 import { api } from "@/lib/client/api";
 import { useAction, useApi } from "@/lib/client/hooks";
 import { useBranch } from "@/lib/client/branch";
@@ -12,36 +12,53 @@ import type { Branch } from "@/lib/client/types";
 import { Badge, Button, Card, Empty, ErrorNote, Field, Input, Modal, Select, Spinner, cx } from "@/components/ui";
 import { StationDrawer } from "./station-drawer";
 import { fmtCountdown, remaining, useTick } from "@/lib/client/sessions";
+import { useT, type TKey } from "@/lib/client/i18n";
+
+/** Floor filter: a status, or one of the shortcuts the Counter links to (?show=free|busy|ending|attention). */
+type Filter = DeviceStatus | "free" | "busy" | "ending" | "attention" | null;
+const isHot = (d: FloorDevice) => (d.metrics?.cpuTempC ?? 0) >= 90 || (d.metrics?.gpuTempC ?? 0) >= 88;
+function matches(d: FloorDevice, f: Filter, alerted: Set<string>) {
+  if (!f) return true;
+  if (f === "free") return d.displayStatus === "AVAILABLE";
+  if (f === "busy") return !!d.session;
+  if (f === "ending") return !!d.session?.expiresAt && (remaining(d.session.expiresAt) ?? 0) <= 10 * 60_000;
+  if (f === "attention") return alerted.has(d.id) || d.status === "MAINTENANCE" || isHot(d);
+  return d.displayStatus === f;
+}
 
 const CELL = 76; // px per grid cell
 
-function Tile({ d, selected, editing, help, onPointerDown, onClick }: { d: FloorDevice; selected: boolean; editing: boolean; help?: boolean; onPointerDown?: (e: ReactPointerEvent) => void; onClick: () => void }) {
+function Tile({ d, selected, editing, help, dim, onPointerDown, onClick }: { d: FloorDevice; selected: boolean; editing: boolean; help?: boolean; dim?: boolean; onPointerDown?: (e: ReactPointerEvent) => void; onClick: () => void }) {
+  const t = useT();
   const st = STATUS[d.displayStatus] ?? STATUS.OFFLINE;
-  const hot = (d.metrics?.cpuTempC ?? 0) >= 90 || (d.metrics?.gpuTempC ?? 0) >= 88;
+  const label = t(`status.${d.displayStatus}` as TKey);
+  const hot = isHot(d);
   return (
     <button
       onClick={onClick}
       onPointerDown={onPointerDown}
-      aria-label={`${d.name}, ${st.label}${d.currentGame ? `, playing ${d.currentGame.title}` : ""}${help ? ", needs help" : ""}`}
-      title={d.currentGame ? `Playing ${d.currentGame.title}` : undefined}
+      aria-label={`${d.name}, ${label}${d.currentGame ? `, playing ${d.currentGame.title}` : ""}${help ? ", needs help" : ""}`}
+      title={d.outOfOrder ? `${label}: ${d.outOfOrder.reason}` : d.currentGame ? `Playing ${d.currentGame.title}` : t(`help.${d.displayStatus}` as TKey)}
       className={cx(
         "group relative flex size-[68px] flex-col items-center justify-center rounded-lg border-2 text-center transition",
         editing ? "cursor-grab active:cursor-grabbing" : "hover:-translate-y-0.5",
         selected && "ring-2 ring-ink ring-offset-2 ring-offset-bg",
+        dim && "opacity-25",
       )}
       style={{ borderColor: st.color, background: `color-mix(in oklab, ${st.color} ${d.isOnline ? 16 : 6}%, var(--color-panel))` }}
     >
-      <span className="text-[11px] font-semibold leading-tight">{d.name}</span>
+      <span className="text-[13px] font-bold leading-tight">{d.name}</span>
       {d.session ? (
         <>
           <span className="tabular mt-0.5 font-mono text-[11px] font-semibold">{d.session.expiresAt ? fmtCountdown(remaining(d.session.expiresAt), false) : "open"}</span>
           <span className="max-w-[60px] truncate text-[9px] text-ink-2">{d.session.customer?.displayName ?? d.session.guestLabel ?? "Guest"}</span>
         </>
       ) : (
-        <span className="mt-0.5 text-[10px] text-ink-2">{d.isOnline ? (d.metrics?.gpuPct != null ? `GPU ${Math.round(d.metrics.gpuPct)}%` : st.label) : "offline"}</span>
+        <span className="mt-0.5 text-[10px] text-ink-2">{d.isOnline && d.displayStatus === "AVAILABLE" && d.metrics?.gpuPct != null ? `GPU ${Math.round(d.metrics.gpuPct)}%` : label}</span>
       )}
       {!d.session && d.isOnline && d.metrics?.cpuTempC != null && <span className={cx("text-[9px] tabular", hot ? "text-danger font-semibold" : "text-ink-3")}>{fmtTemp(d.metrics.cpuTempC)}</span>}
       {hot && <AlertTriangle className="absolute -right-1.5 -top-1.5 size-4 rounded-full bg-bg text-danger" />}
+      {d.status === "MAINTENANCE" && <Wrench className="absolute -right-1.5 -top-1.5 size-4 rounded-full bg-bg p-0.5 text-danger" />}
       {help && <BellRing className="absolute -left-1.5 -top-1.5 size-5 animate-bounce rounded-full bg-reserved p-0.5 text-bg" />}
       {d.currentGame && <Gamepad2 className="absolute -bottom-1.5 -right-1.5 size-4 rounded-full bg-bg p-0.5 text-ok" />}
       {!d.session && d.nextBooking && (
@@ -62,8 +79,10 @@ function ZoneSection({
   onMove,
   canMass,
   helpIds,
+  dimmed,
 }: {
   helpIds: Set<string>;
+  dimmed: (d: FloorDevice) => boolean;
   zone: FloorZone;
   devices: FloorDevice[];
   selectedId: string | null;
@@ -128,6 +147,7 @@ function ZoneSection({
               <div key={d.id} className="absolute p-1 transition-[left,top] duration-100" style={{ left: d.mapX * CELL, top: d.mapY * CELL }}>
                 <Tile
                   d={d}
+                  dim={!editing && dimmed(d)}
                   help={helpIds.has(d.id)}
                   selected={selectedId === d.id}
                   editing={editing}
@@ -234,7 +254,17 @@ export default function LiveFloorPage() {
   const { branches, branchId, setBranchId } = useBranch();
 
   const floor = useLiveFloor(branchId);
+  const t = useT();
   const [selected, setSelected] = useState<string | null>(null);
+  const [filter, setFilter] = useState<Filter>(null);
+  const [legend, setLegend] = useState(false);
+  // Links from the Counter: ?show=free|busy|ending|attention and ?station=<id>.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const show = q.get("show");
+    if (show && ["free", "busy", "ending", "attention"].includes(show)) setFilter(show as Filter);
+    if (q.get("station")) setSelected(q.get("station"));
+  }, []);
   const [editing, setEditing] = useState(false);
   const [dirty, setDirty] = useState<Set<string>>(new Set());
 
@@ -251,6 +281,10 @@ export default function LiveFloorPage() {
   }, [devices]);
   const alerts = Object.values(floor.alerts).sort((a, b) => (a.severity === "CRITICAL" ? -1 : 1) - (b.severity === "CRITICAL" ? -1 : 1));
   const helpIds = new Set(alerts.filter((a) => a.type === "HELP_REQUESTED" && a.status === "OPEN" && a.deviceId).map((a) => a.deviceId!));
+  const alerted = new Set(alerts.filter((a) => a.deviceId).map((a) => a.deviceId!));
+  const attention = devices.filter((d) => matches(d, "attention", alerted)).length;
+  const dimmed = (d: FloorDevice) => !matches(d, filter, alerted);
+  const chip = (on: boolean) => cx("press flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition", on ? "border-accent bg-accent/15 text-ink" : "border-line bg-panel hover:border-line-strong");
 
   const move = (id: string, x: number, y: number) => {
     const d = floor.devices[id];
@@ -274,7 +308,7 @@ export default function LiveFloorPage() {
   return (
     <div className={cx(selected && "xl:pr-[400px]")}>
       <header className="mb-5 flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">Live Floor</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">{t("floor.title")}</h1>
         {branches.data && branches.data.length > 1 && (
           <Select value={branchId ?? ""} onChange={(e) => { setBranchId(e.target.value); setSelected(null); }} className="w-auto">
             {branches.data.map((b) => (
@@ -314,15 +348,42 @@ export default function LiveFloorPage() {
         </div>
       </header>
 
-      <div className="mb-5 flex flex-wrap gap-2">
-        {(Object.keys(STATUS) as DeviceStatus[]).map((s) => (
-          <span key={s} className="flex items-center gap-1.5 rounded-full border border-line bg-panel px-2.5 py-1 text-xs">
+      <div className="mb-3 flex flex-wrap gap-2" role="toolbar" aria-label="Filter stations">
+        <button className={chip(!filter)} aria-pressed={!filter} onClick={() => setFilter(null)}>
+          {t("floor.all")} <span className="tabular font-semibold">{devices.length}</span>
+        </button>
+        <button className={cx(chip(filter === "attention"), attention > 0 && filter !== "attention" && "border-reserved/50 text-reserved")} aria-pressed={filter === "attention"} onClick={() => setFilter(filter === "attention" ? null : "attention")}>
+          <AlertTriangle className="size-3" /> {t("floor.attention")} <span className="tabular font-semibold">{attention}</span>
+        </button>
+        {(Object.keys(STATUS) as DeviceStatus[]).filter((s) => counts[s]).map((s) => (
+          <button key={s} className={chip(filter === s)} aria-pressed={filter === s} title={t(`help.${s}` as TKey)} onClick={() => setFilter(filter === s ? null : s)}>
             <span className="size-2 rounded-full" style={{ background: STATUS[s].color }} />
-            {STATUS[s].label}
+            {t(`status.${s}` as TKey)}
             <span className="tabular font-semibold">{counts[s] ?? 0}</span>
-          </span>
+          </button>
         ))}
+        {filter && ["free", "busy", "ending"].includes(filter) && (
+          <button className={chip(true)} onClick={() => setFilter(null)} aria-label="Clear filter">{filter === "free" ? t("status.AVAILABLE") : filter === "busy" ? t("status.OCCUPIED") : t("board.ending")} ✕</button>
+        )}
+        <button className="press flex items-center gap-1 rounded-full px-2 py-1 text-xs text-ink-3 hover:text-ink" aria-expanded={legend} onClick={() => setLegend((v) => !v)}>
+          <CircleHelp className="size-3.5" /> {t("floor.legend")}
+        </button>
       </div>
+      {legend && (
+        <Card className="mb-5 p-4">
+          <ul className="grid gap-2 text-sm sm:grid-cols-2">
+            {(Object.keys(STATUS) as DeviceStatus[]).map((s) => (
+              <li key={s} className="flex items-start gap-2">
+                <span className="mt-1 size-3 shrink-0 rounded-sm border-2" style={{ borderColor: STATUS[s].color }} />
+                <span><strong>{t(`status.${s}` as TKey)}</strong> — <span className="text-ink-2">{t(`help.${s}` as TKey)}</span></span>
+              </li>
+            ))}
+            <li className="flex items-start gap-2"><BellRing className="mt-0.5 size-4 shrink-0 text-reserved" /><span className="text-ink-2">The player pressed &quot;Call staff&quot; on the PC.</span></li>
+            <li className="flex items-start gap-2"><AlertTriangle className="mt-0.5 size-4 shrink-0 text-danger" /><span className="text-ink-2">The PC is running too hot.</span></li>
+          </ul>
+        </Card>
+      )}
+      {!legend && <div className="mb-2" />}
 
       <ErrorNote>{floor.error ?? saveLayout.error}</ErrorNote>
       {editing && <p className="mb-4 rounded-md border border-accent/30 bg-accent/10 px-3 py-2 text-sm text-accent">Drag stations to match your venue, then save.</p>}
@@ -349,6 +410,7 @@ export default function LiveFloorPage() {
               onMove={move}
               canMass={can("station.mass_action", branchId)}
               helpIds={helpIds}
+              dimmed={dimmed}
             />
           ))}
           {!editing && floor.zones.some((z) => !byZone.has(z.id)) && (

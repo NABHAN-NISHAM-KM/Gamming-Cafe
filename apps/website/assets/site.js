@@ -1,7 +1,12 @@
-// Shared chrome for the marketing pages: nav, footer, icons, scroll reveal.
+// Shared chrome and motion for the marketing pages: nav, footer, icons,
+// reveals, and the scroll engine that drives every 3D/scroll effect by
+// writing CSS variables (--p, --land, --draw…) — no animation library.
 (() => {
   const base = document.documentElement.dataset.base ?? "";
   const page = document.documentElement.dataset.page ?? "";
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const finePointer = matchMedia("(pointer: fine)").matches;
+  const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
 
   // Lucide-style 24px stroke icons (hand-picked subset).
   const P = {
@@ -56,24 +61,35 @@
   if (nav) {
     nav.className = "nav";
     nav.innerHTML = `<div class="wrap">
-      <a class="brand" href="${base}index.html"><span class="brand-mark">A</span><span>Arena<b>OS</b></span></a>
-      <nav class="nav-links">${links.map(([h, l, k]) => `<a href="${base}${h}" class="${k === page ? "on" : ""}">${l}</a>`).join("")}</nav>
+      <a class="brand" href="${base}index.html" aria-label="ArenaOS home"><span class="brand-mark" aria-hidden="true">A</span><span>Arena<b>OS</b></span></a>
+      <nav class="nav-links" id="navLinks">${links.map(([h, l, k]) => `<a href="${base}${h}" class="${k === page ? "on" : ""}"${k === page ? ' aria-current="page"' : ""}>${l}</a>`).join("")}</nav>
       <div class="nav-cta"><a class="btn btn-ghost btn-sm" href="${base}contact.html">Book a call</a><a class="btn btn-primary btn-sm" href="${base}live/admin/login/">Try it live</a></div>
-      <button class="menu-btn" aria-label="Menu">☰</button>
-    </div>`;
-    nav.querySelector(".menu-btn").addEventListener("click", () => nav.classList.toggle("open"));
+      <button class="menu-btn" aria-label="Menu" aria-expanded="false" aria-controls="navLinks"><i></i></button>
+    </div><span class="bar" aria-hidden="true"></span>`;
+    const btn = nav.querySelector(".menu-btn");
+    btn.addEventListener("click", () => {
+      const open = nav.classList.toggle("open");
+      btn.setAttribute("aria-expanded", String(open));
+      document.body.style.overflow = open ? "hidden" : "";
+    });
+    nav.querySelectorAll(".nav-links a").forEach((a) => a.addEventListener("click", () => {
+      nav.classList.remove("open");
+      btn.setAttribute("aria-expanded", "false");
+      document.body.style.overflow = "";
+    }));
   }
 
   const foot = document.getElementById("footer");
   if (foot) {
     foot.innerHTML = `<div class="wrap">
       <div class="foot">
-        <div><a class="brand" href="${base}index.html"><span class="brand-mark">A</span><span>Arena<b>OS</b></span></a>
+        <div><a class="brand" href="${base}index.html"><span class="brand-mark" aria-hidden="true">A</span><span>Arena<b>OS</b></span></a>
           <p>The operating system for gaming cafés, esports arenas, internet cafés, console &amp; VR centres and gaming restaurants.</p></div>
         <div><h4>Product</h4><a href="${base}features.html#stations">Stations &amp; Live Floor</a><a href="${base}features.html#sessions">Sessions &amp; Shell</a><a href="${base}features.html#pos">POS &amp; restaurant</a><a href="${base}features.html#engage">Loyalty &amp; tournaments</a></div>
         <div><h4>Live demos</h4><a href="${base}live/admin/login/">Venue admin</a><a href="${base}live/admin/login/?next=%2Fplatform">Super Admin</a><a href="${base}live/shell/">Gaming Shell</a><a href="${base}live/app/">Customer app</a><a href="${base}index.html#downloads">Downloads</a></div>
         <div><h4>Company</h4><a href="${base}pricing.html">Pricing</a><a href="${base}contact.html">Contact sales</a><a href="${base}guide.html">How it works</a><a href="${base}install.html">Install guide</a><a href="${base}pricing.html#faq">FAQ</a></div>
       </div>
+      <div class="wordmark" data-scroll aria-hidden="true">Arena<b>OS</b></div>
       <div class="copy"><span>© ${new Date().getFullYear()} ArenaOS. All rights reserved.</span><span>Built for venues that never close.</span></div>
     </div>`;
   }
@@ -91,18 +107,39 @@
     pre.appendChild(b);
   });
 
-  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const finePointer = matchMedia("(pointer: fine)").matches;
+  // Headlines that rise word by word: <h1 data-split>. Keeps child elements (spans) intact.
+  document.querySelectorAll("[data-split]").forEach((el) => {
+    let i = 0;
+    const wrap = (node) => {
+      [...node.childNodes].forEach((c) => {
+        if (c.nodeType === 3) {
+          const frag = document.createDocumentFragment();
+          c.textContent.split(/(\s+)/).forEach((part) => {
+            if (!part) return;
+            if (/^\s+$/.test(part)) return frag.append(part);
+            const w = document.createElement("span");
+            w.className = "w";
+            w.innerHTML = `<span style="--i:${i++}"></span>`;
+            w.firstChild.textContent = part;
+            frag.append(w);
+          });
+          c.replaceWith(frag);
+        } else if (c.nodeType === 1 && c.tagName !== "BR") wrap(c);
+      });
+    };
+    wrap(el);
+    el.classList.add("split-words");
+  });
 
-  // 3D tilt that follows the pointer (cards marked .tilt).
+  // Pointer-following tilt (cards marked .tilt).
   if (finePointer && !reduced)
     document.querySelectorAll(".tilt").forEach((el) => {
       el.addEventListener("pointermove", (e) => {
         const r = el.getBoundingClientRect();
         const x = (e.clientX - r.left) / r.width;
         const y = (e.clientY - r.top) / r.height;
-        el.style.setProperty("--ry", `${(x - 0.5) * 10}deg`);
-        el.style.setProperty("--rx", `${(0.5 - y) * 8}deg`);
+        el.style.setProperty("--ry", `${(x - 0.5) * 8}deg`);
+        el.style.setProperty("--rx", `${(0.5 - y) * 6}deg`);
         el.style.setProperty("--mx", `${x * 100}%`);
         el.style.setProperty("--my", `${y * 100}%`);
       });
@@ -112,34 +149,161 @@
       });
     });
 
-  // Numbers that count up when they scroll into view: <b class="count" data-to="111" data-suffix="+">.
+  // Numbers that count up when they scroll into view: <b class="count" data-to="111">.
   const counters = "IntersectionObserver" in window ? new IntersectionObserver((es) => es.forEach((e) => {
     if (!e.isIntersecting) return;
     counters.unobserve(e.target);
     const el = e.target;
     const to = Number(el.dataset.to);
-    const pre = el.dataset.prefix ?? "";
-    const suf = el.dataset.suffix ?? "";
     if (reduced || !Number.isFinite(to)) return;
     const t0 = performance.now();
     const step = (t) => {
-      const k = Math.min(1, (t - t0) / 1400);
-      const v = to * (1 - Math.pow(1 - k, 3));
-      el.textContent = pre + (to % 1 ? v.toFixed(1) : Math.round(v).toLocaleString()) + suf;
+      const k = Math.min(1, (t - t0) / 1600);
+      el.textContent = Math.round(to * (1 - Math.pow(1 - k, 4))).toLocaleString();
       if (k < 1) requestAnimationFrame(step);
     };
     requestAnimationFrame(step);
   }), { threshold: 0.6 }) : null;
   document.querySelectorAll(".count[data-to]").forEach((el) => counters?.observe(el));
 
-  // The 3D arena in the hero: loaded only when there's room for it.
+  // ── scroll engine ───────────────────────────────────────────────────────
+  // [data-scroll]: --p goes 0→1 while the element crosses the viewport.
+  // [data-pin]:    --p goes 0→1 while its sticky child is pinned.
+  const tasks = [];
+  const view = (el) => {
+    const r = el.getBoundingClientRect();
+    return clamp((innerHeight - r.top) / (innerHeight + r.height));
+  };
+  const pinned = (el) => {
+    const r = el.getBoundingClientRect();
+    return clamp(-r.top / Math.max(1, r.height - innerHeight));
+  };
+  document.querySelectorAll("[data-scroll]").forEach((el) => tasks.push(() => el.style.setProperty("--p", view(el).toFixed(4))));
+  document.querySelectorAll("[data-pin]").forEach((el) => tasks.push(() => el.style.setProperty("--p", pinned(el).toFixed(4))));
+  if (nav) tasks.push(() => {
+    nav.classList.toggle("solid", scrollY > 24);
+    nav.style.setProperty("--read", (scrollY / Math.max(1, document.documentElement.scrollHeight - innerHeight)).toFixed(4));
+  });
+
+  // Live demo devices tilt up and land as they arrive.
+  document.querySelectorAll(".devices").forEach((el) => tasks.push(() => el.style.setProperty("--land", reduced ? 1 : smooth(clamp(view(el) * 2.2)).toFixed(4))));
+
+  // Session flow: a line draws across, lighting each step as it passes.
+  document.querySelectorAll(".flow").forEach((el) => {
+    const steps = [...el.children];
+    tasks.push(() => {
+      const d = reduced ? 1 : clamp((view(el) - 0.25) * 2.4);
+      el.style.setProperty("--draw", d.toFixed(4));
+      steps.forEach((s, i) => s.classList.toggle("lit", d >= (i + 0.2) / steps.length));
+    });
+  });
+
+  // Modules: vertical scroll drives a horizontal track; panels swing in 3D.
+  document.querySelectorAll(".hscroll").forEach((sec) => {
+    const track = sec.querySelector(".track");
+    const panels = [...track.children];
+    const count = sec.querySelector(".count b");
+    const measure = () => track.style.setProperty("--shift", `${Math.max(0, track.scrollWidth - innerWidth + 40)}px`);
+    addEventListener("resize", measure);
+    measure();
+    tasks.push(() => {
+      const p = pinned(sec);
+      sec.style.setProperty("--p", p.toFixed(4));
+      const mid = innerWidth / 2;
+      let on = 0;
+      panels.forEach((pa, i) => {
+        const r = pa.getBoundingClientRect();
+        const k = clamp((r.left + r.width / 2 - mid) / innerWidth, -1, 1);
+        pa.style.setProperty("--k", k.toFixed(3));
+        pa.style.setProperty("--ka", Math.abs(k).toFixed(3));
+        if (r.left < mid) on = i;
+      });
+      if (count) count.textContent = String(Math.min(on + 1, panels.length - 1)).padStart(2, "0");
+    });
+  });
+
+  // Hero flythrough: chapters fade by position on the path; 3D reads the same progress.
+  const fly = document.querySelector(".fly");
+  let flyP = 0;
+  if (fly) {
+    const chapters = [...fly.querySelectorAll(".chapter")];
+    const rail = [...fly.querySelectorAll(".rail a")];
+    const hud = fly.querySelector(".hud");
+    const N = chapters.length - 1;
+    tasks.push(() => {
+      flyP = pinned(fly);
+      fly.style.setProperty("--p", flyP.toFixed(4));
+      const t = flyP * N;
+      chapters.forEach((c, i) => {
+        const o = reduced ? (Math.abs(t - i) < 0.5 ? 1 : 0) : i === 0 && t < 0 ? 1 : clamp((0.48 - Math.abs(t - i)) * 4.5);
+        c.style.setProperty("--o", o.toFixed(3));
+        c.style.setProperty("--dir", t < i ? 1 : -1);
+        c.classList.toggle("vis", o > 0.01);
+        c.inert = o < 0.5;
+      });
+      rail.forEach((a, i) => a.classList.toggle("on", Math.round(t) === i));
+      hud?.style.setProperty("--hud", clamp((0.5 - Math.abs(t - 1)) * 4).toFixed(3));
+    });
+    rail.forEach((a, i) => a.addEventListener("click", (e) => {
+      e.preventDefault();
+      const top = fly.getBoundingClientRect().top + scrollY;
+      scrollTo({ top: top + (i / N) * (fly.offsetHeight - innerHeight), behavior: reduced ? "auto" : "smooth" });
+    }));
+  }
+
+  let queued = false;
+  const run = () => { queued = false; tasks.forEach((f) => f()); };
+  const onScroll = () => { if (!queued) { queued = true; requestAnimationFrame(run); } };
+  addEventListener("scroll", onScroll, { passive: true });
+  addEventListener("resize", onScroll);
+  run();
+  function smooth(x) { return x * x * (3 - 2 * x); }
+
+  // Hero film, scrubbed by scroll: each chapter maps to a moment in the video
+  // (data-times). Loaded as a blob so seeking is instant in both directions.
+  // If the film can't load, the real-time 3D arena takes its place.
   const stage = document.querySelector("[data-arena3d]");
   if (stage) {
     const lowEnd = (navigator.hardwareConcurrency ?? 8) < 4 || navigator.connection?.saveData;
-    if (!lowEnd) {
-      const go = () => import(new URL(`${base}assets/arena3d.js`, location.href).href).then((m) => m.mountArena(stage)).catch((e) => console.warn("3D hero unavailable:", e));
-      "requestIdleCallback" in window ? requestIdleCallback(go, { timeout: 1200 }) : setTimeout(go, 300);
-    }
+    const hud = document.querySelector(".hud");
+    const onStats = hud && ((c) => {
+      for (const k in c) { const el = hud.querySelector(`[data-k="${k}"]`); if (el) el.textContent = c[k]; }
+    });
+    const mount3d = () => {
+      if (lowEnd) return;
+      document.querySelector(".fly")?.classList.add("is-3d");
+      import(new URL(`${base}assets/arena3d.js`, location.href).href).then((m) => m.mountArena(stage, { progress: () => flyP, onStats })).catch((e) => console.warn("3D hero unavailable:", e));
+    };
+    const video = stage.querySelector("video[data-scrub]");
+    if (!video) mount3d();
+    else
+      fetch(new URL(base + video.dataset.scrub, location.href))
+        .then((r) => (r.ok ? r.blob() : Promise.reject(r.status)))
+        .then((blob) => new Promise((ok, fail) => {
+          video.onloadeddata = ok;
+          video.onerror = fail;
+          video.src = URL.createObjectURL(blob);
+        }))
+        .then(() => {
+          const marks = video.dataset.times.split(" ").map(Number);
+          const at = (p) => { // chapter progress → video time, piecewise between marks
+            const x = clamp(p) * (marks.length - 1);
+            const i = Math.min(marks.length - 2, Math.floor(reduced ? Math.round(x) : x));
+            const f = reduced ? Math.round(x) - i : x - i;
+            return marks[i] + (marks[i + 1] - marks[i]) * clamp(f);
+          };
+          let shown = at(flyP);
+          video.currentTime = shown;
+          stage.classList.add("video-ready");
+          const tick = () => {
+            requestAnimationFrame(tick);
+            const target = at(flyP);
+            shown += (target - shown) * (reduced ? 1 : 0.14); // a little inertia, like a camera
+            if (!video.seeking && Math.abs(video.currentTime - shown) > 1 / 60) video.currentTime = shown;
+          };
+          tick();
+        })
+        .catch((e) => { console.warn("Hero film unavailable, using 3D:", e); video.remove(); mount3d(); });
   }
 
   // Live demos inside device frames: rendered at their natural size and scaled
@@ -164,10 +328,12 @@
       vp.appendChild(f);
       screen.classList.add("loaded");
     };
-    screen.querySelector(".cover")?.addEventListener("click", start);
+    const cover = screen.querySelector(".cover");
+    cover?.addEventListener("click", start);
+    cover?.addEventListener("keydown", (e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), start()));
   });
   document.querySelectorAll("[data-launch-all]").forEach((b) => b.addEventListener("click", () => document.querySelectorAll("[data-live] .cover").forEach((c) => c.click())));
 
-  const io = "IntersectionObserver" in window ? new IntersectionObserver((es) => es.forEach((e) => e.isIntersecting && (e.target.classList.add("in"), io.unobserve(e.target))), { threshold: 0.12 }) : null;
-  document.querySelectorAll(".reveal").forEach((el) => (io ? io.observe(el) : el.classList.add("in")));
+  const io = "IntersectionObserver" in window ? new IntersectionObserver((es) => es.forEach((e) => e.isIntersecting && (e.target.classList.add("in"), io.unobserve(e.target))), { threshold: 0.15 }) : null;
+  document.querySelectorAll(".reveal, .split-words").forEach((el) => (io ? io.observe(el) : el.classList.add("in")));
 })();

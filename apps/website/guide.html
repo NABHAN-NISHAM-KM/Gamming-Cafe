@@ -7,30 +7,30 @@
   <meta name="description" content="The complete ArenaOS guide: how the server, admin, station agent, Gaming Shell and customer app work together — stations, sessions, pricing, customers, bookings, POS, kitchen, inventory, consoles, printing, loyalty, tournaments, security and a day at the venue." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Chakra+Petch:wght@500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/site.css?v=4" />
+  <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/site.css?v=7" />
   <style>
     .toc { max-height: calc(100vh - 110px); overflow-y: auto; scrollbar-width: thin; }
     .toc a.on { color: var(--accent); border-left-color: var(--accent); background: var(--panel); }
     .part { font: 600 12px var(--font); letter-spacing: .12em; text-transform: uppercase; color: var(--accent); margin-bottom: 8px; display: block; }
     .lede { font-size: 17px; }
-    .diagram { background: var(--bg-2); border: 1px solid var(--line-2); border-radius: 16px; padding: 18px; margin: 18px 0 22px; overflow-x: auto; }
+    .diagram { background: var(--bg-2); border: 1px solid var(--line-2); border-radius: 0; padding: 18px; margin: 18px 0 22px; overflow-x: auto; }
     .diagram svg { min-width: 720px; width: 100%; height: auto; }
     .diagram .cap { font-size: 13px; color: var(--ink-3); margin-top: 8px; }
     .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin: 14px 0 18px; }
-    .mini { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+    .mini { background: var(--panel); border: 1px solid var(--line); border-radius: 0; padding: 16px; }
     .mini h4 { margin: 0 0 6px; font-size: 15.5px; display: flex; gap: 8px; align-items: center; }
     .mini p, .mini li { font-size: 14px; margin: 0; color: var(--ink-2); }
     .mini ul { margin: 6px 0 0; padding-left: 18px; }
     .flowline { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 14px 0 18px; }
-    .flowline span { background: var(--panel); border: 1px solid var(--line-2); border-radius: 10px; padding: 7px 12px; font-size: 13.5px; color: var(--ink); }
+    .flowline span { background: var(--panel); border: 1px solid var(--line-2); border-radius: 0; padding: 7px 12px; font-size: 13.5px; color: var(--ink); }
     .flowline i { color: var(--accent); font-style: normal; }
-    .dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; background: var(--c); margin-right: 6px; vertical-align: -1px; }
-    .rule { border-left: 3px solid var(--accent); background: #0b1d26; padding: 14px 18px; border-radius: 0 12px 12px 0; margin: 16px 0; color: #cdeef7; font-size: 15px; }
+    .dot { display: inline-block; width: 10px; height: 10px; border-radius: 0; background: var(--c); margin-right: 6px; vertical-align: -1px; }
+    .rule { border-left: 3px solid var(--accent); background: rgb(46 230 246 / .06); padding: 14px 18px; border-radius: 0 12px 12px 0; margin: 16px 0; color: #cdeef7; font-size: 15px; }
     .rule b { color: #fff; }
     .checklist { list-style: none; padding: 0 !important; counter-reset: c; }
-    .checklist li { counter-increment: c; position: relative; padding: 12px 14px 12px 52px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; margin: 8px 0; }
-    .checklist li::before { content: counter(c); position: absolute; left: 14px; top: 12px; width: 26px; height: 26px; border-radius: 8px; background: #1d1638; color: var(--accent); display: grid; place-items: center; font: 700 13px var(--display); }
+    .checklist li { counter-increment: c; position: relative; padding: 12px 14px 12px 52px; background: var(--panel); border: 1px solid var(--line); border-radius: 0; margin: 8px 0; }
+    .checklist li::before { content: counter(c); position: absolute; left: 14px; top: 12px; width: 26px; height: 26px; border-radius: 0; background: rgb(160 124 255 / .14); color: var(--accent); display: grid; place-items: center; font: 700 13px var(--display); }
     .checklist li small { display: block; color: var(--ink-3); margin-top: 2px; }
     .day { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
     @media (max-width: 800px) { .day { grid-template-columns: 1fr; } }
@@ -39,11 +39,11 @@
 <body>
   <header id="nav"></header>
   <main>
-    <section class="hero center" style="padding-bottom:30px">
+    <section class="hero" data-scroll>
       <div class="hero-grid"></div>
       <div class="wrap">
         <span class="eyebrow">Complete guide</span>
-        <h1 style="font-size:clamp(34px,5vw,54px)">How <span class="grad">ArenaOS</span> works</h1>
+        <h1 data-split>How ArenaOS works.</h1>
         <p class="lead">Everything in one place: the pieces, how they talk to each other, and how each part of your venue runs. That means stations, sessions, customers, food, stock, events and security. Read it top to bottom once, then use the menu to jump back to a topic.</p>
         <div class="hero-cta" style="margin-top:24px"><a class="btn btn-ghost" href="install.html">Install guide</a><a class="btn btn-ghost" href="demos.html">Try the demos</a></div>
       </div>
@@ -669,7 +669,7 @@
     </div>
   </main>
   <footer id="footer"></footer>
-  <script src="assets/site.js?v=4"></script>
+  <script src="assets/site.js?v=7"></script>
   <script>
     // Highlight the section being read in the table of contents.
     const links = [...document.querySelectorAll("#toc a")];

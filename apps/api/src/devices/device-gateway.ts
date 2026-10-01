@@ -76,6 +76,8 @@ const Incoming = z.discriminatedUnion("type", [
   }),
   z.object({ type: z.literal("game_event"), event: z.enum(["started", "exited"]), gameId: z.uuid(), sessionId: z.uuid().nullish() }),
   z.object({ type: z.literal("help_request"), requestId: z.string().min(8).max(64), topic: z.enum(["general", "game", "peripheral", "network", "payment"]), note: z.string().max(300).nullish() }),
+  // The player's 1–5 star rating at log-out; the session is looked up server-side.
+  z.object({ type: z.literal("session_feedback"), rating: z.number().int().min(1).max(5), comment: z.string().max(300).nullish() }),
   z.object({ type: z.literal("self_repair"), action: z.enum(REPAIR_ACTIONS), ok: z.boolean(), detail: z.string().max(300).nullish() }),
   // Phase 7 — in-seat ordering (the device is the one on the socket; the session is looked up server-side)
   z.object({ type: z.literal("menu_request"), requestId: z.string().min(8).max(64) }),
@@ -133,7 +135,7 @@ export function shellWallpaper(theme: unknown): string | null {
 export const WALLPAPER_DATA_MAX = 360_000;
 export const LOGO_DATA_MAX = 80_000;
 export const isImageDataUrl = (v: string, max: number) => v.length <= max && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+=*$/.test(v);
-export type StationMessage = Extract<Incoming, { type: "inventory" | "peripherals" | "network" | "boot" | "game_event" | "help_request" | "self_repair" | "menu_request" | "place_order" | "time_offers" | "buy_time" | "screenshot_begin" | "screenshot_chunk" | "screenshot_end" | "print_job" | "print_confirm" | "print_cancel" | "print_done" }>;
+export type StationMessage = Extract<Incoming, { type: "inventory" | "peripherals" | "network" | "boot" | "game_event" | "help_request" | "session_feedback" | "self_repair" | "menu_request" | "place_order" | "time_offers" | "buy_time" | "screenshot_begin" | "screenshot_chunk" | "screenshot_end" | "print_job" | "print_confirm" | "print_cancel" | "print_done" }>;
 
 /**
  * WebSocket endpoint for Windows agents. Each connection authenticates with a
@@ -320,6 +322,7 @@ export class DeviceGateway implements OnModuleDestroy {
             case "boot":
             case "game_event":
             case "self_repair":
+            case "session_feedback":
             case "print_job":
             case "print_confirm":
             case "print_cancel":

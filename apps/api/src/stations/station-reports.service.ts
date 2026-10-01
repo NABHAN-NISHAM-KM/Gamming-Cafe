@@ -46,6 +46,7 @@ export class StationReportsService implements OnModuleInit {
     this.gateway.handleStation("boot", (c, m) => this.boot(c, m.report));
     this.gateway.handleStation("help_request", (c, m) => this.help(c, m.topic, m.note ?? null));
     this.gateway.handleStation("self_repair", (c, m) => this.selfRepair(c, m.action, m.ok, m.detail ?? null));
+    this.gateway.handleStation("session_feedback", (c, m) => this.feedback(c, m.rating, m.comment?.trim() || null));
   }
 
   private asDevice<T>(c: Connection, fn: (t: TenantTx) => Promise<T>) {
@@ -130,6 +131,23 @@ export class StationReportsService implements OnModuleInit {
       await this.runtime.openAlert(t, c, "HELP_REQUESTED", "WARNING", `${d.name}: ${who ? `${who} needs` : "customer needs"} help (${topic})`, { topic, note, sessionId: session?.id ?? null, customer: who ?? null, device: d.name }, { renotify: true });
     });
     return { ok: true };
+  }
+
+  /** One rating per session: the live one, or the one that just ended on this PC. */
+  async feedback(c: Connection, rating: number, comment: string | null) {
+    await this.asDevice(c, async (t) => {
+      const s = await t.gamingSession.findFirst({
+        where: { deviceId: c.deviceId, OR: [{ status: { in: ["ACTIVE", "ENDING", "PAUSED"] } }, { endedAt: { gte: new Date(Date.now() - 15 * 60_000) } }] },
+        orderBy: { startedAt: "desc" },
+        select: { id: true, branchId: true, customerId: true },
+      });
+      if (!s) return;
+      await t.sessionFeedback.upsert({
+        where: { sessionId: s.id },
+        create: { organizationId: c.organizationId, branchId: s.branchId, deviceId: c.deviceId, sessionId: s.id, customerId: s.customerId, rating, comment },
+        update: { rating, comment },
+      });
+    });
   }
 
   async selfRepair(c: Connection, action: string, ok: boolean, detail: string | null) {

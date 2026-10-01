@@ -35,6 +35,8 @@ const qty = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(2));
 export default function OrdersPage() {
   const { branches, branchId, setBranchId } = useBranch();
   const [open, setOpen] = useState(false);
+  // "Take a payment" on the Counter links here with ?open=1: start on what's still to pay.
+  useEffect(() => setOpen(new URLSearchParams(window.location.search).get("open") === "1"), []);
   const [selected, setSelected] = useState<string | null>(null);
   const orders = useApi<OrderView[]>(branchId ? `/branches/${branchId}/orders${open ? "?open=1" : ""}` : null);
   const current = orders.data?.find((o) => o.id === selected) ?? null;

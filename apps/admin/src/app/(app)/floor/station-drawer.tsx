@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Lock, Megaphone, Power, RotateCcw, Sunrise, X } from "lucide-react";
+import { Lock, Megaphone, Power, RotateCcw, Sunrise, Wrench, X } from "lucide-react";
 import { api } from "@/lib/client/api";
 import { useAction, useApi } from "@/lib/client/hooks";
 import { useCan } from "@/lib/client/me";
 import { CMD_TONE, STATUS, ago, fmtPct, fmtTemp, type Alert, type CommandRow, type FloorDevice } from "@/lib/client/floor";
 import { Badge, Button, ErrorNote, Field, Input, cx, askConfirm } from "@/components/ui";
+import { endConsequence } from "@/lib/client/sessions";
+import { useT, type TKey } from "@/lib/client/i18n";
 import { SessionPanel } from "./session-panel";
 import { ToolsPanel } from "./tools-panel";
 
@@ -35,6 +37,20 @@ function Meter({ label, value, warn = 85 }: { label: string; value?: number | nu
 /** The station control drawer from the brief: hardware, network, live metrics, remote actions. */
 export function StationDrawer({ device, allDevices, liveCommands, alerts, onClose, onChange }: { device: FloorDevice; allDevices: FloorDevice[]; liveCommands: Record<string, CommandRow>; alerts: Alert[]; onClose: () => void; onChange: () => void }) {
   const can = useCan();
+  const t = useT();
+  const [broken, setBroken] = useState(false);
+  const [why, setWhy] = useState("");
+  useEffect(() => { setBroken(false); setWhy(""); }, [device.id]);
+  const outOfOrder = useAction(async () => {
+    await api(`/devices/${device.id}/out-of-order`, { method: "POST", body: { reason: why.trim() }, action: t("floor.outOfOrder") });
+    setBroken(false);
+    setWhy("");
+    onChange();
+  });
+  const backInService = useAction(async () => {
+    await api(`/devices/${device.id}/back-in-service`, { method: "POST", action: t("floor.backInService") });
+    onChange();
+  });
   const detail = useApi<Detail>(`/devices/${device.id}`);
   const [msg, setMsg] = useState("");
   const [showMsg, setShowMsg] = useState(false);
@@ -62,7 +78,7 @@ export function StationDrawer({ device, allDevices, liveCommands, alerts, onClos
   const lock = useAction(async () => {
     if (!live) return send.run("LOCK", undefined, "Lock");
     const who = live.customer?.displayName ?? live.guestLabel ?? "the player";
-    if (!(await askConfirm(`Sign ${who} out of ${device.name}? Their session ends now (unused prepaid time goes back to their account) and the PC shows the sign-in screen.`))) return;
+    if (!(await askConfirm(`Sign ${who} out of ${device.name}? Their session ends now and the PC shows the sign-in screen. ${endConsequence(live)}`))) return;
     await api(`/sessions/${live.id}/end`, { method: "POST", body: { reason: "Locked by staff", toSignIn: true }, action: `Lock ${device.name}` });
     onChange();
   });
@@ -79,7 +95,7 @@ export function StationDrawer({ device, allDevices, liveCommands, alerts, onClos
         <div className="min-w-0">
           <h2 className="font-semibold">{device.name}</h2>
           <p className="text-xs text-ink-3">
-            {st.label} · {detail.data?.zone.name ?? "…"}
+            {t(`status.${device.displayStatus}` as TKey)} · {detail.data?.zone.name ?? "…"}
           </p>
         </div>
         <button onClick={onClose} className="ml-auto rounded p-1 text-ink-3 hover:text-ink" aria-label="Close">
@@ -88,6 +104,16 @@ export function StationDrawer({ device, allDevices, liveCommands, alerts, onClos
       </div>
 
       <div className="flex-1 space-y-6 overflow-y-auto p-5">
+        {device.status === "MAINTENANCE" && (
+          <section className="rounded-lg border border-danger/40 bg-danger/10 p-3 text-sm">
+            <p className="flex items-center gap-2 font-semibold text-danger"><Wrench className="size-4" /> {t("status.MAINTENANCE")}</p>
+            {device.outOfOrder && <p className="mt-1">{device.outOfOrder.reason} <span className="text-xs text-ink-3">· {device.outOfOrder.by}, {new Date(device.outOfOrder.at).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" })}</span></p>}
+            {can("station.lock", device.branchId) && (
+              <Button size="sm" variant="primary" className="mt-3" pending={backInService.pending} onClick={() => void backInService.run()}>{t("floor.backInService")}</Button>
+            )}
+            <ErrorNote>{backInService.error}</ErrorNote>
+          </section>
+        )}
         <section>
           <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-3">Session</h3>
           <SessionPanel device={device} allDevices={allDevices} onChange={onChange} />
@@ -106,6 +132,11 @@ export function StationDrawer({ device, allDevices, liveCommands, alerts, onClos
                 <Lock className="size-3.5" /> Lock
               </Button>
             )}
+            {can("station.lock", b) && !device.session && device.status !== "MAINTENANCE" && (
+              <Button size="sm" onClick={() => setBroken((v) => !v)} aria-expanded={broken}>
+                <Wrench className="size-3.5" /> {t("floor.outOfOrder")}
+              </Button>
+            )}
             {can("station.restart", b) && (
               <Button size="sm" onClick={act("RESTART", "Restart", `Restart ${device.name}? Anyone using it will be interrupted.`)}>
                 <RotateCcw className="size-3.5" /> Restart
@@ -122,6 +153,23 @@ export function StationDrawer({ device, allDevices, liveCommands, alerts, onClos
                 </Button>
               ))}
           </div>
+          {broken && (
+            <form
+              className="mt-3 grid gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void outOfOrder.run();
+              }}
+            >
+              <Field label={t("floor.outReason")} hint={t("floor.outNote")}>
+                <Input required minLength={2} maxLength={200} value={why} onChange={(e) => setWhy(e.target.value)} placeholder={t("floor.outReason.ph")} autoFocus />
+              </Field>
+              <ErrorNote>{outOfOrder.error}</ErrorNote>
+              <Button size="sm" type="submit" variant="danger" pending={outOfOrder.pending} disabled={why.trim().length < 2}>
+                <Wrench className="size-3.5" /> {t("floor.outOfOrder")}
+              </Button>
+            </form>
+          )}
           {showMsg && (
             <form
               className="mt-3 grid gap-2"

@@ -1,0 +1,50 @@
+// ── Day-to-day staff operations ─────────────────────────────────────────────
+// Attendance, shift handover notes and what players thought of their session.
+
+/// A staff member's clock-in / clock-out at a branch. One open entry per
+/// employee (database-enforced in 0019_staff_ops).
+model TimeClockEntry {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @db.Uuid
+  branchId       String    @db.Uuid
+  employeeId     String    @db.Uuid
+  clockInAt      DateTime  @default(now()) @db.Timestamptz(3)
+  clockOutAt     DateTime? @db.Timestamptz(3)
+  branch         Branch    @relation(fields: [branchId, organizationId], references: [id, organizationId])
+  employee       Employee  @relation(fields: [employeeId, organizationId], references: [id, organizationId])
+
+  @@index([organizationId, branchId, clockInAt])
+  @@index([organizationId, employeeId, clockInAt])
+}
+
+/// "PC 7 mouse broken, customer X owes 20" — left for the next shift at a branch.
+model HandoverNote {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @db.Uuid
+  branchId       String    @db.Uuid
+  authorId       String    @db.Uuid
+  body           String
+  createdAt      DateTime  @default(now()) @db.Timestamptz(3)
+  resolvedAt     DateTime? @db.Timestamptz(3)
+  resolvedById   String?   @db.Uuid
+  branch         Branch    @relation(fields: [branchId, organizationId], references: [id, organizationId])
+  author         Employee  @relation("HandoverNoteAuthor", fields: [authorId, organizationId], references: [id, organizationId])
+
+  @@index([organizationId, branchId, resolvedAt, createdAt])
+}
+
+/// A player's 1–5 star rating of their session, given from the Shell at log-out.
+model SessionFeedback {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @db.Uuid
+  branchId       String   @db.Uuid
+  deviceId       String   @db.Uuid
+  sessionId      String   @unique @db.Uuid
+  customerId     String?  @db.Uuid
+  rating         Int
+  comment        String?
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+  branch         Branch   @relation(fields: [branchId, organizationId], references: [id, organizationId])
+
+  @@index([organizationId, branchId, createdAt])
+}

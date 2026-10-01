@@ -42,6 +42,8 @@ const Product = z
     description: z.string().max(300).nullish(),
     type: z.enum(["STOCK_ITEM", "RECIPE_ITEM", "COMBO", "SERVICE"]),
     sku: z.string().trim().toUpperCase().regex(/^[A-Z0-9-]{2,30}$/, "use 2–30 letters, digits or dashes").optional(),
+    /** What a barcode scanner reads off the pack (EAN/UPC or the venue's own label). */
+    barcode: z.string().trim().regex(/^[A-Za-z0-9-]{4,40}$/, "use 4–40 letters, digits or dashes").nullish(),
     price: money,
     taxAppliesTo: z.enum(["ALL", "FOOD", "BEVERAGE", "MERCHANDISE", "SERVICE"]).default("FOOD"),
     kitchenStationId: z.uuid().nullish(),

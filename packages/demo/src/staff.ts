@@ -752,6 +752,107 @@ export function staffBackend(e: Engine) {
   // Demo: every account shares the demo password, so any change is accepted and forgotten.
   r.post("/auth/password", () => noContent());
 
+  // ── staff day-to-day: clock-in, handover notes, out of order, ratings, day summary ──
+  const hours = (from: string, to: string | null) => Math.round(((to ? Date.parse(to) : Date.now()) - Date.parse(from)) / 360_000) / 10;
+  const clockRows = (): any[] => e.get("staff", "/demo/clock") ?? (e.set("staff", "/demo/clock", []), e.get("staff", "/demo/clock"));
+  const myOpen = () => clockRows().find((c) => c.employeeId === me()?.employee?.id && !c.clockOutAt);
+  const clockView = () => {
+    const o = myOpen();
+    return { open: o ? { id: o.id, branch: o.branch, clockInAt: o.clockInAt, hours: hours(o.clockInAt, null) } : null };
+  };
+  r.get("/clock", () => clockView());
+  r.post("/branches/:id/clock-in", (q) => {
+    if (myOpen()) fail(409, "already_clocked_in");
+    const b = branch(q.params["id"]!);
+    clockRows().unshift({ id: uuid(), employeeId: me()?.employee?.id, employee: { id: me()?.employee?.id, displayName: staffName() }, branchId: b.id, branch: { id: b.id, name: b.name, code: b.code }, clockInAt: nowIso(), clockOutAt: null });
+    return clockView();
+  });
+  r.post("/clock-out", () => {
+    const o = myOpen() ?? fail(409, "not_clocked_in");
+    o.clockOutAt = nowIso();
+    return { open: null, worked: hours(o.clockInAt, o.clockOutAt) };
+  });
+  r.get("/branches/:id/attendance", (q) => {
+    const entries = clockRows().filter((c) => c.branchId === q.params["id"]).map((c) => ({ id: c.id, day: c.clockInAt.slice(0, 10), employee: c.employee, clockInAt: c.clockInAt, clockOutAt: c.clockOutAt, hours: hours(c.clockInAt, c.clockOutAt), open: !c.clockOutAt }));
+    const people = new Map<string, any>();
+    for (const x of entries) {
+      const p = people.get(x.employee.id) ?? { employee: x.employee, hours: 0, shifts: 0 };
+      p.hours = Math.round((p.hours + x.hours) * 10) / 10;
+      p.shifts += 1;
+      people.set(x.employee.id, p);
+    }
+    return { from: q.query.get("from"), to: q.query.get("to"), people: [...people.values()], entries };
+  });
+
+  const notes = (branchId: string): any[] => e.get("staff", `/demo/notes/${branchId}`) ?? (e.set("staff", `/demo/notes/${branchId}`, [
+    { id: uuid(), body: "VR-02 left controller needs charging before the evening rush", author: "Mo Manager", createdAt: minutesFromNow(-180), resolvedAt: null, resolvedBy: null },
+  ]), e.get("staff", `/demo/notes/${branchId}`));
+  const addNote = (branchId: string, body: string) => {
+    const n = { id: uuid(), body, author: staffName(), createdAt: nowIso(), resolvedAt: null, resolvedBy: null };
+    notes(branchId).unshift(n);
+    return n;
+  };
+  r.get("/branches/:id/handover-notes", (q) => notes(q.params["id"]!));
+  r.post("/branches/:id/handover-notes", (q) => created({ id: addNote(q.params["id"]!, String(q.body?.body ?? "").slice(0, 500)).id }));
+  r.post("/handover-notes/:id/resolve", (q) => {
+    for (const b of branches()) {
+      const n = notes(b.id).find((x) => x.id === q.params["id"]);
+      if (n) Object.assign(n, { resolvedAt: n.resolvedAt ?? nowIso(), resolvedBy: n.resolvedBy ?? staffName() });
+    }
+    return { id: q.params["id"] };
+  });
+
+  r.post("/devices/:id/out-of-order", (q) => {
+    const d = device(q.params["id"]!);
+    if (d.session) fail(409, "station_in_use");
+    const reason = String(q.body?.reason ?? "").trim() || fail(400, "validation_failed");
+    Object.assign(d, { status: "MAINTENANCE", displayStatus: "MAINTENANCE", outOfOrder: { reason, at: nowIso(), by: staffName() } });
+    addNote(d.branchId, `${d.name} is out of order: ${reason}`);
+    syncDeviceDocs(d);
+    pushDevice(d);
+    return clone(d);
+  });
+  r.post("/devices/:id/back-in-service", (q) => {
+    const d = device(q.params["id"]!);
+    if (d.status !== "MAINTENANCE") fail(409, "not_out_of_order");
+    for (const n of notes(d.branchId)) if (!n.resolvedAt && n.body.startsWith(`${d.name} is out of order: `)) Object.assign(n, { resolvedAt: nowIso(), resolvedBy: staffName() });
+    Object.assign(d, { status: "AVAILABLE", displayStatus: "AVAILABLE", outOfOrder: null });
+    syncDeviceDocs(d);
+    pushDevice(d);
+    return clone(d);
+  });
+
+  // Nobody else at the demo counter has a PIN: the dialog says how to set one.
+  r.get("/auth/pin-staff", () => []);
+  r.post("/auth/pin", () => noContent());
+
+  const RATINGS = [
+    { rating: 5, comment: "Fast PCs, cold drinks. Back next week!", customer: "Ahmed", station: "PC-03", ago: 40 },
+    { rating: 4, comment: null, customer: "Guest", station: "PS5-01", ago: 95 },
+    { rating: 2, comment: "Headset on VR-02 kept disconnecting", customer: "Sara", station: "VR-02", ago: 150 },
+    { rating: 5, comment: null, customer: "Guest", station: "PC-07", ago: 300 },
+    { rating: 4, comment: "Could the music be a bit quieter?", customer: "Omar", station: "PC-12", ago: 1500 },
+  ];
+  r.get("/branches/:id/feedback", () => {
+    const stars = [1, 2, 3, 4, 5].map((s) => RATINGS.filter((x) => x.rating === s).length);
+    return {
+      days: 30, count: RATINGS.length, average: Math.round((RATINGS.reduce((a, x) => a + x.rating, 0) / RATINGS.length) * 10) / 10, stars,
+      recent: RATINGS.map((x) => ({ id: uuid(), rating: x.rating, comment: x.comment, createdAt: minutesFromNow(-x.ago), station: x.station, customer: x.customer })),
+    };
+  });
+  r.get("/branches/:id/day-summary", (q) => {
+    const b = branch(q.params["id"]!);
+    const live = (floorDoc(b.id)?.devices ?? []).filter((d: any) => d.session).length;
+    return {
+      date: q.query.get("date"), branch: { name: b.name, code: b.code }, currency: currency(),
+      revenue: "2840.00", takings: "3125.00", bills: 64, refunds: "0.00", discounts: "45.00",
+      sessions: 38 + live, hoursPlayed: 112.5, occupancyPct: 47,
+      cash: { counted: "1180.00", expected: "1185.00", variance: "-5.00", shifts: 2, needingApproval: 0 },
+      topProducts: [{ name: "Energy drink", quantity: 31, net: "295.24" }, { name: "Classic smash burger", quantity: 18, net: "548.57" }, { name: "Loaded fries", quantity: 15, net: "214.29" }],
+      feedback: { count: RATINGS.length, average: 4 }, openNotes: notes(b.id).filter((n) => !n.resolvedAt).length,
+    };
+  });
+
   return { router: r, endSession, startSession, allDevices, customers, walletDoc, spendWallet, ledger, floorDoc, branches, quote, plansFor };
 }
 

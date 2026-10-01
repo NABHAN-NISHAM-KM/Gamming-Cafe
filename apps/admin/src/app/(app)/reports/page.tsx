@@ -36,8 +36,13 @@ interface Util {
 interface Staff { currency: string; staff: Array<{ id: string; name: string; code: string; branch: string | null; orders: number; orderValue: string; payments: number; paid: string; refunds: number; refunded: string; voids: number; voided: string; sessions: number; shifts: number; variance: string }> }
 interface Branch { id: string; code: string; name: string }
 
-type Tab = "sales" | "vat" | "cash" | "utilization" | "staff";
-const TABS: Array<[Tab, string, string]> = [["sales", "Sales", "reports.financial"], ["vat", "VAT", "reports.financial"], ["cash", "Cash & shifts", "reports.financial"], ["utilization", "Gaming utilization", "reports.operational"], ["staff", "Staff", "reports.staff"]];
+interface Attendance {
+  people: Array<{ employee: { id: string; displayName: string }; hours: number; shifts: number }>;
+  entries: Array<{ id: string; day: string; employee: { displayName: string }; clockInAt: string; clockOutAt: string | null; hours: number; open: boolean }>;
+}
+
+type Tab = "sales" | "vat" | "cash" | "utilization" | "staff" | "attendance";
+const TABS: Array<[Tab, string, string]> = [["sales", "Sales", "reports.financial"], ["vat", "VAT", "reports.financial"], ["cash", "Cash & shifts", "reports.financial"], ["utilization", "Gaming utilization", "reports.operational"], ["staff", "Staff", "reports.staff"], ["attendance", "Attendance", "reports.staff"]];
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const todayLocal = () => new Date().toLocaleDateString("en-CA");
 const fmt = (v: string | number, currency?: string) => {
@@ -74,7 +79,7 @@ export default function ReportsPage() {
           <button key={t} onClick={() => setTab(t)} className={cx("-mb-px whitespace-nowrap border-b-2 px-4 py-2 text-sm", tab === t ? "border-accent text-ink" : "border-transparent text-ink-3 hover:text-ink")}>{label}</button>
         ))}
       </div>
-      {tab === "sales" ? <SalesReport q={q} from={from} to={to} /> : tab === "vat" ? <VatReport q={q} /> : tab === "cash" ? <CashReport q={q} /> : tab === "utilization" ? <UtilReport q={q} /> : <StaffReport q={q} />}
+      {tab === "sales" ? <SalesReport q={q} from={from} to={to} /> : tab === "vat" ? <VatReport q={q} /> : tab === "cash" ? <CashReport q={q} /> : tab === "utilization" ? <UtilReport q={q} /> : tab === "staff" ? <StaffReport q={q} /> : <AttendanceReport branchId={branchId || branches.data?.[0]?.id} from={from} to={to} />}
     </div>
   );
 }
@@ -360,6 +365,46 @@ function UtilReport({ q }: { q: string }) {
 }
 
 // ── staff ───────────────────────────────────────────────────────────────────
+
+/** Clock-in / clock-out per person at one branch (staff clock in from the top bar). */
+function AttendanceReport({ branchId, from, to }: { branchId?: string; from: string; to: string }) {
+  const r = useApi<Attendance>(branchId ? `/branches/${branchId}/attendance?${qs({ from, to })}` : null);
+  const time = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  if (r.error) return <ErrorNote>{r.error.status === 400 ? "Pick at most two months at a time." : r.error.message}</ErrorNote>;
+  if (!r.data) return <Spinner />;
+  return (
+    <div className="grid gap-4 lg:grid-cols-[1fr_1.6fr]">
+      <Panel title="Hours per person">
+        {r.data.people.length === 0 ? <p className="px-4 py-6 text-sm text-ink-3">Nobody clocked in at this branch in this period. Staff clock in with the button at the top of the screen.</p> : (
+          <Table head={["Employee", "Shifts", "Hours"]}>
+            {r.data.people.map((p) => (
+              <tr key={p.employee.id} className="border-t border-line">
+                <td className="px-4 py-1.5">{p.employee.displayName}</td>
+                <td className="px-4 py-1.5 text-right tabular-nums">{p.shifts}</td>
+                <td className="px-4 py-1.5 text-right tabular-nums">{p.hours}</td>
+              </tr>
+            ))}
+          </Table>
+        )}
+      </Panel>
+      <Panel title="Clock-ins">
+        {r.data.entries.length === 0 ? <p className="px-4 py-6 text-sm text-ink-3">No clock-ins.</p> : (
+          <Table head={["Day", "Employee", "In", "Out", "Hours"]}>
+            {r.data.entries.map((e) => (
+              <tr key={e.id} className="border-t border-line">
+                <td className="px-4 py-1.5 tabular-nums">{e.day}</td>
+                <td className="px-4 py-1.5">{e.employee.displayName}</td>
+                <td className="px-4 py-1.5 tabular-nums">{time(e.clockInAt)}</td>
+                <td className="px-4 py-1.5 tabular-nums">{e.clockOutAt ? time(e.clockOutAt) : <span className="text-ok">on shift</span>}</td>
+                <td className="px-4 py-1.5 text-right tabular-nums">{e.hours}</td>
+              </tr>
+            ))}
+          </Table>
+        )}
+      </Panel>
+    </div>
+  );
+}
 
 function StaffReport({ q }: { q: string }) {
   const r = useApi<Staff>(`/reports/staff?${q}`);

@@ -7,22 +7,22 @@
   <meta name="description" content="Host the ArenaOS server once, then install ArenaOS-Station-Setup.exe on every gaming PC and connect it to your admin with an enrolment code." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Chakra+Petch:wght@500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/site.css?v=4" />
+  <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/site.css?v=7" />
   <style>
     .arch { display: grid; grid-template-columns: 1fr auto 1fr; gap: 18px; align-items: center; margin: 26px 0; }
-    .arch .box { background: var(--panel); border: 1px solid var(--line-2); border-radius: 14px; padding: 18px; }
+    .arch .box { background: var(--panel); border: 1px solid var(--line-2); border-radius: 0; padding: 18px; }
     .arch .box h4 { margin: 0 0 8px; font-size: 16px; }
     .arch .box li { font-size: 14px; margin: 3px 0; }
     .arch .arrow { text-align: center; color: var(--accent); font-family: var(--mono); font-size: 13px; }
     .arch .arrow div { font-size: 26px; }
     .wizard { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 16px 0; }
-    .wz { background: var(--panel); border: 1px solid var(--line-2); border-radius: 12px; overflow: hidden; }
+    .wz { background: var(--panel); border: 1px solid var(--line-2); border-radius: 0; overflow: hidden; }
     .wz .bar { background: var(--panel-2); padding: 6px 10px; font-size: 11.5px; color: var(--ink-3); border-bottom: 1px solid var(--line); }
     .wz .in { padding: 12px; font-size: 12.5px; color: var(--ink-2); min-height: 150px; }
     .wz .in b { display: block; font-size: 13.5px; margin-bottom: 8px; }
-    .wz .f { background: var(--bg-2); border: 1px solid var(--line-2); border-radius: 6px; padding: 5px 8px; margin: 4px 0 8px; font-family: var(--mono); font-size: 11px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .dl-card { display: flex; gap: 20px; align-items: center; justify-content: space-between; flex-wrap: wrap; background: radial-gradient(80% 140% at 0% 0%, rgb(160 124 255 / .14), transparent 60%), var(--panel); border: 1px solid var(--line-2); border-radius: 16px; padding: 22px 24px; margin: 18px 0; }
+    .wz .f { background: var(--bg-2); border: 1px solid var(--line-2); border-radius: 0; padding: 5px 8px; margin: 4px 0 8px; font-family: var(--mono); font-size: 11px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .dl-card { display: flex; gap: 20px; align-items: center; justify-content: space-between; flex-wrap: wrap; background: radial-gradient(80% 140% at 0% 0%, rgb(160 124 255 / .14), transparent 60%), var(--panel); border: 1px solid var(--line-2); border-radius: 0; padding: 22px 24px; margin: 18px 0; }
     .dl-card h4 { margin: 0 0 4px; font-size: 18px; }
     .dl-card p { margin: 0; font-size: 14px; }
     @media (max-width: 1000px) { .wizard { grid-template-columns: repeat(2, 1fr); } }
@@ -32,11 +32,11 @@
 <body>
   <header id="nav"></header>
   <main>
-    <section class="hero center" style="padding-bottom:30px">
+    <section class="hero" data-scroll>
       <div class="hero-grid"></div>
       <div class="wrap">
         <span class="eyebrow">Install guide</span>
-        <h1 style="font-size:clamp(34px,5vw,54px)">Host once. <span class="grad">Install on every PC.</span></h1>
+        <h1 data-split>Host once. Install on every PC.</h1>
         <p class="lead">Put the ArenaOS server online one time, then run <code class="mono">ArenaOS-Station-Setup.exe</code> on each gaming PC. Type an enrolment code and the PC appears on your Live Floor.</p>
       </div>
     </section>
@@ -243,6 +243,6 @@ api.yourvenue.com {
     </div>
   </main>
   <footer id="footer"></footer>
-  <script src="assets/site.js?v=4"></script>
+  <script src="assets/site.js?v=7"></script>
 </body>
 </html>

@@ -73,6 +73,7 @@ import { AccountingController } from "./accounting/accounting.controller.js";
 import { AccountingPosterService } from "./accounting/poster.service.js";
 import { ReportsController } from "./reports/reports.controller.js";
 import { AnalyticsController } from "./reports/analytics.controller.js";
+import { StaffController } from "./staff/staff.controller.js";
 
 @Controller()
 class HealthController {
@@ -138,6 +139,7 @@ export class AppModule {
         AccountingController,
         ReportsController,
         AnalyticsController,
+        StaffController,
       ],
       providers: [
         TokensService,

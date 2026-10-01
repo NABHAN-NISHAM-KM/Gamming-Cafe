@@ -231,6 +231,9 @@ model Branch {
   edgeNodes               EdgeNode[]
   supportTickets          SupportTicket[]
   branchSigningKeys       BranchSigningKey[]
+  timeClockEntries        TimeClockEntry[]
+  handoverNotes           HandoverNote[]
+  sessionFeedback         SessionFeedback[]
 
   @@unique([id, organizationId])
   @@unique([organizationId, code])

@@ -29,6 +29,22 @@ public class ShellProtocolTests
     public void Rejects_malformed_or_unknown(string line) => Assert.Null(ShellProtocol.Parse(line));
 
     [Fact]
+    public void Parses_a_session_rating()
+    {
+        var f = Assert.IsType<ShellRequest.Feedback>(ShellProtocol.Parse("""{"type":"feedback","rating":4,"comment":"  Great PC "}"""));
+        Assert.Equal(4, f.Rating);
+        Assert.Equal("Great PC", f.Comment);
+        Assert.Null(Assert.IsType<ShellRequest.Feedback>(ShellProtocol.Parse("""{"type":"feedback","rating":5,"comment":null}""")).Comment);
+    }
+
+    [Theory]
+    [InlineData("""{"type":"feedback","rating":0}""")]
+    [InlineData("""{"type":"feedback","rating":6}""")]
+    [InlineData("""{"type":"feedback","rating":"5"}""")]
+    [InlineData("""{"type":"feedback"}""")]
+    public void Rejects_bad_ratings(string line) => Assert.Null(ShellProtocol.Parse(line));
+
+    [Fact]
     public void Rejects_oversized_lines()
     {
         var secret = new string('x', ShellProtocol.MaxLineBytes);

@@ -161,6 +161,7 @@ export type ShellMessage =
   | { type: "ready" }
   | { type: "login"; requestId: string; username: string; secret: string }
   | { type: "logout" }
+  | { type: "feedback"; rating: number; comment: string | null }
   | { type: "launch"; requestId: string; gameId: string }
   | { type: "launch_app"; requestId: string; appId: string }
   | { type: "help"; requestId: string; topic: HelpTopic; note?: string }

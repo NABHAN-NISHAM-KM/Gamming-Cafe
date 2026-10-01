@@ -99,11 +99,17 @@ export class CustomersController {
   @Get()
   async list(@Query("q") q?: string) {
     const term = q?.trim();
+    // Phones are stored as typed ("+971 50 123 4567"): match on digits only, and
+    // drop a leading trunk 0 so a local "050 123…" still finds it.
+    const digits = term && /^[+0-9 ()-]+$/.test(term) ? term.replace(/\D/g, "").replace(/^0+/, "") : "";
+    const byPhone = digits.length >= 4
+      ? (await tx().$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "Customer" WHERE regexp_replace(COALESCE("phone", ''), '[^0-9]', '', 'g') LIKE ${`%${digits}%`} LIMIT 50`).map((r) => r.id)
+      : [];
     const rows = await tx().customer.findMany({
       where: {
         status: { not: "DELETED" },
         ...(term
-          ? { OR: [{ username: { contains: term, mode: "insensitive" } }, { displayName: { contains: term, mode: "insensitive" } }, { phone: { contains: term } }, { email: { contains: term, mode: "insensitive" } }] }
+          ? { OR: [{ username: { contains: term, mode: "insensitive" } }, { displayName: { contains: term, mode: "insensitive" } }, { phone: { contains: term } }, { email: { contains: term, mode: "insensitive" } }, ...(byPhone.length ? [{ id: { in: byPhone } }] : [])] }
           : {}),
       },
       select: SELECT,

@@ -6,6 +6,10 @@ import { ArrowDownRight, ArrowRight, ArrowUpRight, CheckCircle2, Circle, Crown, 
 import { useApi } from "@/lib/client/hooks";
 import { useCan, useMe } from "@/lib/client/me";
 import { Card, PageHeader, Select, Spinner, cx } from "@/components/ui";
+import { useBranch } from "@/lib/client/branch";
+import { useT } from "@/lib/client/i18n";
+import { CounterBoard } from "@/components/counter-board";
+import { DaySummaryCard, FeedbackCard } from "@/components/owner-cards";
 
 interface Branch {
   id: string;
@@ -38,15 +42,23 @@ export default function Dashboard() {
   const branches = useApi<Branch[]>(can("branch.view") ? "/branches" : null);
   const employees = useApi<unknown[]>(can("employee.view") ? "/employees" : null);
   const firstBranch = branches.data?.[0];
+  const { branchId } = useBranch();
   const zones = useApi<unknown[]>(firstBranch && can("zone.view") ? `/branches/${firstBranch.id}/zones` : null);
+  const stations = useApi<unknown[]>(firstBranch && can("station.view") ? `/branches/${firstBranch.id}/devices` : null);
+  const plans = useApi<unknown[]>(can("pricing.view") ? "/pricing-plans" : null);
+  const menu = useApi<{ categories: Array<{ products: unknown[] }> }>(firstBranch && can("pos.sell") ? `/branches/${firstBranch.id}/menu` : null);
 
+  // Only the steps this person can check (and act on) are listed.
   const steps = [
-    { done: (branches.data?.length ?? 0) > 0, label: "Create your first branch", href: "/branches" },
-    { done: (zones.data?.length ?? 0) > 0, label: "Add zones (Regular, VIP, PS5, VR…)", href: firstBranch ? `/branches/${firstBranch.id}` : "/branches" },
-    { done: (employees.data?.length ?? 0) > 1, label: "Invite your staff and assign roles", href: "/employees" },
-    { done: me.user.mfaEnabled, label: "Turn on 2-step sign-in for your account", href: "/settings" },
-  ];
-  const setupLoaded = !branches.loading && !employees.loading;
+    { done: (branches.data?.length ?? 0) > 0, label: "Create your first branch", href: "/branches", show: can("branch.view") },
+    { done: (zones.data?.length ?? 0) > 0, label: "Add zones (Regular, VIP, PS5, VR…)", href: firstBranch ? `/branches/${firstBranch.id}` : "/branches", show: can("zone.view") },
+    { done: (stations.data?.length ?? 0) > 0, label: "Connect your first PC (or add a console)", href: "/computers", show: can("station.view") },
+    { done: (plans.data?.length ?? 0) > 0, label: "Set your prices (per hour, packages, night pass)", href: "/rates", show: can("pricing.view") },
+    { done: (menu.data?.categories ?? []).some((c) => c.products.length > 0), label: "Add your food & drinks menu", href: "/restaurant", show: can("pos.sell") },
+    { done: (employees.data?.length ?? 0) > 1, label: "Invite your staff and assign roles", href: "/employees", show: can("employee.view") },
+    { done: me.user.mfaEnabled, label: "Turn on 2-step sign-in for your account", href: "/settings", show: true },
+  ].filter((s) => s.show);
+  const setupLoaded = !branches.loading && !employees.loading && !stations.loading && !plans.loading && !menu.loading;
   const setupDone = steps.every((s) => s.done);
 
   return (
@@ -55,10 +67,10 @@ export default function Dashboard() {
 
       {can("reports.operational") && <Analytics branches={branches.data ?? []} />}
 
-      <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-        {setupLoaded && !setupDone && (
+      {setupLoaded && !setupDone && (
+        <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
           <Card className="p-6">
-            <h2 className="font-semibold">Finish setting up</h2>
+            <h2 className="font-semibold">Finish setting up <span className="text-sm font-normal text-ink-3">· {steps.filter((s) => s.done).length} of {steps.length} done</span></h2>
             <ul className="mt-4 grid gap-2">
               {steps.map((s) => (
                 <li key={s.label}>
@@ -71,22 +83,16 @@ export default function Dashboard() {
               ))}
             </ul>
           </Card>
-        )}
-        <Card className="p-6">
-          <h2 className="font-semibold">Your access</h2>
-          <ul className="mt-4 grid gap-3">
-            {me.grants.map((g, i) => {
-              const code = branches.data?.find((b) => b.id === g.branchId)?.code;
-              return (
-                <li key={i} className="rounded-lg border border-line p-3">
-                  <p className="text-sm font-medium capitalize">{g.role.replace(/_/g, " ")}</p>
-                  <p className="text-xs text-ink-3">{g.scope === "ORGANIZATION" ? "All branches" : g.scope === "BRAND" ? "One brand" : code ? `Branch ${code}` : "One branch"} · {g.permissions.length} permissions</p>
-                </li>
-              );
-            })}
-          </ul>
-        </Card>
-      </div>
+        </div>
+      )}
+
+      {branchId && (can("reports.financial", branchId) || can("reports.operational", branchId)) && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {can("reports.financial", branchId) && <DaySummaryCard branchId={branchId} />}
+          {can("reports.operational", branchId) && <FeedbackCard branchId={branchId} />}
+        </div>
+      )}
+      {branchId && <CounterBoard branchId={branchId} />}
     </div>
   );
 }
@@ -94,6 +100,7 @@ export default function Dashboard() {
 // ── analytics ───────────────────────────────────────────────────────────────
 
 function Analytics({ branches }: { branches: Branch[] }) {
+  const t = useT();
   const [days, setDays] = useState(30);
   const [branchId, setBranchId] = useState("");
   const o = useApi<Overview>(`/analytics/overview?days=${days}${branchId ? `&branchId=${branchId}` : ""}`);
@@ -107,9 +114,9 @@ function Analytics({ branches }: { branches: Branch[] }) {
       {/* right now + today */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Tile label="Playing now" value={`${d.live.playing} / ${d.live.stations}`} hint={d.live.occupancyPct === null ? "no stations yet" : `${d.live.occupancyPct}% of stations · ${d.live.online} online`} href="/floor" />
-        <Tile label="Open tabs" value={String(d.live.openBills)} hint={Number(d.live.due) ? `${money(d.live.due, c)} still to pay` : "nothing outstanding"} />
+        <Tile label={t("word.notPaid")} value={String(d.live.openBills)} hint={Number(d.live.due) ? `${money(d.live.due, c)} still to pay` : "nothing outstanding"} href="/orders?open=1" />
         <Tile label="Revenue today" value={money(d.todayVsLastWeek.revenue, c)} change={d.todayVsLastWeek.revenueChangePct} hint={`vs ${money(d.todayVsLastWeek.revenueLastWeek)} last ${new Date(`${d.today}T12:00:00`).toLocaleDateString([], { weekday: "long" })}`} />
-        <Tile label="Bills today" value={String(d.todayVsLastWeek.bills)} hint={`${d.todayVsLastWeek.billsLastWeek} same day last week · takings ${money(d.todayVsLastWeek.takings)}`} />
+        <Tile label={t("word.salesToday")} value={String(d.todayVsLastWeek.bills)} hint={`${d.todayVsLastWeek.billsLastWeek} same day last week · taken in ${money(d.todayVsLastWeek.takings)}`} />
       </div>
 
       {!a ? (
@@ -134,8 +141,8 @@ function Analytics({ branches }: { branches: Branch[] }) {
           </div>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
             <Tile label="Revenue" value={money(a.kpis.revenue.value, c)} change={a.kpis.revenue.changePct} small />
-            <Tile label="Bills" value={String(a.kpis.bills.value)} change={a.kpis.bills.changePct} small />
-            <Tile label="Average bill" value={money(a.kpis.averageBill.value)} change={a.kpis.averageBill.changePct} small />
+            <Tile label="Receipts" value={String(a.kpis.bills.value)} change={a.kpis.bills.changePct} small />
+            <Tile label="Average spend" value={money(a.kpis.averageBill.value)} change={a.kpis.averageBill.changePct} small />
             <Tile label="Sessions" value={String(a.kpis.sessions.value)} change={a.kpis.sessions.changePct} small />
             <Tile label="Hours played" value={String(a.kpis.hoursPlayed.value)} change={a.kpis.hoursPlayed.changePct} small />
             <Tile label="Active customers" value={String(a.kpis.activeCustomers.value)} change={a.kpis.activeCustomers.changePct} small hint={a.customers.returningPct === null ? undefined : `${a.customers.returningPct}% returning`} />

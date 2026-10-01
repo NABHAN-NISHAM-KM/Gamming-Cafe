@@ -318,6 +318,10 @@ public sealed class StationService(
                     shell.Broadcast(ShellProtocol.Result("help_result", h.RequestId, false, "offline", "The venue is offline. Please wave to a member of staff."));
                 }
                 return;
+            case ShellRequest.Feedback f:
+                // Best effort: an offline venue just doesn't get this rating.
+                await server.TrySendAsync(Outgoing.SessionFeedback(f.Rating, f.Comment));
+                return;
             case ShellRequest.MenuRequest m:
                 if (!await server.TrySendAsync(Outgoing.MenuRequest(m.RequestId)))
                     shell.Broadcast(JsonSerializer.Serialize(new { type = "menu", requestId = m.RequestId, menu = (object?)null, error = "offline" }, Json.Options));

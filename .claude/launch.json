@@ -60,10 +60,10 @@
       "name": "website",
       "runtimeExecutable": "node",
       "runtimeArgs": [
-        "apps/website/serve.mjs",
-        "5180"
+        "apps/website/serve.mjs"
       ],
-      "port": 5180
+      "port": 5180,
+      "autoPort": true
     }
   ]
 }

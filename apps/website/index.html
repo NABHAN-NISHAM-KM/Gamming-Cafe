@@ -5,44 +5,88 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>ArenaOS — the operating system for gaming venues</title>
   <meta name="description" content="ArenaOS runs gaming cafés, esports arenas, internet cafés, console & VR centres and gaming restaurants: locked gaming shell, Live Floor, sessions, POS, kitchen, inventory, bookings, loyalty, tournaments and CRM — in one multi-tenant platform. Try every app live in your browser." />
-  <meta name="theme-color" content="#07070c" />
+  <meta name="theme-color" content="#060609" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Chakra+Petch:wght@500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/site.css?v=4" />
-  <link rel="modulepreload" href="assets/arena3d.js" />
+  <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/site.css?v=7" />
+  <link rel="preload" href="assets/media/arena.mp4" as="fetch" type="video/mp4" crossorigin />
 </head>
 <body>
   <header id="nav"></header>
 
   <main>
-    <!-- HERO: real-time 3D arena -->
-    <section class="hero3d center">
-      <div class="stage-fallback" aria-hidden="true"></div>
-      <div class="stage" data-arena3d aria-hidden="true"></div>
-      <div class="wrap">
-        <span class="eyebrow"><span class="dot"></span>Every app is live below — no sign-up, no install</span>
-        <h1>The operating system<br />for <span class="grad">gaming venues</span></h1>
-        <p class="lead">Stations, sessions, food, bookings and loyalty — from the locked PC shell to the kitchen screen, across every branch you own. One platform, running in real time.</p>
-        <div class="hero-cta">
-          <a class="btn btn-primary btn-lg" href="#live">Try it live <span data-icon="play" data-size="16"></span></a>
-          <a class="btn btn-ghost btn-lg" href="#downloads">Download apps <span data-icon="arrow" data-size="16"></span></a>
+    <!-- HERO: scroll flies a camera through a real-time 3D arena -->
+    <section class="fly" data-pin aria-label="ArenaOS in five views">
+      <div class="fly-stage">
+        <div class="stage-fallback" aria-hidden="true"></div>
+        <div class="stage" data-arena3d>
+          <video class="stage-video" data-scrub="assets/media/arena.mp4" data-times="0.6 2.9 4.4 6.1 9.6" muted playsinline preload="none" aria-label="Film of a gaming café: rows of RGB gaming PCs, a top-down view of the floor, a player's screen, an order flying to the kitchen, and the venue joining other branches across the city. Scrolling plays it."></video>
         </div>
-        <div class="hero-chips">
-          <span><b class="count" data-to="18">18</b> PCs live on the demo floor</span>
-          <span><b>&lt;1s</b> click → PC unlocked</span>
-          <span><b class="count" data-to="26">26</b> switchable modules</span>
-          <span><b>EN · AR</b> shell</span>
+
+        <div class="chapters">
+          <div class="chapter intro">
+            <div class="wrap">
+              <span class="num"><b>00</b> The operating system for gaming venues</span>
+              <h1 data-split><span>Run the</span> <span><em class="out">whole</em> arena.</span></h1>
+              <p>Stations, sessions, food, bookings and loyalty, from the locked PC shell to the kitchen screen, across every branch you own.</p>
+              <div class="hero-cta">
+                <a class="btn btn-primary btn-lg" href="#live">Try it live <span data-icon="arrow" data-size="16"></span></a>
+                <a class="btn btn-ghost btn-lg" href="#downloads">Download apps</a>
+              </div>
+            </div>
+          </div>
+          <div class="chapter">
+            <div class="wrap">
+              <span class="num"><b>01</b> Live Floor</span>
+              <h2>Every seat, <br />one screen.</h2>
+              <p>A real-time map of every PC, console and VR rig. Status changes inside a second: free, in use, ending, reserved. Lock, message or restart any of them from the desk.</p>
+            </div>
+          </div>
+          <div class="chapter">
+            <div class="wrap">
+              <span class="num"><b>02</b> Gaming Shell</span>
+              <h2>The seat <br />runs itself.</h2>
+              <p>Players sign in with a password or PIN, watch their time count down, launch games and top up without walking to the counter. Locked down, in English and Arabic.</p>
+            </div>
+          </div>
+          <div class="chapter">
+            <div class="wrap">
+              <span class="num"><b>03</b> POS &amp; kitchen</span>
+              <h2>Order from <br />the seat.</h2>
+              <p>A burger ordered on PC-07 lands on the kitchen display, deducts stock by recipe and joins the same bill as the gaming time.</p>
+            </div>
+          </div>
+          <div class="chapter">
+            <div class="wrap">
+              <span class="num"><b>04</b> Multi-branch</span>
+              <h2>Every branch, <br />one account.</h2>
+              <p>One customer, one wallet and one set of reports across all your venues, with roles per branch and a Super Admin above it all.</p>
+              <div class="hero-cta"><a class="btn btn-ghost" href="features.html">See every feature <span data-icon="arrow" data-size="16"></span></a></div>
+            </div>
+          </div>
         </div>
+
+        <nav class="rail" aria-label="Hero chapters">
+          <a href="#">Arena</a><a href="#">Live Floor</a><a href="#">Shell</a><a href="#">Kitchen</a><a href="#">Branches</a>
+        </nav>
+        <div class="hud" aria-hidden="true">
+          <div class="hd">Demo Arena · Main floor <span>LIVE</span></div>
+          <div><span><i style="--c:var(--accent)"></i>In use</span><b data-k="busy">–</b></div>
+          <div><span><i style="--c:var(--green)"></i>Free</span><b data-k="free">–</b></div>
+          <div><span><i style="--c:var(--orange)"></i>Ending</span><b data-k="ending">–</b></div>
+          <div><span><i style="--c:var(--amber)"></i>Reserved</span><b data-k="reserved">–</b></div>
+          <div><span><i style="--c:var(--accent-2)"></i>VIP</span><b data-k="vip">–</b></div>
+        </div>
+        <div class="scroll-cue" aria-hidden="true">Scroll to fly through</div>
       </div>
-      <a class="scroll-hint" href="#venues" aria-label="Scroll down"></a>
     </section>
 
     <!-- WHO IT'S FOR -->
     <div class="marquee" id="venues" aria-label="Built for every kind of gaming venue">
       <div class="marquee-track">
-        <span><i>◆</i> Gaming cafés</span><span><i>◆</i> Esports arenas</span><span><i>◆</i> Internet cafés</span><span><i>◆</i> PS5 &amp; Xbox lounges</span><span><i>◆</i> VR centres</span><span><i>◆</i> Racing sims</span><span><i>◆</i> Gaming restaurants</span><span><i>◆</i> LAN centres</span><span><i>◆</i> Bootcamps</span>
-        <span><i>◆</i> Gaming cafés</span><span><i>◆</i> Esports arenas</span><span><i>◆</i> Internet cafés</span><span><i>◆</i> PS5 &amp; Xbox lounges</span><span><i>◆</i> VR centres</span><span><i>◆</i> Racing sims</span><span><i>◆</i> Gaming restaurants</span><span><i>◆</i> LAN centres</span><span><i>◆</i> Bootcamps</span>
+        <span>Gaming cafés <i>◆</i></span><span>Esports arenas <i>◆</i></span><span>Internet cafés <i>◆</i></span><span>PS5 &amp; Xbox lounges <i>◆</i></span><span>VR centres <i>◆</i></span><span>Racing sims <i>◆</i></span><span>Gaming restaurants <i>◆</i></span><span>LAN centres <i>◆</i></span>
+        <span aria-hidden="true">Gaming cafés <i>◆</i></span><span aria-hidden="true">Esports arenas <i>◆</i></span><span aria-hidden="true">Internet cafés <i>◆</i></span><span aria-hidden="true">PS5 &amp; Xbox lounges <i>◆</i></span><span aria-hidden="true">VR centres <i>◆</i></span><span aria-hidden="true">Racing sims <i>◆</i></span><span aria-hidden="true">Gaming restaurants <i>◆</i></span><span aria-hidden="true">LAN centres <i>◆</i></span>
       </div>
     </div>
 
@@ -50,84 +94,86 @@
     <section id="live">
       <div class="wrap">
         <div class="sec-head">
-          <span class="tag">Live, not a video</span>
-          <h2>The real apps. One venue. <span class="grad">All connected.</span></h2>
-          <p>These are the actual ArenaOS apps running a simulated venue — Demo Arena, Dubai Marina — right in your browser. Everything works, and what you do in one app shows up in the others.</p>
+          <span class="kicker"><b>05</b> Live, not a video</span>
+          <h2 data-split>Three apps. <br />One venue.</h2>
+          <p>The actual ArenaOS apps running a simulated venue, Demo Arena in Dubai Marina, right in your browser. What you do in one shows up in the others.</p>
         </div>
 
-        <div class="devices">
-          <div class="device laptop reveal">
-            <div class="label"><span data-icon="floor" data-size="16"></span><b>Venue admin</b> · Live Floor <span class="live">live</span></div>
-            <div class="screen laptop" data-live="live/admin/login/?as=owner&next=%2Ffloor" data-vp="1440x900" data-title="ArenaOS admin — live demo">
-              <div class="cover"><span class="btn btn-primary">Launch admin</span><small>Signed in as the owner</small></div>
+        <div class="devices-stage">
+          <div class="devices">
+            <div class="device laptop">
+              <div class="label"><span data-icon="floor" data-size="15"></span><b>Venue admin</b> · Live Floor <span class="live">● live</span></div>
+              <div class="screen laptop" data-live="live/admin/login/?as=owner&next=%2Ffloor" data-vp="1440x900" data-title="ArenaOS admin — live demo">
+                <div class="cover" role="button" tabindex="0" aria-label="Launch the venue admin demo"><span class="btn btn-primary">Launch admin</span><small>Signed in as the owner</small></div>
+              </div>
             </div>
-          </div>
-          <div class="device monitor reveal">
-            <div class="label"><span data-icon="monitor" data-size="16"></span><b>Gaming Shell</b> · PC-01 <span class="live">live</span></div>
-            <div class="screen monitor" data-live="live/shell/?station=PC-01" data-vp="1600x900" data-title="ArenaOS Gaming Shell — live demo">
-              <div class="cover"><span class="btn btn-primary">Launch Shell</span><small>Sign in as <b>ahmed</b> · <b>ahmed123</b></small></div>
+            <div class="device monitor">
+              <div class="label"><span data-icon="monitor" data-size="15"></span><b>Gaming Shell</b> · PC-01 <span class="live">● live</span></div>
+              <div class="screen monitor" data-live="live/shell/?station=PC-01" data-vp="1600x900" data-title="ArenaOS Gaming Shell — live demo">
+                <div class="cover" role="button" tabindex="0" aria-label="Launch the Gaming Shell demo"><span class="btn btn-primary">Launch Shell</span><small>Sign in as <b>ahmed</b> · <b>ahmed123</b></small></div>
+              </div>
             </div>
-          </div>
-          <div class="device phone-wrap reveal">
-            <div class="label"><span data-icon="phone" data-size="16"></span><b>Customer app</b> <span class="live">live</span></div>
-            <div class="screen phone" data-live="live/app/" data-vp="390x832" data-title="ArenaOS customer app — live demo">
-              <div class="cover"><span class="btn btn-primary">Launch app</span><small>ahmed · ahmed123</small></div>
+            <div class="device phone-wrap">
+              <div class="label"><span data-icon="phone" data-size="15"></span><b>Customer app</b> <span class="live">● live</span></div>
+              <div class="screen phone" data-live="live/app/" data-vp="390x832" data-title="ArenaOS customer app — live demo">
+                <div class="cover" role="button" tabindex="0" aria-label="Launch the customer app demo"><span class="btn btn-primary">Launch app</span><small>ahmed · ahmed123</small></div>
+              </div>
             </div>
           </div>
         </div>
 
         <div class="devices-note reveal">
-          <span data-icon="zap" data-size="20" style="color:var(--accent)"></span>
-          <div>
-            <b>Try the connection:</b>
-            <ol>
-              <li>Sign in on the <b>Gaming Shell</b> as ahmed — PC-01 turns “in use” on the admin's Live Floor.</li>
-              <li>Order a burger from the Shell's <b>Food</b> tab — it lands on the admin's <b>Kitchen</b> screen.</li>
-              <li>In the admin, open PC-01 and send a <b>Message</b> or <b>End session</b> — the Shell reacts instantly.</li>
-            </ol>
-          </div>
-          <button class="btn btn-ghost btn-sm" data-launch-all style="margin-left:auto;flex:none">Launch all three</button>
+          <b>Try the link</b>
+          <ol>
+            <li>Sign in on the <b>Gaming Shell</b> as ahmed. PC-01 turns “in use” on the admin's Live Floor.</li>
+            <li>Order a burger from the Shell's <b>Food</b> tab. It lands on the admin's <b>Kitchen</b> screen.</li>
+            <li>In the admin, open PC-01 and send a <b>Message</b> or <b>End session</b>. The Shell reacts instantly.</li>
+          </ol>
+          <button class="btn btn-primary" data-launch-all>Launch all three</button>
         </div>
-        <div class="center" style="margin-top:26px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
-          <a class="btn btn-ghost" href="live/admin/login/">Open admin full screen</a>
-          <a class="btn btn-ghost" href="live/admin/login/?next=%2Fplatform">Super Admin</a>
-          <a class="btn btn-ghost" href="live/shell/">Shell full screen</a>
-          <a class="btn btn-ghost" href="live/app/">Customer app full screen</a>
+        <div class="full-links">
+          <a class="btn btn-ghost btn-sm" href="live/admin/login/">Admin full screen</a>
+          <a class="btn btn-ghost btn-sm" href="live/admin/login/?next=%2Fplatform">Super Admin</a>
+          <a class="btn btn-ghost btn-sm" href="live/shell/">Shell full screen</a>
+          <a class="btn btn-ghost btn-sm" href="live/app/">Customer app full screen</a>
         </div>
       </div>
     </section>
-
-    <div class="glow-line"></div>
 
     <!-- STATS -->
-    <section class="alt">
+    <section class="alt" style="padding-block:clamp(64px,8vw,112px)">
       <div class="wrap">
         <div class="stats">
-          <div class="stat reveal tilt"><b class="grad">&lt;1s</b><span>Staff click → PC unlocked (LAN, p95)</span></div>
-          <div class="stat reveal tilt"><b class="grad">±2s</b><span>Session expiry accuracy, survives restarts</span></div>
-          <div class="stat reveal tilt"><b class="grad count" data-to="113">113</b><span>Granular permissions across 14 role templates</span></div>
-          <div class="stat reveal tilt"><b class="grad count" data-to="26">26</b><span>Modules you can switch on per plan or venue</span></div>
+          <div class="stat reveal"><small>Unlock</small><b>&lt;1s</b><span>Staff click to PC unlocked, over LAN (p95)</span></div>
+          <div class="stat reveal" style="--i:1"><small>Expiry</small><b>±2s</b><span>Session end accuracy, survives restarts</span></div>
+          <div class="stat reveal" style="--i:2"><small>Permissions</small><b class="count" data-to="113">113</b><span>Granular permissions across 14 role templates</span></div>
+          <div class="stat reveal" style="--i:3"><small>Modules</small><b class="count" data-to="26">26</b><span>Switch on per plan or per venue</span></div>
         </div>
       </div>
     </section>
 
-    <!-- PILLARS -->
-    <section>
-      <div class="wrap">
-        <div class="sec-head">
-          <span class="tag">One platform</span>
-          <h2>Everything your venue does, finally in one place</h2>
-          <p>Stop stitching together a café timer, a POS, a booking widget and a spreadsheet. ArenaOS connects stations, customers, food and money in real time.</p>
+    <!-- MODULES: pinned horizontal track -->
+    <section class="hscroll" data-pin aria-labelledby="modules-h">
+      <div class="hscroll-pin">
+        <div class="wrap">
+          <div class="hscroll-head">
+            <div>
+              <span class="kicker"><b>06</b> One platform</span>
+              <h2 id="modules-h" style="margin-top:20px">Everything, <br />in one place.</h2>
+            </div>
+            <span class="count" aria-hidden="true"><b>01</b> / 06</span>
+          </div>
         </div>
-        <div class="grid g3">
-          <div class="card reveal tilt"><span class="icon" data-icon="floor"></span><h3>Live Floor &amp; stations</h3><p>A real-time map of every PC, console and VR rig with temperatures, alerts and signed remote commands.</p></div>
-          <div class="card reveal tilt" style="--c:var(--accent-2)"><span class="icon" data-icon="lock"></span><h3>Locked Gaming Shell</h3><p>A kiosk-grade Windows shell with countdown, games library, in-seat food ordering and self-repair tools.</p></div>
-          <div class="card reveal tilt" style="--c:var(--green)"><span class="icon" data-icon="timer"></span><h3>Sessions &amp; pricing</h3><p>Server-authoritative timers, happy hours, packages, postpaid and membership discounts — one engine.</p></div>
-          <div class="card reveal tilt" style="--c:var(--orange)"><span class="icon" data-icon="cart"></span><h3>POS, restaurant &amp; KDS</h3><p>Gaming time and food on one bill. Split payments, tables, kitchen display and cash shifts.</p></div>
-          <div class="card reveal tilt" style="--c:var(--amber)"><span class="icon" data-icon="box"></span><h3>Inventory &amp; purchasing</h3><p>Recipes deduct stock as you sell. Purchase orders, receiving, supplier invoices, counts and waste.</p></div>
-          <div class="card reveal tilt" style="--c:#f472b6"><span class="icon" data-icon="star"></span><h3>Loyalty, tournaments &amp; CRM</h3><p>Points and rewards, a promotions engine, brackets with prizes, segments and consent-based campaigns.</p></div>
+        <div class="track">
+          <article class="panel"><span class="n" aria-hidden="true">01</span><span class="icon" data-icon="floor"></span><h3>Live Floor &amp; stations</h3><p>Every PC, console and VR rig on one map, with temperatures, alerts and signed remote commands.</p><div class="tags"><span>Wake-on-LAN</span><span>Zone actions</span><span>GPU telemetry</span></div></article>
+          <article class="panel" style="--c:var(--accent-2)"><span class="n" aria-hidden="true">02</span><span class="icon" data-icon="lock"></span><h3>Locked Gaming Shell</h3><p>A kiosk-grade Windows shell with countdown, game library, in-seat ordering and self-repair tools.</p><div class="tags"><span>PIN sign-in</span><span>EN · AR</span><span>Offline lock</span></div></article>
+          <article class="panel" style="--c:var(--green)"><span class="n" aria-hidden="true">03</span><span class="icon" data-icon="timer"></span><h3>Sessions &amp; pricing</h3><p>Server-side timers, happy hours, packages, postpaid and membership discounts in one engine.</p><div class="tags"><span>Happy hours</span><span>Packages</span><span>Refunds</span></div></article>
+          <article class="panel" style="--c:var(--orange)"><span class="n" aria-hidden="true">04</span><span class="icon" data-icon="cart"></span><h3>POS, restaurant &amp; KDS</h3><p>Gaming time and food on one bill. Split payments, tables, kitchen display and cash shifts.</p><div class="tags"><span>Split bills</span><span>Tables</span><span>Shifts</span></div></article>
+          <article class="panel" style="--c:var(--amber)"><span class="n" aria-hidden="true">05</span><span class="icon" data-icon="box"></span><h3>Inventory &amp; purchasing</h3><p>Recipes deduct stock as you sell. Purchase orders, receiving, supplier invoices, counts and waste.</p><div class="tags"><span>Recipes</span><span>Lots</span><span>Transfers</span></div></article>
+          <article class="panel" style="--c:#f472b6"><span class="n" aria-hidden="true">06</span><span class="icon" data-icon="trophy"></span><h3>Loyalty, events &amp; CRM</h3><p>Points and rewards, a promotions engine, brackets with prizes, segments and consent-based campaigns.</p><div class="tags"><span>Brackets</span><span>Promo codes</span><span>Segments</span></div></article>
+          <article class="panel end"><h3>26 modules. <br />Your pick.</h3><p>Turn them on per plan or per venue. They all share one customer, one wallet and one bill.</p><div class="hero-cta" style="margin-top:24px"><a class="btn btn-primary" href="features.html">See every feature <span data-icon="arrow" data-size="16"></span></a></div></article>
         </div>
-        <div class="center" style="margin-top:36px"><a class="btn btn-ghost" href="features.html">See every feature <span data-icon="arrow" data-size="16"></span></a></div>
+        <div class="wrap"><div class="hprog"></div></div>
       </div>
     </section>
 
@@ -135,15 +181,16 @@
     <section class="alt">
       <div class="wrap">
         <div class="sec-head">
-          <span class="tag">How a session flows</span>
-          <h2>From walk-in to logout, without a single spreadsheet</h2>
+          <span class="kicker"><b>07</b> How a session flows</span>
+          <h2 data-split>Walk-in to <br />logout.</h2>
+          <p>Five steps, no spreadsheet. Each one is logged, priced and synced to the Live Floor as it happens.</p>
         </div>
         <div class="flow">
-          <div class="card reveal tilt"><h3>Check in</h3><p>Walk-in, booking or app. Top up the wallet or sell a time package at the desk.</p></div>
-          <div class="card reveal tilt"><h3>Unlock</h3><p>Customer signs in at the PC with password or PIN — or staff start it from the Live Floor.</p></div>
-          <div class="card reveal tilt"><h3>Play &amp; order</h3><p>Games launch from the Shell; food ordered from the seat lands on the kitchen display.</p></div>
-          <div class="card reveal tilt"><h3>Warn &amp; extend</h3><p>Warnings at 30/15/10/5/1 min. Extend from the seat, the desk or the app.</p></div>
-          <div class="card reveal tilt"><h3>Settle</h3><p>One combined bill. Unused prepaid time is refunded and loyalty points land instantly.</p></div>
+          <div class="card"><h3>Check in</h3><p>Walk-in, booking or app. Top up the wallet or sell a time package at the desk.</p></div>
+          <div class="card"><h3>Unlock</h3><p>The customer signs in at the PC with a password or PIN, or staff start it from the Live Floor.</p></div>
+          <div class="card"><h3>Play</h3><p>Games launch from the Shell; food ordered from the seat goes straight to the kitchen display.</p></div>
+          <div class="card"><h3>Extend</h3><p>Warnings at 30, 15, 10, 5 and 1 minute. Extend from the seat, the desk or the app.</p></div>
+          <div class="card"><h3>Settle</h3><p>One combined bill. Unused prepaid time is refunded and loyalty points land instantly.</p></div>
         </div>
       </div>
     </section>
@@ -152,15 +199,15 @@
     <section>
       <div class="wrap">
         <div class="sec-head">
-          <span class="tag">Built like infrastructure</span>
-          <h2>Secure, multi-tenant and offline-ready</h2>
-          <p>A hybrid cloud + branch-edge architecture keeps the floor running when the internet doesn't.</p>
+          <span class="kicker"><b>08</b> Built like infrastructure</span>
+          <h2 data-split>Keeps running <br />when the internet doesn't.</h2>
+          <p>Cloud plus a branch edge server, so the floor keeps working through outages and syncs back afterwards.</p>
         </div>
-        <div class="grid g4">
-          <div class="card reveal tilt"><span class="icon" data-icon="shield"></span><h3>Three-layer isolation</h3><p>Row-level security in the database, a tenant-scoped client and route authorization — tested in CI.</p></div>
-          <div class="card reveal tilt" style="--c:var(--accent-2)"><span class="icon" data-icon="key"></span><h3>Signed commands</h3><p>Per-branch keys sign every device command; PCs verify and reject replays.</p></div>
-          <div class="card reveal tilt" style="--c:var(--green)"><span class="icon" data-icon="wifi"></span><h3>Offline edge</h3><p>A branch edge server keeps sessions, POS and the Shell working through outages, then syncs.</p></div>
-          <div class="card reveal tilt" style="--c:var(--amber)"><span class="icon" data-icon="chart"></span><h3>Tamper-evident audit</h3><p>Append-only ledgers and a hash-chained audit log. Super Admin sign-in needs two-step verification.</p></div>
+        <div class="specs">
+          <div class="spec reveal"><span class="icon" data-icon="shield"></span><h3>Three-layer isolation</h3><p>Row-level security in the database, a tenant-scoped client and route authorization, each tested in CI.</p></div>
+          <div class="spec reveal" style="--i:1"><span class="icon" data-icon="key" style="--c:var(--accent-2)"></span><h3>Signed commands</h3><p>Per-branch keys sign every device command. PCs verify each one and reject replays.</p></div>
+          <div class="spec reveal" style="--i:2"><span class="icon" data-icon="wifi" style="--c:var(--green)"></span><h3>Offline edge</h3><p>A branch edge server keeps sessions, POS and the Shell working through outages, then syncs.</p></div>
+          <div class="spec reveal" style="--i:3"><span class="icon" data-icon="chart" style="--c:var(--amber)"></span><h3>Tamper-evident audit</h3><p>Append-only ledgers and a hash-chained audit log. Super Admin sign-in needs two-step verification.</p></div>
         </div>
       </div>
     </section>
@@ -169,57 +216,55 @@
     <section class="alt" id="downloads">
       <div class="wrap">
         <div class="sec-head">
-          <span class="tag">Downloads</span>
-          <h2>Take the demo with you</h2>
-          <p>Each download runs the same live demo venue, offline, on your own device. The station installer is the real thing for your gaming PCs.</p>
+          <span class="kicker"><b>09</b> Downloads</span>
+          <h2 data-split>Take the demo <br />with you.</h2>
+          <p>Each download runs the same demo venue offline on your own device. The station installer is the real thing for your gaming PCs.</p>
         </div>
         <div class="downloads">
-          <article class="card dl reveal tilt" style="--c:var(--green)">
+          <article class="dl reveal" style="--c:var(--green)">
             <span class="icon" data-icon="phone"></span>
-            <span class="platform">Android · APK</span>
-            <h3>Customer app</h3>
-            <p class="muted">Wallet, bookings, shop, rewards and tournaments on your phone. Enter your venue code once to connect.</p>
+            <div><span class="platform">Android · APK</span><h3>Customer app</h3></div>
+            <p>Wallet, bookings, shop, rewards and tournaments on your phone. Enter your venue code once to connect.</p>
             <div class="meta" data-dl-meta="ArenaOS-Customer.apk">Android 5.1+</div>
             <a class="btn btn-primary" href="downloads/ArenaOS-Customer.apk" download>Download APK</a>
           </article>
-          <article class="card dl reveal tilt" style="--c:var(--accent)">
+          <article class="dl reveal" style="--c:var(--accent)">
             <span class="icon" data-icon="game"></span>
-            <span class="platform">Windows · EXE</span>
-            <h3>Gaming Shell demo</h3>
-            <p class="muted">The player's screen in a normal window — not locked down, safe to try on any PC.</p>
+            <div><span class="platform">Windows · EXE</span><h3>Gaming Shell demo</h3></div>
+            <p>The player's screen in a normal window. Not locked down, safe to try on any PC.</p>
             <div class="meta" data-dl-meta="ArenaOS-Shell-Demo.exe">Windows 10/11 · x64 · demo</div>
             <a class="btn btn-primary" href="downloads/ArenaOS-Shell-Demo.exe" download>Download EXE</a>
           </article>
-          <article class="card dl reveal tilt" style="--c:var(--accent-2)">
+          <article class="dl reveal" style="--c:var(--accent-2)">
             <span class="icon" data-icon="building"></span>
-            <span class="platform">Windows · EXE</span>
-            <h3>Admin &amp; Super Admin</h3>
-            <p class="muted">The venue console and the Super Admin platform console as a desktop app, with the demo built in.</p>
+            <div><span class="platform">Windows · EXE</span><h3>Admin &amp; Super Admin</h3></div>
+            <p>The venue console and the Super Admin platform console as a desktop app, with the demo built in.</p>
             <div class="meta" data-dl-meta="ArenaOS-Console.exe">Windows 10/11 · x64 · demo</div>
             <a class="btn btn-primary" href="downloads/ArenaOS-Console.exe" download>Download EXE</a>
           </article>
-          <article class="card dl reveal tilt" style="--c:var(--orange)">
+          <article class="dl reveal" style="--c:var(--orange)">
             <span class="icon" data-icon="lock"></span>
-            <span class="platform">Windows · installer</span>
-            <h3>Station installer</h3>
-            <p class="muted">The real, locked-down station: agent service + kiosk Shell for your gaming PCs. Changes the PC it's installed on.</p>
-            <div class="meta" data-dl-meta="ArenaOS-Station-Setup.exe">For gaming PCs · needs an enrolment code</div>
+            <div><span class="platform">Windows · installer</span><h3>Station installer</h3></div>
+            <p>The real, locked-down station: agent service and kiosk Shell for your gaming PCs. Changes the PC it's installed on.</p>
+            <div class="meta" data-dl-meta="ArenaOS-Station-Setup.exe">Needs an enrolment code</div>
             <a class="btn btn-ghost" href="downloads/ArenaOS-Station-Setup.exe" download>Download installer</a>
           </article>
         </div>
-        <p class="center dim" style="margin-top:22px;font-size:13.5px">Installing on a real gaming PC? Follow the <a href="install.html" style="color:var(--accent)">install guide</a>.</p>
+        <p class="dim" style="margin-top:28px;font-size:14px">Installing on a real gaming PC? Follow the <a href="install.html" style="color:var(--accent);text-decoration:underline;text-underline-offset:3px">install guide</a>.</p>
       </div>
     </section>
 
     <!-- CTA -->
     <section>
       <div class="wrap">
-        <div class="cta-band reveal">
-          <h2>Ready to run your arena on ArenaOS?</h2>
-          <p>Talk to us about your venue, or keep exploring the live demo — it's the same software your staff and players will use.</p>
-          <div class="hero-cta" style="margin-top:0">
-            <a class="btn btn-primary btn-lg" href="contact.html">Talk to sales</a>
-            <a class="btn btn-ghost btn-lg" href="live/admin/login/">Open the live demo</a>
+        <div class="cta-band" data-scroll>
+          <h2><span>Open the</span> <span class="out">doors</span> <span class="acc">tonight.</span></h2>
+          <div class="row">
+            <p>Talk to us about your venue, or keep exploring the live demo. It's the same software your staff and players will use.</p>
+            <div class="hero-cta">
+              <a class="btn btn-primary btn-lg" href="contact.html">Talk to sales <span data-icon="arrow" data-size="16"></span></a>
+              <a class="btn btn-ghost btn-lg" href="live/admin/login/">Open the live demo</a>
+            </div>
           </div>
         </div>
       </div>
@@ -227,7 +272,7 @@
   </main>
 
   <footer id="footer"></footer>
-  <script src="assets/site.js?v=4"></script>
+  <script src="assets/site.js?v=7"></script>
   <script>
     // Show real file sizes for downloads that exist; mark missing ones.
     document.querySelectorAll("[data-dl-meta]").forEach(async (el) => {

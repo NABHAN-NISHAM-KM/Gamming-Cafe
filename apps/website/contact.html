@@ -7,18 +7,18 @@
   <meta name="description" content="Talk to the ArenaOS team about a pilot at your gaming venue." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Chakra+Petch:wght@500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/site.css?v=4" />
+  <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/site.css?v=7" />
 </head>
 <body>
   <header id="nav"></header>
   <main>
-    <section class="hero" style="padding-bottom:40px">
+    <section class="hero" data-scroll style="border-bottom:0">
       <div class="hero-grid"></div>
       <div class="wrap split" style="align-items:start">
         <div>
-          <span class="eyebrow">Talk to us</span>
-          <h1 style="font-size:clamp(34px,5vw,52px)">Let's get your venue <span class="grad">on ArenaOS</span></h1>
+          <span class="eyebrow">Contact sales</span>
+          <h1 data-split style="font-size:clamp(52px,7vw,112px)!important">Let's open your venue.</h1>
           <p class="lead">Tell us about your venue and we'll set up a walkthrough with your own floor plan, pricing and menu.</p>
           <ul class="checks">
             <li>30-minute walkthrough tailored to your venue type</li>
@@ -27,22 +27,22 @@
             <li>Arabic and English onboarding</li>
           </ul>
         </div>
-        <div class="card">
+        <div class="form-card reveal">
           <form class="form" id="contactForm">
             <div class="row"><label>Name<input required name="name" autocomplete="name" /></label><label>Work email<input required type="email" name="email" autocomplete="email" /></label></div>
             <div class="row"><label>Venue name<input name="venue" /></label><label>Country<select name="country"><option>United Arab Emirates</option><option>Saudi Arabia</option><option>Qatar</option><option>Kuwait</option><option>Bahrain</option><option>Oman</option><option>India</option><option>United Kingdom</option><option>United States</option><option>Other</option></select></label></div>
             <div class="row"><label>Venue type<select name="type"><option>Gaming café</option><option>Esports arena</option><option>Internet café</option><option>Console / VR centre</option><option>Gaming restaurant</option></select></label><label>Interested plan<select name="plan" id="planSel"><option value="starter">Starter</option><option value="pro">Pro</option><option value="enterprise">Enterprise</option><option value="unsure">Not sure yet</option></select></label></div>
             <div class="row"><label>Branches<input type="number" min="1" value="1" name="branches" /></label><label>Stations<input type="number" min="1" value="30" name="stations" /></label></div>
             <label>Anything else?<textarea rows="4" name="notes" placeholder="Current software, launch date, special requirements…"></textarea></label>
-            <button class="btn btn-primary" type="submit">Request a walkthrough</button>
-            <div class="ok-msg" id="ok">Thanks! We've got your details and will be in touch within one business day.</div>
+            <button class="btn btn-primary btn-lg" type="submit">Request a walkthrough <span data-icon="arrow" data-size="16"></span></button>
+            <div class="ok-msg" id="ok" role="status">Thanks! We've got your details and will be in touch within one business day.</div>
           </form>
         </div>
       </div>
     </section>
   </main>
   <footer id="footer"></footer>
-  <script src="assets/site.js?v=4"></script>
+  <script src="assets/site.js?v=7"></script>
   <script>
     const plan = new URLSearchParams(location.search).get("plan");
     if (plan) document.getElementById("planSel").value = plan;

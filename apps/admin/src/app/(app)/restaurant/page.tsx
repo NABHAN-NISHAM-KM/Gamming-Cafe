@@ -198,7 +198,7 @@ function AddTable({ branchId, onDone }: { branchId: string; onDone: () => void }
 interface Manage {
   categories: Array<{ id: string; name: string; sortOrder: number; showInShell: boolean; isActive: boolean }>;
   products: Array<{
-    id: string; categoryId: string; name: string; description: string | null; type: string; sku: string; price: string; taxAppliesTo: string;
+    id: string; categoryId: string; name: string; description: string | null; type: string; sku: string; barcode: string | null; price: string; taxAppliesTo: string;
     kitchenStationId: string | null; prepTimeMinutes: number | null; availableInShell: boolean; isActive: boolean; sortOrder: number; modifierGroupIds: string[];
     productBranchPrices: Array<{ branchId: string; price: string | null; isAvailable: boolean }>;
   }>;
@@ -318,14 +318,14 @@ function ProductForm({ m, branchId, p, defaultCategory, onDone }: { m: Manage; b
   const stations = m.stations.filter((s) => s.branchId === branchId);
   const bp = p?.productBranchPrices.find((b) => b.branchId === branchId);
   const [f, setF] = useState({
-    categoryId: p?.categoryId ?? defaultCategory ?? "", name: p?.name ?? "", description: p?.description ?? "", type: p?.type ?? "RECIPE_ITEM", sku: p?.sku ?? "",
+    categoryId: p?.categoryId ?? defaultCategory ?? "", name: p?.name ?? "", description: p?.description ?? "", type: p?.type ?? "RECIPE_ITEM", sku: p?.sku ?? "", barcode: p?.barcode ?? "",
     price: p ? Number(p.price).toFixed(2) : "", taxAppliesTo: p?.taxAppliesTo ?? "FOOD", kitchenStationId: p?.kitchenStationId ?? stations[0]?.id ?? "",
     prepTimeMinutes: p?.prepTimeMinutes?.toString() ?? "", availableInShell: p?.availableInShell ?? true, isActive: p?.isActive ?? true, modifierGroupIds: p?.modifierGroupIds ?? [],
     branchPrice: bp?.price ? Number(bp.price).toFixed(2) : "",
   });
   const save = useAction(async () => {
     const body = {
-      categoryId: f.categoryId, name: f.name.trim(), description: f.description.trim() || null, type: f.type, ...(f.sku ? { sku: f.sku.toUpperCase() } : {}),
+      categoryId: f.categoryId, name: f.name.trim(), description: f.description.trim() || null, type: f.type, ...(f.sku ? { sku: f.sku.toUpperCase() } : {}), barcode: f.barcode.trim() || null,
       price: f.price, taxAppliesTo: f.taxAppliesTo, kitchenStationId: f.kitchenStationId || null, prepTimeMinutes: f.prepTimeMinutes ? Number(f.prepTimeMinutes) : null,
       availableInShell: f.availableInShell, isActive: f.isActive, modifierGroupIds: f.modifierGroupIds,
     };
@@ -340,7 +340,8 @@ function ProductForm({ m, branchId, p, defaultCategory, onDone }: { m: Manage; b
       <Field label="Name" className="sm:col-span-2"><Input value={f.name} onChange={set("name")} required maxLength={80} /></Field>
       <Field label="Category"><Select value={f.categoryId} onChange={set("categoryId")} required>{m.categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</Select></Field>
       <Field label="SKU" hint={p ? undefined : "Blank = generated"}><Input value={f.sku} onChange={set("sku")} pattern="[A-Za-z0-9-]{2,30}" /></Field>
-      <Field label="Description" className="sm:col-span-4"><Input value={f.description} onChange={set("description")} maxLength={300} /></Field>
+      <Field label="Description" className="sm:col-span-3"><Input value={f.description} onChange={set("description")} maxLength={300} /></Field>
+      <Field label="Barcode" hint="Scan the pack to fill it in"><Input value={f.barcode} onChange={set("barcode")} pattern="[A-Za-z0-9-]{4,40}" maxLength={40} /></Field>
       <Field label="Price (incl. VAT)"><Input inputMode="decimal" value={f.price} onChange={set("price")} required /></Field>
       <Field label="Price at this branch" hint="Blank = same everywhere"><Input inputMode="decimal" value={f.branchPrice} onChange={set("branchPrice")} /></Field>
       <Field label="Kind">

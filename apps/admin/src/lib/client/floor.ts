@@ -40,6 +40,8 @@ export interface FloorDevice {
   session?: SessionSummary | null;
   /** What the customer is playing right now (from the agent). */
   currentGame?: { id: string; title: string; startedAt: string } | null;
+  /** Marked out of order by staff (status MAINTENANCE): why, when, by whom. */
+  outOfOrder?: { reason: string; at: string; by: string } | null;
   /** Confirmed booking starting within the next 2 hours. */
   nextBooking?: { id: string; reference: string; startsAt: string; name: string | null } | null;
 }
@@ -59,6 +61,7 @@ export interface Alert {
   status: "OPEN" | "ACKNOWLEDGED" | "RESOLVED";
   title: string;
   openedAt: string;
+  detail?: Record<string, unknown>;
 }
 
 export interface CommandRow {

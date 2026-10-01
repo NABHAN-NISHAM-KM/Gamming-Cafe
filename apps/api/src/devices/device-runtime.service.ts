@@ -24,7 +24,7 @@ export const DEVICE_FIELDS = {
   id: true, name: true, kind: true, platform: true, status: true, isEnabled: true, zoneId: true, branchId: true,
   mapX: true, mapY: true, mapW: true, mapH: true, mapRotation: true, ipAddress: true, macAddress: true, hostname: true,
   agentVersion: true, shellVersion: true, lastSeenAt: true, postSessionAction: true, controllerCount: true, notes: true,
-  agentless: true, minAge: true, cleaningRequired: true, linkedDisplayId: true, isBridge: true,
+  agentless: true, minAge: true, cleaningRequired: true, linkedDisplayId: true, isBridge: true, metadata: true,
 } as const;
 
 @Injectable()
@@ -59,7 +59,10 @@ export class DeviceRuntimeService implements OnModuleInit, OnModuleDestroy {
   }
 
   /** Public view of a device for the Live Floor, with live connection state merged in. */
-  view(d: Record<string, any>) {
+  view(row: Record<string, any>) {
+    // metadata is internal; only the out-of-order note is shown on the floor.
+    const { metadata, ...d } = row;
+    d["outOfOrder"] = (metadata as { outOfOrder?: unknown } | undefined)?.outOfOrder ?? null;
     const live = this.hub.live(d["id"]);
     // A console, VR headset or TV has no agent to be "online": its stored status is the truth.
     if (d["agentless"]) return { ...d, isOnline: true, displayStatus: d["status"], metrics: null, metricsAt: null, currentGame: null };

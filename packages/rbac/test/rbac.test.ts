@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { resolveFeatures } from "@arena/contracts";
-import { PERMISSIONS, ROLE_TEMPLATES, templatePermissions, expandGrants, authorize, branchesWith, missingForDelegation, type Grant, type Principal } from "../src/index.js";
+import { PERMISSIONS, ROLE_TEMPLATES, templatePermissions, expandGrants, authorize, branchesWith, missingForDelegation, worksAt, type Grant, type Principal } from "../src/index.js";
 
 const ORG_A = "org-a";
 const ORG_B = "org-b";
@@ -135,5 +135,15 @@ describe("authorize", () => {
     const brandOf = (b: string) => ({ dxb1: "brand-1", auh1: "brand-1", shj1: "brand-2" })[b];
     expect(branchesWith(p, "station.start_session", brandOf, ["dxb1", "auh1", "shj1"])).toEqual(["dxb1", "shj1"]);
     expect(branchesWith(principal([grant("org_owner", "ORGANIZATION")]), "pos.sell", brandOf, ["dxb1"])).toBeNull();
+  });
+});
+
+describe("worksAt", () => {
+  it("any live role covering the branch counts; other branches, expired roles and other orgs don't", () => {
+    const p = principal([grant("waiter", "BRANCH", { branchId: "dxb1" }), grant("cashier", "BRANCH", { branchId: "auh1", expiresAt: new Date(Date.now() - 1000) })]);
+    expect(worksAt(p, branch("dxb1"))).toBe(true);
+    expect(worksAt(p, branch("auh1"))).toBe(false);
+    expect(worksAt(p, { ...branch("dxb1"), organizationId: ORG_B })).toBe(false);
+    expect(worksAt(principal([grant("org_owner", "ORGANIZATION")]), branch("auh1"))).toBe(true);
   });
 });

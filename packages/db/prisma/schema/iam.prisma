@@ -60,6 +60,8 @@ model Employee {
   notifications           Notification[]
   pushSubscriptions       PushSubscription[]
   supportTickets          SupportTicket[]
+  timeClockEntries        TimeClockEntry[]
+  handoverNotes           HandoverNote[]           @relation("HandoverNoteAuthor")
 
   @@unique([id, organizationId])
   @@unique([organizationId, userId])
