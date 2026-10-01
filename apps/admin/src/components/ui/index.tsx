@@ -217,7 +217,8 @@ export function Modal({ open, onClose, title, children, wide }: { open: boolean;
   return (
     <dialog
       ref={ref}
-      onClose={onClose}
+      // React bubbles a nested dialog's close up the component tree: only react to our own.
+      onClose={(e) => e.target === e.currentTarget && onClose()}
       onClick={(e) => e.target === e.currentTarget && onClose()}
       className={cx("m-auto w-[calc(100%-2rem)] rounded-2xl border border-line-strong bg-panel p-0 text-ink shadow-2xl shadow-black/60", wide ? "max-w-3xl" : "max-w-lg")}
     >

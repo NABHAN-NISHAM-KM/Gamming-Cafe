@@ -17,7 +17,7 @@ export async function adjustTime(
     branchId: string | null;
     currency: string;
     deltaMinutes: number;
-    type: "TOPUP" | "SPEND" | "REFUND" | "ADJUSTMENT";
+    type: "TOPUP" | "SPEND" | "REFUND" | "ADJUSTMENT" | "TRANSFER_IN" | "TRANSFER_OUT";
     reason: string;
     referenceType?: string;
     referenceId?: string | null;

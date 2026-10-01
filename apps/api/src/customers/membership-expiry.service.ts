@@ -3,11 +3,13 @@ import type { Db } from "@arena/db";
 import { auditAs } from "../common/audit.service.js";
 import { DB } from "../common/db.module.js";
 import { CommerceService } from "./commerce.service.js";
+import { syncStatus } from "./restrictions.js";
 
 /**
  * Ends memberships whose period is over and drops the customer to their next
  * best tier (or none), so discounts and booking windows stop at the right
- * time. Runs for all tenants; each change happens in its own tenant.
+ * time; and returns customers to ACTIVE when a timed ban or restriction runs
+ * out. Runs for all tenants; each change happens in its own tenant.
  */
 @Injectable()
 export class MembershipExpiryService implements OnModuleInit, OnModuleDestroy {
@@ -45,6 +47,15 @@ export class MembershipExpiryService implements OnModuleInit, OnModuleDestroy {
             await auditAs(t, { type: "SYSTEM", id: null }, { action: "membership.expire", entityType: "Membership", entityId: row.membership_id, after: { customerId: row.customer_id, tierNow: tier } });
           })
           .catch((e) => this.log.error(`membership ${row.membership_id}: ${e instanceof Error ? e.message : e}`));
+      }
+      const freed = await this.db.global.$queryRaw<Array<{ organization_id: string; customer_id: string }>>`SELECT * FROM app.customer_status_due()`;
+      for (const row of freed) {
+        await this.db
+          .withTenant({ organizationId: row.organization_id, actorType: "SYSTEM", actorId: null }, async (t) => {
+            const status = await syncStatus(t, row.customer_id);
+            await auditAs(t, { type: "SYSTEM", id: null }, { action: "customer.restriction_expire", entityType: "Customer", entityId: row.customer_id, after: { status } });
+          })
+          .catch((e) => this.log.error(`customer ${row.customer_id}: ${e instanceof Error ? e.message : e}`));
       }
     } finally {
       this.running = false;

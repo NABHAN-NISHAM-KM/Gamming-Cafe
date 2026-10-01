@@ -205,6 +205,7 @@ public class LaunchPolicyTests
         Assert.Equal(LaunchDenial.AgeRestricted, LaunchPolicy.ForGame(cfg, Teen, "g1", Steam).Denial);
         Assert.Equal(LaunchDenial.NotInstalled, LaunchPolicy.ForGame(cfg, Adult, "g2", Steam).Denial);
         Assert.Equal(LaunchDenial.NotLaunchable, LaunchPolicy.ForGame(cfg, Adult, "g1", steamExe: null).Denial); // Steam not installed
+        Assert.Equal(LaunchDenial.Blocked, LaunchPolicy.ForGame(cfg, Adult with { BlockedGameIds = ["g1"] }, "g1", Steam).Denial);
     }
 
     [Fact]
@@ -294,10 +295,11 @@ public class StationProtocolTests
         var m = new SessionManager(null);
         var payload = JsonSerializer.SerializeToElement(new
         {
-            sessionId = "s1", customer = new { id = "c", displayName = "Sara", age = 13 }, startedAt = DateTimeOffset.UtcNow, expiresAt = DateTimeOffset.UtcNow.AddHours(1),
+            sessionId = "s1", customer = new { id = "c", displayName = "Sara", age = 13, blockedGameIds = new[] { "g9" } }, startedAt = DateTimeOffset.UtcNow, expiresAt = DateTimeOffset.UtcNow.AddHours(1),
             serverTime = DateTimeOffset.UtcNow, warningMinutes = new[] { 5 }, postSessionAction = "LOCK", allowSelfExtend = false,
         });
         m.Apply("START_SESSION", payload, DateTimeOffset.UtcNow);
         Assert.Equal(13, m.Current!.CustomerAge);
+        Assert.Equal(["g9"], m.Current!.BlockedGameIds);
     }
 }

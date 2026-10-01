@@ -229,7 +229,7 @@ public static partial class ShellProtocol
 
     /// <summary>
     /// The library as the Shell may see it: no executable paths or arguments.
-    /// "locked" marks games above the signed-in customer's age.
+    /// "locked" marks games above the signed-in customer's age or blocked for them by staff.
     /// </summary>
     public static string Library(Games.StationConfig? config, SessionState? session)
     {
@@ -241,7 +241,7 @@ public static partial class ShellProtocol
             {
                 id = g.Id, title = g.Title, categories = g.Categories, coverUrl = g.CoverUrl, minAge = g.MinAge, featured = g.Featured,
                 launcher = g.LauncherKey, installed = g.Installed, updateRequired = g.UpdateRequired,
-                locked = g.MinAge is { } min && age is { } a && a < min,
+                locked = (g.MinAge is { } min && age is { } a && a < min) || session?.BlockedGameIds?.Contains(g.Id) == true,
             }),
             apps = (config?.Apps ?? []).Select(a => new { id = a.Id, name = a.Name, kind = a.Kind }),
             presets = (config?.PeripheralPresets ?? []).Select(p => new { id = p.Id, name = p.Name, mouseSpeed = p.Settings.MouseSpeed, enhancePointerPrecision = p.Settings.EnhancePointerPrecision }),

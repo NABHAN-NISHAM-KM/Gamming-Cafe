@@ -29,6 +29,7 @@ model Customer {
   homeBranchId           String?                 @db.Uuid
   locale                 String                  @default("en")
   marketingConsent       Boolean                 @default(false)
+  tags                   String[]                @default([]) // staff labels: VIP, regular, watch…
   referralCode           String?
   referredById           String?                 @db.Uuid
   // Denormalised counters (rebuildable from ledgers/sessions)
@@ -68,6 +69,7 @@ model Customer {
   pushSubscriptions      PushSubscription[]
   supportTickets         SupportTicket[]
   screenshots            Screenshot[]
+  notes                  CustomerNote[]
 
   @@unique([id, organizationId])
   @@unique([organizationId, username])
@@ -75,6 +77,20 @@ model Customer {
   @@unique([organizationId, phone])
   @@unique([organizationId, referralCode])
   @@index([organizationId, status])
+}
+
+/// Staff's private notes on a customer ("owes 20", "prefers PC 12"). Never shown to the customer.
+model CustomerNote {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @db.Uuid
+  customerId     String   @db.Uuid
+  authorId       String   @db.Uuid
+  body           String
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+  customer       Customer @relation(fields: [customerId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  author         Employee @relation("CustomerNoteAuthor", fields: [authorId, organizationId], references: [id, organizationId])
+
+  @@index([organizationId, customerId, createdAt])
 }
 
 enum RestrictionType {

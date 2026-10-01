@@ -40,9 +40,9 @@ interface MembershipRow {
   tier: { id: string; name: string; code: string; color: string | null };
 }
 
-const TX: Record<string, string> = { TOPUP: "Top-up", SPEND: "Paid", REFUND: "Refund", ADJUSTMENT: "Adjustment", BONUS_GRANT: "Bonus", BONUS_EXPIRE: "Bonus expired" };
+const TX: Record<string, string> = { TOPUP: "Top-up", SPEND: "Paid", REFUND: "Refund", ADJUSTMENT: "Adjustment", BONUS_GRANT: "Bonus", BONUS_EXPIRE: "Bonus expired", TRANSFER_IN: "Moved in", TRANSFER_OUT: "Moved out" };
 
-function useBranchPick() {
+export function useBranchPick() {
   const branches = useApi<Branch[]>("/branches");
   const [branchId, setBranchId] = useState("");
   useEffect(() => {
@@ -51,7 +51,7 @@ function useBranchPick() {
   return { branches, branchId, setBranchId };
 }
 
-function BranchField({ b }: { b: ReturnType<typeof useBranchPick> }) {
+export function BranchField({ b }: { b: ReturnType<typeof useBranchPick> }) {
   if (!b.branches.data || b.branches.data.length < 2) return null;
   return (
     <Field label="At">

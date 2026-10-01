@@ -71,6 +71,7 @@ model Payment {
   @@unique([organizationId, idempotencyKey])
   @@index([organizationId, branchId, createdAt])
   @@index([provider, providerRef])
+  @@index([organizationId, customerId])
 }
 
 enum RefundStatus {

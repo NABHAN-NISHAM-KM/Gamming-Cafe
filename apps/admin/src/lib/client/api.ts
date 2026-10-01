@@ -27,6 +27,7 @@ export function describeError(status: number, body: any): string {
   if (code === "insufficient_cash" || code === "not_enough_cash") return "The cash tendered doesn't cover the amount.";
   if (code === "drawer_in_use") return `That drawer is already open${body?.by ? ` by ${body.by}` : ""}.`;
   if (code === "bad_transition") return `That ticket is already ${String(body?.from ?? "").toLowerCase()}.`;
+  if (code === "daily_limit_reached") return body?.minutesLeft ? `Daily play limit: only ${body.minutesLeft} min left today.` : "This customer has used up today's play limit.";
   if (code === "age_restricted") return `This station is ${body?.minAge}+ — the customer is ${body?.age}.`;
   if (code === "age_confirmation_required") return `Confirm the player is at least ${body?.minAge}.`;
   if (code === "too_many_players") return `This station has ${body?.max} controller(s).`;
@@ -163,6 +164,16 @@ export function describeError(status: number, body: any): string {
     customer_has_open_bill: "They have an open bill — settle or void it first.",
     customer_has_bookings: "They have upcoming bookings — cancel them first.",
     customer_erased: "This customer was already erased.",
+    customer_banned: "This customer is banned.",
+    customer_zone_blocked: "This customer isn't allowed to play in this zone.",
+    customer_restaurant_blocked: "This customer can't order food & drink.",
+    not_your_note: "Only the person who wrote a note can delete it.",
+    wallet_has_refund_balance: "The duplicate has a refund pending — finish that first, then merge.",
+    same_customer: "Pick a different account to merge.",
+    already_lifted: "That restriction was already lifted.",
+    already_resolved: "That ticket is already resolved.",
+    no_email: "There's no email address to verify.",
+    no_phone: "There's no phone number to verify.",
     po_not_draft: "Only draft orders can be deleted. Cancel it instead, or return received goods to the supplier.",
     system_role: "Built-in roles can't be deleted.",
     campaign_sent: "Only draft campaigns can be deleted.",

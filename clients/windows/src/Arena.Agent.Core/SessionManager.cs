@@ -12,7 +12,8 @@ public sealed record SessionState(
     int[] WarningMinutes,
     string PostSessionAction,
     bool AllowSelfExtend,
-    int? CustomerAge = null);
+    int? CustomerAge = null,
+    string[]? BlockedGameIds = null); // games staff blocked for this customer
 
 public enum SessionEvent { Started, Extended, Ended, ExpiredLocally }
 
@@ -83,7 +84,8 @@ public sealed class SessionManager
                         payload.TryGetProperty("warningMinutes", out var w) ? w.EnumerateArray().Select(x => x.GetInt32()).ToArray() : [30, 15, 10, 5, 1],
                         payload.TryGetProperty("postSessionAction", out var p) ? p.GetString() ?? "LOCK" : "LOCK",
                         payload.TryGetProperty("allowSelfExtend", out var a) && a.GetBoolean(),
-                        payload.GetProperty("customer").TryGetProperty("age", out var age) && age.TryGetInt32(out var years) ? years : null);
+                        payload.GetProperty("customer").TryGetProperty("age", out var age) && age.TryGetInt32(out var years) ? years : null,
+                        payload.GetProperty("customer").TryGetProperty("blockedGameIds", out var bg) && bg.ValueKind == JsonValueKind.Array ? bg.EnumerateArray().Select(x => x.GetString()!).ToArray() : null);
                     _current = s; // idempotent: a re-sent START for the same session just refreshes it
                     Persist();
                     Raise(SessionEvent.Started, s);

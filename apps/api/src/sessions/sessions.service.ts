@@ -8,10 +8,12 @@ import { DeviceHub, LiveBus } from "../devices/live.js";
 import { PricingError, extensionQuote, postpaidCharge, quote, selectPlans, type Discount, type PlanDef, type Quote, type QuoteRequest, type StationClass } from "./pricing.js";
 import { StationControlService } from "../devices/station-control.service.js";
 import { earnForSession } from "../loyalty/points.js";
+import { refreshStats } from "../customers/stats.js";
 import { PromotionsService, type Evaluation } from "../promotions/promotions.service.js";
 import { CrmService } from "../crm/crm.service.js";
 import { recomputeBill, recordPayment } from "../pos/bills.js";
 import { adjustTime, timeBalance } from "./time-balance.js";
+import { activeRestrictions, assertMayPlay, playerLimits } from "../customers/restrictions.js";
 
 export type PaymentMethodInput = "CASH" | "CARD" | "WALLET" | "TIME_BALANCE" | "PAY_LATER";
 export const LIVE_STATUSES = ["PENDING", "ACTIVE", "PAUSED", "ENDING"] as const;
@@ -123,14 +125,13 @@ export class SessionsService {
     });
     if (!device || !device.isEnabled) throw new NotFoundException({ error: "not_found" });
     const unit = await this.minorUnit(t, device.branch.currency);
-    let customer: { id: string; displayName: string; status: string; membershipTierId: string | null; tierName: string | null; discountPct: number; age: number | null } | null = null;
+    let customer: { id: string; displayName: string; status: string; membershipTierId: string | null; tierName: string | null; discountPct: number; age: number | null; blockedGameIds: string[]; minutesLeftToday: number | null } | null = null;
     if (customerId) {
       const c = await t.customer.findUnique({ where: { id: customerId }, select: { id: true, displayName: true, status: true, dateOfBirth: true, membershipTierId: true, membershipTier: { select: { name: true, gamingDiscountPct: true } } } });
       if (!c) throw new NotFoundException({ error: "customer_not_found" });
       if (c.status === "BANNED" || c.status === "DELETED") throw new ForbiddenException({ error: "customer_banned" });
-      const ban = await t.customerRestriction.findFirst({ where: { customerId, type: "BAN", liftedAt: null, OR: [{ endsAt: null }, { endsAt: { gt: new Date() } }] }, select: { reason: true } });
-      if (ban) throw new ForbiddenException({ error: "customer_banned", reason: ban.reason });
-      customer = { id: c.id, displayName: c.displayName, status: c.status, membershipTierId: c.membershipTierId, tierName: c.membershipTier?.name ?? null, discountPct: Number(c.membershipTier?.gamingDiscountPct ?? 0), age: ageOn(c.dateOfBirth) };
+      const { active, minutesLeftToday } = await assertMayPlay(t, customerId, { zoneId: device.zoneId, timezone: device.branch.timezone });
+      customer = { id: c.id, displayName: c.displayName, status: c.status, membershipTierId: c.membershipTierId, tierName: c.membershipTier?.name ?? null, discountPct: Number(c.membershipTier?.gamingDiscountPct ?? 0), ...playerLimits(active, ageOn(c.dateOfBirth)), minutesLeftToday };
     }
     const plans = await t.pricingPlan.findMany({ where: { isActive: true, currency: device.branch.currency }, include: { pricingPackages: { orderBy: { sortOrder: "asc" } } } });
     const ctx = {
@@ -218,7 +219,7 @@ export class SessionsService {
       const balance = await timeBalance(t, customer!.id);
       if (balance <= 0) throw new ConflictException({ error: "insufficient_time", balanceMinutes: 0 });
       const wanted = input.request.kind === "minutes" ? Math.min(input.request.minutes, balance) : balance;
-      const minutes = Math.min(wanted, 24 * 60);
+      const minutes = Math.min(wanted, 24 * 60, customer!.minutesLeftToday ?? Infinity); // a daily limit shortens a prepaid-balance session
       plan = c.plans[0];
       q = {
         planId: plan?.id ?? "time-balance", planName: "Prepaid time", packageId: null, billingMode: "FIXED_DURATION", paymentTiming: "PREPAID",
@@ -236,6 +237,8 @@ export class SessionsService {
       }
       if (q.paymentTiming === "POSTPAID" && input.payment.method !== "PAY_LATER") throw new ConflictException({ error: "open_session_is_pay_later" });
       ({ q, ev: promo } = await this.withPromotions(t, q, { branchId: ctx.branchId, zoneId: ctx.zoneId, stationClass: ctx.stationClass, customerId: customer?.id ?? null }, input.promoCode));
+      // ponytail: the daily limit is checked when time is sold; an open (pay-later) session isn't cut off mid-game.
+      if (customer?.minutesLeftToday != null && q.minutes !== null && q.minutes > customer.minutesLeftToday) throw new ForbiddenException({ error: "daily_limit_reached", minutesLeft: customer.minutesLeftToday });
     }
 
     // ── someone else's booking on this PC? Don't sell time that runs into it ──
@@ -317,7 +320,7 @@ export class SessionsService {
       await this.commands.issue(t, {
         deviceId: device.id,
         type: "START_SESSION",
-        payload: this.startPayload(session, customer?.displayName ?? session.guestLabel ?? "Guest", customer?.tierName ?? null, customer?.age ?? null),
+        payload: this.startPayload(session, customer?.displayName ?? session.guestLabel ?? "Guest", customer?.tierName ?? null, customer?.age ?? null, customer?.blockedGameIds),
         requestedBy: actor.type === "EMPLOYEE" ? { type: "EMPLOYEE", id: actor.id } : { type: "SYSTEM", id: null },
       });
       // Campaign messages waiting for this customer pop up on the PC now.
@@ -454,6 +457,7 @@ export class SessionsService {
       });
     }
     await earnForSession(t, s.id); // points per minute played (spend points come when the bill settles)
+    if (s.customerId) await refreshStats(t, s.customerId);
     await auditAs(t, actor, { action: `session.end.${reason.toLowerCase()}`, entityType: "GamingSession", entityId: s.id, branchId: s.branchId, after: { usedSeconds, device: s.device.name } });
     await this.publishDevice(t, s.deviceId);
     return this.view(t, s.id);
@@ -484,7 +488,10 @@ export class SessionsService {
     else await this.commands.issue(t, { deviceId: from, type: "END_SESSION", payload: { sessionId: s.id, reason: "MOVED", postSessionAction: "LOCK", serverTime: new Date().toISOString() }, requestedBy: by });
     const moved = await t.gamingSession.findUniqueOrThrow({ where: { id: s.id } });
     if (target.agentless) await this.control.sessionStarted(t, target.id, actor);
-    else await this.commands.issue(t, { deviceId: target.id, type: "START_SESSION", payload: this.startPayload(moved, s.customer?.displayName ?? s.guestLabel ?? "Guest", s.customer?.membershipTier?.name ?? null, ageOn(s.customer?.dateOfBirth)), requestedBy: by });
+    else {
+      const limits = s.customerId ? playerLimits(await activeRestrictions(t, s.customerId), ageOn(s.customer?.dateOfBirth)) : { age: null, blockedGameIds: [] };
+      await this.commands.issue(t, { deviceId: target.id, type: "START_SESSION", payload: this.startPayload(moved, s.customer?.displayName ?? s.guestLabel ?? "Guest", s.customer?.membershipTier?.name ?? null, limits.age, limits.blockedGameIds), requestedBy: by });
+    }
     await auditAs(t, actor, { action: "session.move", entityType: "GamingSession", entityId: s.id, branchId: s.branchId, after: { from, to: target.id, reason } });
     await this.publishDevice(t, from);
     await this.publishDevice(t, target.id);
@@ -531,10 +538,10 @@ export class SessionsService {
     return s ? this.view(t, s.id) : null;
   }
 
-  startPayload(s: { id: string; startedAt: Date | null; expiresAt: Date | null; postSessionAction: string; customerId: string | null }, displayName: string, tier: string | null, age: number | null = null) {
+  startPayload(s: { id: string; startedAt: Date | null; expiresAt: Date | null; postSessionAction: string; customerId: string | null }, displayName: string, tier: string | null, age: number | null = null, blockedGameIds: string[] = []) {
     return {
       sessionId: s.id,
-      customer: { id: s.customerId, displayName, membershipTier: tier ?? undefined, age },
+      customer: { id: s.customerId, displayName, membershipTier: tier ?? undefined, age, blockedGameIds },
       startedAt: (s.startedAt ?? new Date()).toISOString(),
       expiresAt: s.expiresAt?.toISOString() ?? null,
       serverTime: new Date().toISOString(),

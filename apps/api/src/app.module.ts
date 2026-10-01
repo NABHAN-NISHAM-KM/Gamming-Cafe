@@ -28,6 +28,7 @@ import { DeviceEnrollController, EnrollmentService } from "./devices/enrollment.
 import { DeviceHub, LiveBus } from "./devices/live.js";
 import { SigningKeysService } from "./devices/signing-keys.service.js";
 import { CustomersController } from "./customers/customers.controller.js";
+import { CustomerRecordsController } from "./customers/customer-records.controller.js";
 import { PricingController } from "./sessions/pricing.controller.js";
 import { SessionTimerService } from "./sessions/session-timer.service.js";
 import { SessionsController } from "./sessions/sessions.controller.js";
@@ -122,6 +123,7 @@ export class AppModule {
         SessionsController,
         PricingController,
         CustomersController,
+    CustomerRecordsController,
         GamesController,
         TiersController,
         BookingsController,

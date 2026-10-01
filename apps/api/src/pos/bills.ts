@@ -1,4 +1,5 @@
 import { ConflictException } from "@nestjs/common";
+import { refreshStats } from "../customers/stats.js";
 import { earnForBill } from "../loyalty/points.js";
 import { Prisma, type TenantTx } from "@arena/db";
 import { payFromWallet } from "../wallet/wallet.js";
@@ -34,6 +35,7 @@ export async function recomputeBill(t: TenantTx, billId: string) {
   }
   // Settled → loyalty points for what the customer paid for (idempotent per bill).
   if (bill.status === "SETTLED" && bill.customerId) await earnForBill(t, billId);
+  if (bill.customerId) await refreshStats(t, bill.customerId);
   return bill;
 }
 

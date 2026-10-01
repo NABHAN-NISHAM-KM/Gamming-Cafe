@@ -1,4 +1,5 @@
-import { Body, ConflictException, Controller, Get, HttpCode, Inject, NotFoundException, Param, Patch, Post, Query } from "@nestjs/common";
+import { Body, ConflictException, Controller, Get, HttpCode, Inject, NotFoundException, Param, Patch, Post, Query, Res } from "@nestjs/common";
+import type { Response } from "express";
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { holdsPermission } from "@arena/rbac";
@@ -8,6 +9,8 @@ import { authorizeFor } from "../common/authz.js";
 import { RequirePermissionAnyScope, AnyStaff } from "../common/decorators.js";
 import { orgId, principal, tx } from "../common/request-state.js";
 import { ZodPipe } from "../common/zod.pipe.js";
+import { csvName, toCsv } from "../common/csv.js";
+import { eraseCustomer } from "./merge.js";
 import { adjustTime } from "../sessions/time-balance.js";
 import { moveMoney, orgCurrency, toMinor, walletView } from "../wallet/wallet.js";
 import { CommerceService } from "./commerce.service.js";
@@ -29,10 +32,29 @@ const Create = z
     marketingConsent: z.boolean().default(false),
   })
   .strict();
+const Tag = z.string().trim().min(1).max(24);
 const Update = z
-  .object({ displayName: z.string().min(1).max(60), firstName: z.string().max(60).nullable(), lastName: z.string().max(60).nullable(), phone: z.string().regex(/^\+?[0-9 ()-]{6,20}$/).nullable(), email: z.email().nullable(), marketingConsent: z.boolean() })
+  .object({
+    displayName: z.string().min(1).max(60), firstName: z.string().max(60).nullable(), lastName: z.string().max(60).nullable(), phone: z.string().regex(/^\+?[0-9 ()-]{6,20}$/).nullable(), email: z.email().nullable(), marketingConsent: z.boolean(),
+    dateOfBirth: z.iso.date().refine((d) => d >= "1900-01-01" && new Date(d) <= new Date(), "not a real birth date").nullable().transform((d) => (d ? new Date(d) : null)),
+    homeBranchId: z.uuid().nullable(),
+    locale: z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/),
+    tags: z.array(Tag).max(20).transform((t) => [...new Set(t)]),
+  })
   .partial()
   .strict();
+const Filters = z
+  .object({
+    q: z.string().max(100).optional(),
+    status: z.enum(["ACTIVE", "RESTRICTED", "BANNED", "PENDING_VERIFICATION"]).optional(),
+    tag: Tag.optional(),
+    sort: z.enum(["recent", "name", "spend", "lastVisit", "points"]).default("recent"),
+    page: z.coerce.number().int().min(0).max(10_000).default(0),
+    consented: z.enum(["1"]).optional(),
+  })
+  .strict();
+type Filters = z.infer<typeof Filters>;
+const PAGE = 50;
 const Credentials = z.object({ password: Password.optional(), pin: Pin.optional() }).strict().refine((c) => c.password || c.pin, "password or pin required");
 const SellTime = z
   .object({
@@ -76,16 +98,19 @@ const SellMembership = z
 
 const SELECT = {
   id: true, username: true, displayName: true, firstName: true, lastName: true, phone: true, email: true, status: true, createdAt: true, lastVisitAt: true, marketingConsent: true,
+  dateOfBirth: true, homeBranchId: true, locale: true, tags: true, loyaltyPoints: true, totalSpend: true, totalGamingMinutes: true, referralCode: true, emailVerifiedAt: true, phoneVerifiedAt: true,
   membershipTier: { select: { id: true, name: true, code: true, color: true } },
   wallets: { select: { timeBalanceMin: true, cashBalance: true, bonusBalance: true } },
 } as const;
 
-/** Phone/email are personal data: shown in full only with customer.view_pii. */
+const seesPii = () => holdsPermission(principal(), "customer.view_pii", { organizationId: orgId() }) || principal().grants.some((g) => g.permissions.has("customer.view_pii"));
+
+/** Phone/email/birth date are personal data: shown in full only with customer.view_pii. */
 function present(c: any) {
-  const pii = holdsPermission(principal(), "customer.view_pii", { organizationId: orgId() }) || principal().grants.some((g) => g.permissions.has("customer.view_pii"));
+  const pii = seesPii();
   const mask = (v: string | null, keep: number) => (!v || pii ? v : `${"•".repeat(Math.max(0, v.length - keep))}${v.slice(-keep)}`);
   const { wallets, passwordHash, pinHash, ...rest } = c;
-  return { ...rest, phone: mask(c.phone, 3), email: c.email && !pii ? c.email.replace(/^(.).*(@.*)$/, "$1•••$2") : c.email, timeBalanceMinutes: (wallets ?? []).reduce((s: number, w: any) => s + w.timeBalanceMin, 0), walletBalance: (wallets ?? []).reduce((s: number, w: any) => s + Number(w.cashBalance) + Number(w.bonusBalance), 0).toFixed(2) };
+  return { ...rest, phone: mask(c.phone, 3), email: c.email && !pii ? c.email.replace(/^(.).*(@.*)$/, "$1•••$2") : c.email, dateOfBirth: pii ? (c.dateOfBirth?.toISOString().slice(0, 10) ?? null) : null, totalSpend: c.totalSpend === undefined ? undefined : Number(c.totalSpend).toFixed(2), timeBalanceMinutes: (wallets ?? []).reduce((s: number, w: any) => s + w.timeBalanceMin, 0), walletBalance: (wallets ?? []).reduce((s: number, w: any) => s + Number(w.cashBalance) + Number(w.bonusBalance), 0).toFixed(2) };
 }
 
 @Controller("customers")
@@ -97,26 +122,23 @@ export class CustomersController {
 
   @RequirePermissionAnyScope("customer.view")
   @Get()
-  async list(@Query("q") q?: string) {
-    const term = q?.trim();
-    // Phones are stored as typed ("+971 50 123 4567"): match on digits only, and
-    // drop a leading trunk 0 so a local "050 123…" still finds it.
-    const digits = term && /^[+0-9 ()-]+$/.test(term) ? term.replace(/\D/g, "").replace(/^0+/, "") : "";
-    const byPhone = digits.length >= 4
-      ? (await tx().$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "Customer" WHERE regexp_replace(COALESCE("phone", ''), '[^0-9]', '', 'g') LIKE ${`%${digits}%`} LIMIT 50`).map((r) => r.id)
-      : [];
-    const rows = await tx().customer.findMany({
-      where: {
-        status: { not: "DELETED" },
-        ...(term
-          ? { OR: [{ username: { contains: term, mode: "insensitive" } }, { displayName: { contains: term, mode: "insensitive" } }, { phone: { contains: term } }, { email: { contains: term, mode: "insensitive" } }, ...(byPhone.length ? [{ id: { in: byPhone } }] : [])] }
-          : {}),
-      },
-      select: SELECT,
-      orderBy: term ? { displayName: "asc" } : { createdAt: "desc" },
-      take: 50,
-    });
+  async list(@Query(new ZodPipe(Filters)) f: Filters) {
+    const rows = await tx().customer.findMany({ where: await where(f), select: SELECT, orderBy: ORDER[f.q?.trim() && f.sort === "recent" ? "name" : f.sort], skip: f.page * PAGE, take: PAGE });
     return rows.map(present);
+  }
+
+  /** The filtered list as a spreadsheet (personal data — needs customer.export, and is audited). */
+  @RequirePermissionAnyScope("customer.export")
+  @Get("export")
+  async export(@Query(new ZodPipe(Filters)) f: Filters, @Res({ passthrough: true }) res: Response) {
+    const rows = await tx().customer.findMany({ where: await where(f), select: { ...SELECT, membershipTier: { select: { name: true } } }, orderBy: ORDER[f.sort], take: 10_000 });
+    await this.audit.record({ action: "customer.export", entityType: "Customer", after: { filters: f, rows: rows.length } });
+    res.setHeader("content-type", "text/csv; charset=utf-8");
+    res.setHeader("content-disposition", `attachment; filename="${csvName(`customers-${new Date().toISOString().slice(0, 10)}`)}"`);
+    return toCsv(
+      ["username", "name", "first_name", "last_name", "phone", "email", "birth_date", "status", "tier", "tags", "points", "total_spend", "gaming_hours", "last_visit", "joined", "marketing_consent"],
+      rows.map((c) => [c.username, c.displayName, c.firstName, c.lastName, c.phone, c.email, c.dateOfBirth?.toISOString().slice(0, 10), c.status, c.membershipTier?.name, c.tags.join("; "), c.loyaltyPoints, Number(c.totalSpend).toFixed(2), (c.totalGamingMinutes / 60).toFixed(1), c.lastVisitAt, c.createdAt, c.marketingConsent ? "yes" : "no"]),
+    );
   }
 
   @RequirePermissionAnyScope("customer.view")
@@ -158,43 +180,18 @@ export class CustomersController {
   @Patch(":customerId")
   async update(@Param("customerId") customerId: string, @Body(new ZodPipe(Update)) body: z.infer<typeof Update>) {
     const before = await tx().customer.findUniqueOrThrow({ where: { id: customerId }, select: SELECT });
+    if (body.homeBranchId && !(await tx().branch.findUnique({ where: { id: body.homeBranchId }, select: { id: true } }))) throw new NotFoundException({ error: "branch_not_found" });
     const after = await tx().customer.update({ where: { id: customerId }, data: { ...body, email: body.email?.toLowerCase() ?? body.email }, select: SELECT });
     await this.audit.record({ action: "customer.update", entityType: "Customer", entityId: customerId, before, after });
     return present(after);
   }
 
-  /**
-   * Right to erasure: scrub every piece of personal data and block the
-   * account, but keep bills, payments, wallet and loyalty ledgers (anonymous
-   * now) so the books and reports still add up. Refused while the customer
-   * still has money with us or something in progress.
-   */
+  /** Right to erasure — see eraseCustomer(). */
   @RequirePermissionAnyScope("customer.delete")
   @Post(":customerId/erase")
   @HttpCode(200)
   async erase(@Param("customerId") customerId: string) {
-    const t = tx();
-    const c = await t.customer.findUnique({ where: { id: customerId }, select: { id: true, status: true, wallets: { select: { cashBalance: true, refundBalance: true } } } });
-    if (!c) throw new NotFoundException({ error: "not_found" });
-    if (c.status === "DELETED") throw new ConflictException({ error: "customer_erased" });
-    if (c.wallets.some((w) => w.cashBalance.add(w.refundBalance).gt(0))) throw new ConflictException({ error: "wallet_not_empty" });
-    if (await t.gamingSession.count({ where: { customerId, status: { in: ["PENDING", "ACTIVE", "PAUSED", "ENDING"] } } })) throw new ConflictException({ error: "customer_in_session" });
-    if (await t.bill.count({ where: { customerId, status: { in: ["OPEN", "PARTIALLY_PAID"] } } })) throw new ConflictException({ error: "customer_has_open_bill" });
-    if (await t.booking.count({ where: { customerId, startsAt: { gt: new Date() }, status: { in: ["PENDING", "CONFIRMED"] } } })) throw new ConflictException({ error: "customer_has_bookings" });
-
-    await t.customer.update({
-      where: { id: customerId },
-      data: {
-        username: `erased-${customerId.slice(-12)}`, displayName: "Erased customer", firstName: null, lastName: null, email: null, phone: null, dateOfBirth: null,
-        avatarUrl: null, passwordHash: null, pinHash: null, qrLoginSecretRef: null, referralCode: null, marketingConsent: false, emailVerifiedAt: null, phoneVerifiedAt: null,
-        status: "DELETED",
-      },
-    });
-    // Logins, devices and profile extras go entirely; money and history stay, now anonymous.
-    await t.customerSession.deleteMany({ where: { customerId } });
-    await t.pushSubscription.deleteMany({ where: { customerId } });
-    await t.customerFavoriteGame.deleteMany({ where: { customerId } });
-    await t.customerSegmentMember.deleteMany({ where: { customerId } });
+    await eraseCustomer(tx(), customerId);
     await this.audit.record({ action: "customer.erase", entityType: "Customer", entityId: customerId });
     return { erased: true };
   }
@@ -295,6 +292,33 @@ export class CustomersController {
     await this.audit.record({ action: "membership.cancel", entityType: "Membership", entityId: m.id, before: m, after });
     return after;
   }
+}
+
+const ORDER = {
+  recent: { createdAt: "desc" },
+  name: { displayName: "asc" },
+  spend: { totalSpend: "desc" },
+  lastVisit: { lastVisitAt: { sort: "desc", nulls: "last" } },
+  points: { loyaltyPoints: "desc" },
+} as const;
+
+/** The list's filters as a Prisma where. Erased accounts never show. */
+async function where(f: Filters) {
+  const term = f.q?.trim();
+  // Phones are stored as typed ("+971 50 123 4567"): match on digits only, and
+  // drop a leading trunk 0 so a local "050 123…" still finds it.
+  const digits = term && /^[+0-9 ()-]+$/.test(term) ? term.replace(/\D/g, "").replace(/^0+/, "") : "";
+  const byPhone = digits.length >= 4
+    ? (await tx().$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "Customer" WHERE regexp_replace(COALESCE("phone", ''), '[^0-9]', '', 'g') LIKE ${`%${digits}%`} LIMIT 50`).map((r) => r.id)
+    : [];
+  return {
+    status: f.status ?? { not: "DELETED" as const },
+    ...(f.tag ? { tags: { has: f.tag } } : {}),
+    ...(f.consented ? { marketingConsent: true } : {}),
+    ...(term
+      ? { OR: [{ username: { contains: term, mode: "insensitive" as const } }, { displayName: { contains: term, mode: "insensitive" as const } }, { phone: { contains: term } }, { email: { contains: term, mode: "insensitive" as const } }, ...(byPhone.length ? [{ id: { in: byPhone } }] : [])] }
+      : {}),
+  };
 }
 
 /** Branch-scoped permission target from a branch id in the body. */

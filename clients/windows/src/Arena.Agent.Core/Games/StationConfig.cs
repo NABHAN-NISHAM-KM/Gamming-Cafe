@@ -33,7 +33,7 @@ public sealed record StationConfig(
 /// <summary>What to actually start: a program and its arguments (never a shell command line).</summary>
 public sealed record LaunchPlan(string FileName, string Arguments, string? WorkingDirectory);
 
-public enum LaunchDenial { None, NoSession, NotInLibrary, NotInstalled, AgeRestricted, NotLaunchable, Forbidden }
+public enum LaunchDenial { None, NoSession, NotInLibrary, NotInstalled, AgeRestricted, NotLaunchable, Forbidden, Blocked }
 
 /// <summary>
 /// Decides whether the customer at the PC may start something, and how. The
@@ -63,6 +63,7 @@ public static partial class LaunchPolicy
         var game = config?.Games.FirstOrDefault(g => g.Id == gameId);
         if (game is null) return (LaunchDenial.NotInLibrary, null);
         if (game.MinAge is { } min && session.CustomerAge is { } age && age < min) return (LaunchDenial.AgeRestricted, null);
+        if (session.BlockedGameIds?.Contains(game.Id) == true) return (LaunchDenial.Blocked, null);
         if (!game.Installed) return (LaunchDenial.NotInstalled, null);
         var plan = PlanFor(game.Launch, steamExe);
         return plan is null ? (LaunchDenial.NotLaunchable, null) : (LaunchDenial.None, plan);
@@ -116,6 +117,7 @@ public static partial class LaunchPolicy
         LaunchDenial.AgeRestricted => "This game has an age rating above your age.",
         LaunchDenial.NotLaunchable => "This game can't be started from here. Please ask staff.",
         LaunchDenial.Forbidden => "That program isn't allowed.",
+        LaunchDenial.Blocked => "This game isn't available on your account. Please ask staff.",
         _ => "",
     };
 }

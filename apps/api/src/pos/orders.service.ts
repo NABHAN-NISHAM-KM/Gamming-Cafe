@@ -7,6 +7,7 @@ import { consumeOrder, returnOrderItems, stockForProducts } from "../inventory/s
 import { reverseForRefund } from "../loyalty/points.js";
 import { PromotionsService } from "../promotions/promotions.service.js";
 import { moveMoney } from "../wallet/wallet.js";
+import { assertMayOrderFood } from "../customers/restrictions.js";
 import { fromMinor, minorUnit, openShiftOf, recomputeBill, recordPayment, toMinor } from "./bills.js";
 import { cashChange, OrderPricingError, priceOrder, validateModifiers, type OrderDiscount, type TaxClass, type TaxProfileDef } from "./order-pricing.js";
 
@@ -160,6 +161,7 @@ export class OrdersService {
     } else {
       billId = (await t.bill.create({ data: { organizationId: branch.organizationId, branchId: branch.id, number: `${branch.code}-${stamp()}`, customerId, tableId, currency: branch.currency, openedById: employeeId } })).id;
     }
+    await assertMayOrderFood(t, customerId);
 
     // Price every line from the menu — the client only says what and how many.
     const ids = [...new Set(i.lines.map((l) => l.productId))];

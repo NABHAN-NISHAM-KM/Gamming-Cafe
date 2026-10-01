@@ -1,15 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Clock, Crown, KeyRound, Plus, UserPlus, Users, UserX } from "lucide-react";
-import { LoyaltyPanel, MembershipPanel, TiersModal, WalletPanel } from "./account-panels";
-import { api } from "@/lib/client/api";
+import { ChevronLeft, ChevronRight, Clock, CreditCard, Crown, Download, GitMerge, Gift, KeyRound, Megaphone, Plus, Tag, UserPlus, Users, UserX } from "lucide-react";
+import { BranchField, LoyaltyPanel, MembershipPanel, TiersModal, WalletPanel, useBranchPick } from "./account-panels";
+import { ActivityPanel, LoginsPanel, MergeForm, NotesPanel, PeoplePanel, ProfileForm, RestrictionsPanel, SummaryStrip, TicketsPanel, Verification, printCard, type Insights, type Profile } from "./customer-file";
+import { api, ApiError } from "@/lib/client/api";
 import { useAction, useApi } from "@/lib/client/hooks";
-import { useCan } from "@/lib/client/me";
+import { useCan, useMe } from "@/lib/client/me";
 import { fmtCountdown, idem } from "@/lib/client/sessions";
 import type { Branch } from "@/lib/client/types";
-import { QuickEdit, RecordActions } from "@/components/records";
-import { Badge, Button, Card, Empty, ErrorNote, Field, Input, PasswordInput, Modal, PageHeader, Select, Spinner, Table, askConfirm, toast } from "@/components/ui";
+import { RecordActions } from "@/components/records";
+import { Badge, Button, Card, Empty, ErrorNote, Field, Input, PasswordInput, Modal, PageHeader, Select, Spinner, Table, askConfirm, askText, cx, toast } from "@/components/ui";
 
 interface Customer {
   id: string;
@@ -22,8 +23,11 @@ interface Customer {
   walletBalance: string;
   lastVisitAt: string | null;
   membershipTier: { name: string; color: string | null } | null;
+  tags: string[];
+  loyaltyPoints: number;
+  totalSpend: string;
 }
-interface Detail extends Customer {
+interface Detail extends Customer, Profile {
   sessions: Array<{ id: string; status: string; startedAt: string | null; endedAt: string | null; amountDue: string; currency: string; device: { name: string }; endReason: string | null }>;
   timeLedger: Array<{ id: string; type: string; amount: number; balanceAfter: number; reason: string | null; createdAt: string }>;
 }
@@ -171,10 +175,18 @@ function SetCredentials({ customer, onDone }: { customer: Customer; onDone: () =
   );
 }
 
-function CustomerDetail({ id, onChanged, onErased }: { id: string; onChanged: () => void; onErased: () => void }) {
+const STATUS_TONE: Record<string, "danger" | "warn" | "neutral"> = { BANNED: "danger", RESTRICTED: "warn", PENDING_VERIFICATION: "neutral" };
+type Tab = "overview" | "activity" | "profile" | "restrictions" | "notes" | "logins" | "tickets";
+const TABS: Array<[Tab, string]> = [["overview", "Overview"], ["activity", "Activity"], ["profile", "Profile"], ["restrictions", "Restrictions"], ["notes", "Notes"], ["logins", "Logins"], ["tickets", "Tickets"]];
+
+function CustomerDetail({ id, tab: initialTab, onChanged, onErased, onOpen }: { id: string; tab: Tab; onChanged: () => void; onErased: () => void; onOpen: (id: string) => void }) {
   const can = useCan();
+  const me = useMe();
   const c = useApi<Detail>(`/customers/${id}`);
-  const [modal, setModal] = useState<"time" | "credentials" | null>(null);
+  const ins = useApi<Insights>(`/customers/${id}/insights`);
+  const [tab, setTab] = useState<Tab>(initialTab);
+  const [modal, setModal] = useState<"time" | "credentials" | "merge" | null>(null);
+  const changed = () => { void c.reload(); void ins.reload(); onChanged(); };
   const erase = useAction(async () => {
     const who = c.data!.displayName;
     if (!(await askConfirm(`Erase ${who}? Their name, phone, email, birthday and logins are deleted for good and they can't sign in again. Bills, payments and points stay in the books, without their name. This can't be undone.`))) return;
@@ -187,8 +199,12 @@ function CustomerDetail({ id, onChanged, onErased }: { id: string; onChanged: ()
   return (
     <div className="grid gap-5">
       <div className="flex flex-wrap items-center gap-3">
-        <div>
-          <p className="text-lg font-semibold">{d.displayName}</p>
+        <div className="min-w-0">
+          <p className="flex flex-wrap items-center gap-2 text-lg font-semibold">
+            {d.displayName}
+            {d.status !== "ACTIVE" && <Badge tone={STATUS_TONE[d.status] ?? "neutral"}>{d.status.toLowerCase().replace("_", " ")}</Badge>}
+            {d.tags.map((t) => <Badge key={t} tone="accent">{t}</Badge>)}
+          </p>
           <p className="text-sm text-ink-3">
             @{d.username} {d.phone && `· ${d.phone}`} {d.email && `· ${d.email}`}
           </p>
@@ -209,60 +225,206 @@ function CustomerDetail({ id, onChanged, onErased }: { id: string; onChanged: ()
             <KeyRound className="size-3.5" /> Password / PIN
           </Button>
         )}
+        <Button size="sm" onClick={() => void printCard(d, me.organization.displayName)}>
+          <CreditCard className="size-3.5" /> Print card
+        </Button>
         {can("customer.delete") && (
-          <Button size="sm" variant="danger" className="ml-auto" pending={erase.pending} onClick={() => void erase.run()}>
-            <UserX className="size-3.5" /> Erase customer
+          <Button size="sm" className="ml-auto" onClick={() => setModal("merge")}>
+            <GitMerge className="size-3.5" /> Merge duplicate
+          </Button>
+        )}
+        {can("customer.delete") && (
+          <Button size="sm" variant="danger" pending={erase.pending} onClick={() => void erase.run()}>
+            <UserX className="size-3.5" /> Erase
           </Button>
         )}
       </div>
       <ErrorNote>{erase.error}</ErrorNote>
-      <div className="grid gap-5 border-t border-line pt-5">
-        <MembershipPanel customerId={d.id} onChanged={() => { void c.reload(); onChanged(); }} />
-        <WalletPanel key={d.timeBalanceMinutes} customerId={d.id} onChanged={() => { void c.reload(); onChanged(); }} />
-        <LoyaltyPanel customerId={d.id} onChanged={() => { void c.reload(); onChanged(); }} />
+      <div role="tablist" className="-mb-2 flex gap-1 overflow-x-auto border-b border-line">
+        {TABS.map(([k, label]) => (
+          <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={cx("whitespace-nowrap border-b-2 px-3 py-2 text-sm", tab === k ? "border-accent text-ink" : "border-transparent text-ink-3 hover:text-ink")}>
+            {label}
+          </button>
+        ))}
       </div>
-      <div>
-        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-3">Recent sessions</h3>
-        {d.sessions.length === 0 ? (
-          <p className="text-sm text-ink-3">None yet.</p>
-        ) : (
-          <ul className="grid gap-1 text-sm">
-            {d.sessions.map((s) => (
-              <li key={s.id} className="flex gap-3">
-                <span className="w-16 font-medium">{s.device.name}</span>
-                <span className="text-ink-2">{s.startedAt ? new Date(s.startedAt).toLocaleString() : ""}</span>
-                <Badge tone={s.status === "ENDED" ? "neutral" : "accent"}>{s.status.toLowerCase()}</Badge>
-                <span className="tabular ml-auto">
-                  {s.currency} {Number(s.amountDue).toFixed(2)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      {tab === "overview" && (
+        <div className="grid gap-5">
+          {ins.data ? <SummaryStrip i={ins.data} /> : <Spinner />}
+          <MembershipPanel customerId={d.id} onChanged={changed} />
+          <WalletPanel key={d.timeBalanceMinutes} customerId={d.id} onChanged={changed} />
+          <LoyaltyPanel customerId={d.id} onChanged={changed} />
+          <div>
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-3">Recent sessions</h3>
+            {d.sessions.length === 0 ? (
+              <p className="text-sm text-ink-3">None yet.</p>
+            ) : (
+              <ul className="grid gap-1 text-sm">
+                {d.sessions.map((s) => (
+                  <li key={s.id} className="flex gap-3">
+                    <span className="w-16 font-medium">{s.device.name}</span>
+                    <span className="text-ink-2">{s.startedAt ? new Date(s.startedAt).toLocaleString() : ""}</span>
+                    <Badge tone={s.status === "ENDED" ? "neutral" : "accent"}>{s.status.toLowerCase()}</Badge>
+                    <span className="tabular ml-auto">
+                      {s.currency} {Number(s.amountDue).toFixed(2)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
+      {tab === "activity" && <ActivityPanel customerId={d.id} />}
+      {tab === "profile" && (
+        <div className="grid gap-6">
+          {can("customer.edit") && <ProfileForm key={JSON.stringify(d)} c={d} onDone={changed} />}
+          <Verification c={d} onChanged={changed} />
+          {ins.data && <PeoplePanel i={ins.data} open={onOpen} />}
+        </div>
+      )}
+      {tab === "restrictions" && <RestrictionsPanel customerId={d.id} onChanged={changed} />}
+      {tab === "notes" && <NotesPanel customerId={d.id} />}
+      {tab === "logins" && (ins.data ? <LoginsPanel i={ins.data} /> : <Spinner />)}
+      {tab === "tickets" && <TicketsPanel customerId={d.id} />}
       <Modal open={modal === "time"} onClose={() => setModal(null)} title="Sell prepaid time">
-        {modal === "time" && <SellTime customer={d} onDone={() => { setModal(null); void c.reload(); onChanged(); }} />}
+        {modal === "time" && <SellTime customer={d} onDone={() => { setModal(null); changed(); }} />}
       </Modal>
       <Modal open={modal === "credentials"} onClose={() => setModal(null)} title="Password / PIN">
         {modal === "credentials" && <SetCredentials customer={d} onDone={() => setModal(null)} />}
+      </Modal>
+      <Modal open={modal === "merge"} onClose={() => setModal(null)} title="Merge a duplicate account" wide>
+        {modal === "merge" && <MergeForm c={d} suggestions={ins.data?.duplicates ?? []} onDone={() => { setModal(null); changed(); }} />}
       </Modal>
     </div>
   );
 }
 
+// ── bulk actions ────────────────────────────────────────────────────────────
+
+/** Goodwill bonus credit for every selected customer, one audited adjustment each. */
+function BulkBonus({ ids, onDone }: { ids: string[]; onDone: () => void }) {
+  const b = useBranchPick();
+  const [f, setF] = useState({ amount: "", reason: "" });
+  const [batch] = useState(idem);
+  const [done, setDone] = useState(0);
+  const run = useAction(async () => {
+    for (const [i, id] of ids.entries()) {
+      // A retry after a failure skips the ones already credited (same key per customer).
+      await api(`/customers/${id}/wallet/adjust`, { method: "POST", reason: f.reason, body: { branchId: b.branchId, bucket: "BONUS", amount: f.amount, reason: f.reason, idempotencyKey: `${batch}:${id}` } });
+      setDone(i + 1);
+    }
+    toast(`Bonus credit given to ${ids.length} customer(s).`);
+    onDone();
+  });
+  return (
+    <form className="grid gap-4" onSubmit={(e) => { e.preventDefault(); void run.run(); }}>
+      <p className="text-sm text-ink-2">Free credit for {ids.length} customer(s). It expires in 90 days.</p>
+      <BranchField b={b} />
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Amount each"><Input required inputMode="decimal" value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value })} placeholder="10" autoFocus /></Field>
+        <Field label="Reason"><Input required minLength={3} value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} placeholder="Eid gift" /></Field>
+      </div>
+      <ErrorNote>{run.error && `${run.error} (${done} of ${ids.length} done)`}</ErrorNote>
+      <Button type="submit" variant="primary" pending={run.pending}><Gift className="size-4" /> Give {f.amount || "…"} to {ids.length}</Button>
+    </form>
+  );
+}
+
+/** Puts the selection in a hand-picked segment, ready for a campaign in Marketing. */
+function BulkSegment({ ids, onDone }: { ids: string[]; onDone: () => void }) {
+  const segments = useApi<Array<{ id: string; name: string; kind: string }>>("/crm/segments");
+  const [pick, setPick] = useState("");
+  const [name, setName] = useState("");
+  const run = useAction(async () => {
+    const id = pick || (await api<{ id: string }>("/crm/segments", { method: "POST", body: { name, kind: "STATIC" } })).id;
+    await api(`/crm/segments/${id}/members`, { method: "POST", body: { add: ids } });
+    toast(`${ids.length} customer(s) added. Write the message in Marketing → Campaigns.`);
+    onDone();
+  });
+  const fixed = segments.data?.filter((s) => s.kind === "STATIC") ?? [];
+  return (
+    <form className="grid gap-4" onSubmit={(e) => { e.preventDefault(); void run.run(); }}>
+      <Field label="Segment">
+        <Select value={pick} onChange={(e) => setPick(e.target.value)}>
+          <option value="">New segment…</option>
+          {fixed.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+        </Select>
+      </Field>
+      {!pick && <Field label="New segment name"><Input required minLength={2} maxLength={80} value={name} onChange={(e) => setName(e.target.value)} placeholder="Weekend regulars" autoFocus /></Field>}
+      <ErrorNote>{run.error}</ErrorNote>
+      <div className="flex flex-wrap justify-end gap-2">
+        <a href="/marketing" className="mr-auto self-center text-sm text-accent hover:underline">Open Marketing</a>
+        <Button type="submit" variant="primary" pending={run.pending}><Megaphone className="size-4" /> Add {ids.length} to segment</Button>
+      </div>
+    </form>
+  );
+}
+
+/** Downloads the filtered list as CSV; personal data, so it asks for a reason. */
+function ExportCsv({ query, onDone }: { query: string; onDone: () => void }) {
+  const [consented, setConsented] = useState(true);
+  const run = useAction(async () => {
+    const reason = await askText("Exporting customer data needs a reason (saved in the audit log).");
+    if (!reason) return;
+    const res = await fetch(`/api/v1/customers/export?${query}${consented ? "&consented=1" : ""}`, { headers: { "x-arena-csrf": "1", "x-action-reason": encodeURIComponent(reason) }, cache: "no-store" });
+    if (!res.ok) throw new ApiError(res.status, await res.json().catch(() => null));
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(await res.blob());
+    a.download = `customers-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    onDone();
+  });
+  return (
+    <div className="grid gap-4">
+      <p className="text-sm text-ink-2">Exports everyone matching the current search and filters (up to 10,000), with contact details.</p>
+      <label className="flex items-center gap-2 text-sm">
+        <input type="checkbox" checked={consented} onChange={(e) => setConsented(e.target.checked)} /> Only customers who agreed to receive offers
+      </label>
+      <ErrorNote>{run.error}</ErrorNote>
+      <Button variant="primary" pending={run.pending} onClick={() => void run.run()}><Download className="size-4" /> Download CSV</Button>
+    </div>
+  );
+}
+
+// ── page ────────────────────────────────────────────────────────────────────
+
+const PAGE = 50;
+
 export default function CustomersPage() {
   const can = useCan();
   const [q, setQ] = useState("");
   const [debounced, setDebounced] = useState("");
+  const [status, setStatus] = useState("");
+  const [tag, setTag] = useState("");
+  const [sort, setSort] = useState("recent");
+  const [page, setPage] = useState(0);
   useEffect(() => {
     const t = setTimeout(() => setDebounced(q.trim()), 250);
     return () => clearTimeout(t);
   }, [q]);
-  const list = useApi<Customer[]>(`/customers${debounced ? `?q=${encodeURIComponent(debounced)}` : ""}`);
+  useEffect(() => setPage(0), [debounced, status, tag, sort]);
+  const filters = new URLSearchParams({ ...(debounced ? { q: debounced } : {}), ...(status ? { status } : {}), ...(tag ? { tag } : {}), sort }).toString();
+  const list = useApi<Customer[]>(`/customers?${filters}&page=${page}`);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [creating, setCreating] = useState(false);
-  const [open, setOpen] = useState<string | null>(null);
-  const [editing, setEditing] = useState<Customer | null>(null);
+  const [open, setOpen] = useState<{ id: string; tab: Tab } | null>(null);
   const [tiers, setTiers] = useState(false);
+  const [bulk, setBulk] = useState<"bonus" | "segment" | "export" | null>(null);
+  const rows = list.data ?? [];
+  const toggle = (id: string) => setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const allOnPage = rows.length > 0 && rows.every((c) => selected.has(c.id));
+  const tagAll = useAction(async () => {
+    const t = (await askText(`Tag for ${selected.size} customer(s)`))?.trim();
+    if (!t) return;
+    const byId = new Map(rows.map((c) => [c.id, c]));
+    for (const id of selected) {
+      const tags = byId.get(id)?.tags ?? (await api<Customer>(`/customers/${id}`)).tags;
+      if (!tags.includes(t)) await api(`/customers/${id}`, { method: "PATCH", body: { tags: [...tags, t] } });
+    }
+    toast(`Tagged ${selected.size} customer(s) “${t}”.`);
+    void list.reload();
+  });
 
   return (
     <>
@@ -271,6 +433,11 @@ export default function CustomersPage() {
         subtitle="Accounts for the PCs and the customer app: wallet, prepaid time and membership."
         actions={
           <div className="flex gap-2">
+            {can("customer.export") && (
+              <Button onClick={() => setBulk("export")}>
+                <Download className="size-4" /> Export
+              </Button>
+            )}
             {can("membership.view") && (
               <Button onClick={() => setTiers(true)}>
                 <Crown className="size-4" /> Membership tiers
@@ -285,42 +452,81 @@ export default function CustomersPage() {
         }
       />
       <Card>
-        <div className="border-b border-line p-4">
+        <div className="flex flex-wrap items-center gap-2 border-b border-line p-4">
           <Input placeholder="Search name, username, phone or email…" value={q} onChange={(e) => setQ(e.target.value)} className="max-w-sm" />
+          <div className="flex flex-wrap gap-1" role="group" aria-label="Status">
+            {[["", "All"], ["ACTIVE", "Active"], ["RESTRICTED", "Restricted"], ["BANNED", "Banned"], ["PENDING_VERIFICATION", "Pending"]].map(([k, label]) => (
+              <button key={k} onClick={() => setStatus(k!)} aria-pressed={status === k} className={cx("rounded-full border px-3 py-1 text-xs", status === k ? "border-accent bg-accent/10 text-accent" : "border-line text-ink-3 hover:text-ink")}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="w-28"><Input placeholder="Tag" value={tag} onChange={(e) => setTag(e.target.value.trim())} aria-label="Filter by tag" /></div>
+          <div className="w-36"><Select value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sort">
+            <option value="recent">Newest</option>
+            <option value="name">Name</option>
+            <option value="spend">Top spend</option>
+            <option value="lastVisit">Last visit</option>
+            <option value="points">Most points</option>
+          </Select></div>
         </div>
+        {selected.size > 0 && (
+          <div className="flex flex-wrap items-center gap-2 border-b border-line bg-accent/5 px-4 py-2 text-sm">
+            <span className="font-medium">{selected.size} selected</span>
+            {can("customer.edit") && <Button size="sm" pending={tagAll.pending} onClick={() => void tagAll.run()}><Tag className="size-3.5" /> Tag</Button>}
+            {can("customer.adjust_wallet") && <Button size="sm" onClick={() => setBulk("bonus")}><Gift className="size-3.5" /> Bonus credit</Button>}
+            {can("crm.campaign_send") && <Button size="sm" onClick={() => setBulk("segment")}><Megaphone className="size-3.5" /> Add to segment / message</Button>}
+            <Button size="sm" variant="ghost" className="ml-auto" onClick={() => setSelected(new Set())}>Clear</Button>
+            <ErrorNote>{tagAll.error}</ErrorNote>
+          </div>
+        )}
         {list.loading && !list.data ? (
           <Spinner />
-        ) : !list.data?.length ? (
-          <Empty icon={<Users className="size-8" />} title={debounced ? "No matches" : "No customers yet"} />
+        ) : !rows.length ? (
+          <Empty icon={<Users className="size-8" />} title={debounced || status || tag ? "No matches" : page ? "No more customers" : "No customers yet"} />
         ) : (
-          <Table head={["Customer", "Phone", "Wallet", "Prepaid time", "Last visit", ""]}>
-            {list.data.map((c) => (
-              <tr key={c.id} className="cursor-pointer hover:bg-panel-2" onClick={() => setOpen(c.id)}>
+          <Table head={[<input key="all" type="checkbox" aria-label="Select all on this page" checked={allOnPage} onChange={() => setSelected((s) => { const n = new Set(s); rows.forEach((c) => (allOnPage ? n.delete(c.id) : n.add(c.id))); return n; })} />, "Customer", "Phone", "Wallet", "Prepaid time", "Spend", "Last visit", ""]}>
+            {rows.map((c) => (
+              <tr key={c.id} className="cursor-pointer hover:bg-panel-2" onClick={() => setOpen({ id: c.id, tab: "overview" })}>
+                <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                  <input type="checkbox" aria-label={`Select ${c.displayName}`} checked={selected.has(c.id)} onChange={() => toggle(c.id)} />
+                </td>
                 <td className="px-4 py-3">
                   <p className="flex items-center gap-1.5 font-medium">{c.displayName}{c.membershipTier && <Crown className="size-3.5" style={{ color: c.membershipTier.color ?? undefined }} aria-label={c.membershipTier.name} />}</p>
-                  <p className="text-xs text-ink-3">@{c.username}</p>
+                  <p className="flex flex-wrap items-center gap-1 text-xs text-ink-3">@{c.username}{c.tags.map((t) => <Badge key={t}>{t}</Badge>)}</p>
                 </td>
                 <td className="px-4 py-3 font-mono text-xs text-ink-2">{c.phone ?? "—"}</td>
                 <td className="tabular px-4 py-3">{Number(c.walletBalance) > 0 ? c.walletBalance : <span className="text-ink-3">—</span>}</td>
                 <td className="tabular px-4 py-3">{c.timeBalanceMinutes > 0 ? <span className="text-ok">{hours(c.timeBalanceMinutes)}</span> : <span className="text-ink-3">—</span>}</td>
+                <td className="tabular px-4 py-3">{Number(c.totalSpend) > 0 ? c.totalSpend : <span className="text-ink-3">—</span>}</td>
                 <td className="px-4 py-3 text-xs text-ink-3">{c.lastVisitAt ? new Date(c.lastVisitAt).toLocaleDateString() : "never"}</td>
-                <td className="whitespace-nowrap px-4 py-3 text-right">{c.status !== "ACTIVE" && <Badge tone="danger">{c.status.toLowerCase()}</Badge>}<RecordActions kind="customer" id={c.id} name={c.displayName} deletable={false} onEdit={() => setEditing(c)} onDone={() => void list.reload()} /></td>
+                <td className="whitespace-nowrap px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>{c.status !== "ACTIVE" && <Badge tone={STATUS_TONE[c.status] ?? "neutral"}>{c.status.toLowerCase().replace("_", " ")}</Badge>}<RecordActions kind="customer" id={c.id} name={c.displayName} deletable={false} onEdit={() => setOpen({ id: c.id, tab: "profile" })} onDone={() => void list.reload()} /></td>
               </tr>
             ))}
           </Table>
         )}
+        {(page > 0 || rows.length === PAGE) && (
+          <div className="flex items-center justify-end gap-2 border-t border-line px-4 py-2 text-sm text-ink-3">
+            <span>Page {page + 1}</span>
+            <Button size="sm" variant="ghost" disabled={page === 0} onClick={() => setPage(page - 1)} aria-label="Previous page"><ChevronLeft className="size-4" /></Button>
+            <Button size="sm" variant="ghost" disabled={rows.length < PAGE} onClick={() => setPage(page + 1)} aria-label="Next page"><ChevronRight className="size-4" /></Button>
+          </div>
+        )}
       </Card>
-      <NewCustomer open={creating} onClose={() => setCreating(false)} onDone={(c) => { setCreating(false); void list.reload(); setOpen(c.id); }} />
+      <NewCustomer open={creating} onClose={() => setCreating(false)} onDone={(c) => { setCreating(false); void list.reload(); setOpen({ id: c.id, tab: "overview" }); }} />
       <TiersModal open={tiers} onClose={() => setTiers(false)} />
       <Modal open={!!open} onClose={() => setOpen(null)} title="Customer" wide>
-        {open && <CustomerDetail id={open} onChanged={() => void list.reload()} onErased={() => { setOpen(null); void list.reload(); }} />}
+        {open && <CustomerDetail key={open.id} id={open.id} tab={open.tab} onChanged={() => void list.reload()} onErased={() => { setOpen(null); void list.reload(); }} onOpen={(id) => setOpen({ id, tab: "overview" })} />}
       </Modal>
-      <QuickEdit
-        title={editing ? `Edit ${editing.displayName}` : ""} open={!!editing} onClose={() => setEditing(null)} onDone={() => { setEditing(null); void list.reload(); }}
-        fields={[{ key: "displayName", label: "Name", required: true }, { key: "phone", label: "Phone", hint: "International format, e.g. +971501234567" }, { key: "email", label: "Email" }]}
-        initial={{ displayName: editing?.displayName ?? "", phone: editing?.phone ?? "", email: editing?.email ?? "" }}
-        save={(v) => api(`/customers/${editing!.id}`, { method: "PATCH", body: { displayName: v["displayName"]!.trim(), phone: v["phone"]?.trim() || null, email: v["email"]?.trim() || null } })}
-      />
+      <Modal open={bulk === "bonus"} onClose={() => setBulk(null)} title="Bonus credit">
+        {bulk === "bonus" && <BulkBonus ids={[...selected]} onDone={() => { setBulk(null); setSelected(new Set()); void list.reload(); }} />}
+      </Modal>
+      <Modal open={bulk === "segment"} onClose={() => setBulk(null)} title="Add to segment">
+        {bulk === "segment" && <BulkSegment ids={[...selected]} onDone={() => { setBulk(null); setSelected(new Set()); }} />}
+      </Modal>
+      <Modal open={bulk === "export"} onClose={() => setBulk(null)} title="Export customers">
+        {bulk === "export" && <ExportCsv query={filters} onDone={() => setBulk(null)} />}
+      </Modal>
     </>
   );
 }

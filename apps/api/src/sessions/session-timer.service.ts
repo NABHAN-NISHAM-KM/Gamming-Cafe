@@ -5,6 +5,7 @@ import { CommandsService } from "../devices/commands.service.js";
 import { DeviceRuntimeService } from "../devices/device-runtime.service.js";
 import type { Connection } from "../devices/live.js";
 import { LiveBus } from "../devices/live.js";
+import { activeRestrictions, playerLimits } from "../customers/restrictions.js";
 import { ageOn, ENDING_SOON_MINUTES, LIVE_STATUSES, SessionsService, WARNING_MINUTES } from "./sessions.service.js";
 
 const SYSTEM = { type: "SYSTEM" as const, id: null };
@@ -99,7 +100,10 @@ export class SessionTimerService implements OnModuleInit, OnModuleDestroy {
         await this.commands.issue(t, {
           deviceId: c.deviceId,
           type: "START_SESSION",
-          payload: this.sessions.startPayload(live, live.customer?.displayName ?? live.guestLabel ?? "Guest", live.customer?.membershipTier?.name ?? null, ageOn(live.customer?.dateOfBirth)),
+          payload: await (async () => {
+            const limits = live.customerId ? playerLimits(await activeRestrictions(t, live.customerId), ageOn(live.customer?.dateOfBirth)) : { age: null, blockedGameIds: [] };
+            return this.sessions.startPayload(live, live.customer?.displayName ?? live.guestLabel ?? "Guest", live.customer?.membershipTier?.name ?? null, limits.age, limits.blockedGameIds);
+          })(),
           requestedBy: { type: "SYSTEM", id: null },
         });
       } else if (!live && agentSessionId) {

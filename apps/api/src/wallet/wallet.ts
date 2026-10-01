@@ -46,7 +46,7 @@ export interface Movement {
   bucket: MoneyBucket;
   /** signed minor units: + credit, − debit */
   deltaMinor: number;
-  type: "TOPUP" | "SPEND" | "REFUND" | "ADJUSTMENT" | "BONUS_GRANT" | "BONUS_EXPIRE";
+  type: "TOPUP" | "SPEND" | "REFUND" | "ADJUSTMENT" | "BONUS_GRANT" | "BONUS_EXPIRE" | "TRANSFER_IN" | "TRANSFER_OUT";
   reason: string;
   branchId?: string | null;
   referenceType?: string | null;
