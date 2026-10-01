@@ -25,7 +25,11 @@ The agent adds local rules on top (`LaunchPolicy`):
 - A session must be running.
 - The item must be in the signed library.
 - The customer must be old enough (`START_SESSION.customer.age`, computed
-  from the profile's date of birth).
+  from the profile's date of birth, and lowered by an **age limit**
+  restriction).
+- The game must not be blocked for this customer
+  (`START_SESSION.customer.blockedGameIds`, from **Block games** restrictions).
+  Blocked and too-old games show as locked in the Shell's library.
 - The game must be installed.
 - Interpreters and system tools (`cmd`, `powershell`, `regedit`, `mshta`…)
   never run, whatever the catalog says.

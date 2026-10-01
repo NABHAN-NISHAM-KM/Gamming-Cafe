@@ -478,6 +478,25 @@ A **sensitive** action asks for a *reason*. That's expected; type one.
 | - [ ] 35 | Customers → adjust loyalty points (reason) | Balance changes |
 | - [ ] 36 | Customers → **freeze** a wallet, then try to pay with it | `wallet_frozen` |
 
+**The customer file**
+
+| # | Do | Expect |
+|---|---|---|
+| - [ ] 37 | Customers → status chips **Banned** / **Restricted**, tag box, sort **Top spend** | List filters and re-orders; **Spend** column filled for customers who have paid |
+| - [ ] 38 | ahmed → **Profile** → date of birth, home branch DXB1, tags `VIP, regular` → **Save** | Tags show next to his name in the list; the **Tag** box with `VIP` finds him |
+| - [ ] 39 | ahmed → **Restrictions** → **Restrict** → *Ban*, 1 day, reason → **Apply** | Status **banned**; Shell sign-in and the app refuse him; starting a session for him → "This customer is banned" |
+| - [ ] 40 | Same tab → **Lift** (reason) | Back to active; he can sign in again |
+| - [ ] 41 | sara → *Block games* → pick a game → start a session for her on a real PC | The game shows **locked** on the Shell and won't launch (needs the updated agent) |
+| - [ ] 42 | sara → *Daily play limit* 30 min → try to sell her 1 hour on a PC | "Daily play limit: only 30 min left today" |
+| - [ ] 43 | sara → *No food & drink* → POS order with sara as the customer | "This customer can't order food & drink"; lift both afterwards |
+| - [ ] 44 | ahmed → **Overview** | Spend, played, visits, per visit, last visit; any warning flags (frozen wallet from #36) |
+| - [ ] 45 | ahmed → **Activity** → **Show older** | Sessions, orders, wallet, bookings, points in one list, older ones load |
+| - [ ] 46 | Create customer "ahmed2" with display name `Ahmed`, top up 20 → open ahmed → **Merge duplicate** | ahmed2 is offered as "looks similar"; after merging (reason) ahmed's wallet is 20 higher and ahmed2 is gone from the list |
+| - [ ] 47 | **Export** → keep "only customers who agreed" → **Download CSV** (reason) | CSV with the filtered customers and tags; formula-like names start with `'` |
+| - [ ] 48 | Tick sara and ahmed → **Bonus credit** 5 (reason) | Both get 5 bonus, one ledger row each |
+| - [ ] 49 | Tick both → **Add to segment / message** → new segment `Test picks` | Marketing → Segments shows it with 2 members |
+| - [ ] 50 | ahmed → **Print card** | A card with his name and a QR code; scanning the QR into the Customers search finds him |
+
 ### F.2 · Branch Manager (`manager@demo.test`)
 
 | # | Do | Expect |
@@ -526,6 +545,10 @@ A **sensitive** action asks for a *reason*. That's expected; type one.
 | - [ ] 17 | Sell **Silver** membership from the wallet | Tier set; 60 bonus minutes; next quote −10 % |
 | - [ ] 18 | Sell prepaid time (2-hour package) to testuser | TIME balance +120 |
 | - [ ] 19 | Start a session paid by **WALLET** with too little credit | `insufficient_funds`, nothing charged |
+| - [ ] 19b | testuser → **Notes** → add `Prefers PC 12` | Note shows your name and time; the manager sees it too, but can't delete it |
+| - [ ] 19c | testuser → **Tickets** → **Open a ticket** (Payment, `Charged twice`) → **Resolve** | Ticket goes from open to resolved |
+| - [ ] 19d | testuser → **Profile** → phone → **Mark verified** | "verified" badge with today's date |
+| - [ ] 19e | Try **Restrictions → Restrict**, **Merge duplicate**, **Export** | Not offered to a cashier |
 
 **POS (counter)**
 
@@ -744,7 +767,7 @@ station identity).
 | **Super Admin impersonation, client releases** | Platform roles, organizations, plans and audit are built ([K](#k--super-admin-platform)); impersonating a venue's staff and pushing client releases aren't |
 | **Full kiosk lockdown** (Explorer replacement, key filtering, staff exit, maintenance-mode PIN unlock) | Phase 13. The Shell autostarts and is restarted if killed, but Windows keys and Ctrl+Alt+Del still work today |
 | **Real online payments** | "Pay now" is a demo card; it's off in production |
-| **SMS / e-mail / WhatsApp delivery** | Goes to the dev outbox until a provider is connected |
+| **SMS / e-mail / WhatsApp delivery** | Goes to the dev outbox until a provider is connected. Customer phone/email verification is a staff **Mark verified** button for the same reason |
 | **Diskless providers' own APIs** | Boot mode is detected; provider integration later |
 | **Multiple API servers** | In-memory live bus; one API node per venue for now |
 

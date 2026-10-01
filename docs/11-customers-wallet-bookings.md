@@ -107,6 +107,110 @@ in the app until 60 minutes before the start.
 **Admin → Bookings:** a day timeline per station, new booking (live free count,
 customer search or contact), and check-in / cancel / no-show.
 
+## The customer file (admin → Customers)
+
+**The list:**
+- Search by name, username, phone (digits only, any format) or email.
+- Filter by status (Active, Restricted, Banned, Pending) and by tag.
+- Sort by newest, name, top spend, last visit or most points; 50 a page.
+- Tick rows for **bulk actions**:
+  - **Tag** them (`customer.edit`).
+  - Give **bonus credit**: one audited adjustment each, with a reason; a retry
+    skips those already credited (`customer.adjust_wallet`).
+  - **Add to a segment**, new or existing hand-picked, then write the message
+    in Marketing → Campaigns (`crm.campaign_send`).
+- **Export** the filtered list as CSV, up to 10,000 rows, optionally only those
+  who agreed to marketing. Needs `customer.export` (owner, org admin) and a
+  reason; the export is audited. Cells that a spreadsheet would run as a formula
+  are neutralised.
+
+**One customer, in tabs:**
+
+| Tab | What |
+|---|---|
+| Overview | Total spend, time played, visits, spend per visit, last visit, member since; **warning flags**; membership, wallet, points; recent sessions |
+| Activity | Sessions, orders, wallet and time movements, bookings, prints, points and memberships in one timeline, 25 at a time |
+| Profile | Name, tags, phone, email, **date of birth** (game age ratings), home branch, language, marketing consent; mark phone/email **verified**; referrals both ways; favourite games; achievements |
+| Restrictions | Bans and limits, active and past (see below) |
+| Notes | Staff-only notes; only the author can delete theirs |
+| Logins | Where and when they signed in: PC, app, kiosk |
+| Tickets | Support tickets: open one, resolve it (`support.handle`) |
+
+Plus **Print card**: a wallet-size card with name, username and a QR code of the
+username. A barcode scanner at the counter types it into the customer search.
+It doesn't sign the customer in at a PC.
+
+Phone, email and date of birth are shown only with `customer.view_pii`, and only
+those users can change them.
+
+**Warning flags** (Overview):
+- The wallet is frozen.
+- A top-up was refunded within a day (last 90 days).
+- Three or more manual wallet corrections in 30 days.
+- Banned before.
+- Another account looks like the same person: same name, same first and last
+  name, or same last name and birth date. Those accounts are offered first
+  when merging.
+
+**Spend and play time.** `Customer.totalSpend`, `totalGamingMinutes` and
+`lastVisitAt` are rebuilt from the source rows after every bill change and every
+session end (`customers/stats.ts`), so calling it twice is harmless:
+- Spend is money actually paid in: captured payments net of refunds. Wallet
+  payments are left out, because the top-up was already counted.
+- Minutes are the billed time of ended sessions.
+- Migration `0022_customer_stats` filled them in for existing customers.
+
+### Restrictions
+
+`customer.restrict` (owner, org admin, branch manager, gaming manager); a reason
+is required and audited. Each one is open-ended or lasts a number of days.
+
+| Type | Scope | Effect |
+|---|---|---|
+| Ban | — | Can't sign in at a PC or in the app, start a session, book or earn points |
+| Keep out of zones | zones | Sessions in those zones are refused (`customer_zone_blocked`) |
+| Block games | games | Locked in the Shell's library; the agent refuses to launch them |
+| Age limit | age | Treated as that age for game ratings, if younger than their real age |
+| Daily play limit | minutes per day | Selling more than what's left today is refused (`daily_limit_reached`); a prepaid sign-in at the PC is shortened to what's left |
+| No food & drink | — | Orders for them are refused (`customer_restaurant_blocked`) |
+
+- **Status follows the restrictions:** any active ban → BANNED, anything else
+  active → RESTRICTED, none → ACTIVE. Every sign-in check reads the status.
+- **Timed ones lift themselves:** the membership sweep also returns customers
+  to ACTIVE once their last restriction ends (`app.customer_status_due()`).
+- **On the PC:** `START_SESSION.customer` carries `age` (already capped by an
+  age limit) and `blockedGameIds`.
+- **Limits:**
+  - A ban doesn't end a game in progress; end it from the Live Floor.
+  - A daily limit is checked when time is sold; a pay-at-the-end session isn't
+    cut off mid-game.
+  - Game blocks need the updated Windows agent on the PC.
+
+### Contact verification
+
+Staff press **Mark verified** after checking a phone number or email with the
+customer, e.g. by calling the number. This sets `phoneVerifiedAt` /
+`emailVerifiedAt`. Sending codes by SMS or email needs a messaging provider,
+which isn't connected yet.
+
+### Merging a duplicate account
+
+Owner only (`customer.delete`, sensitive). Open the account the customer keeps
+→ **Merge duplicate** → pick the duplicate:
+1. **Money, prepaid time and points move** as ledger transfers
+   (`TRANSFER_OUT` / `TRANSFER_IN`, `ADJUST` for points); the ledgers stay
+   append-only. Transfers don't post to the books: the total owed to customers
+   doesn't change. Bonus credit restarts its 90 days in the kept account.
+2. **History is re-pointed:** sessions, orders, bills, payments, invoices,
+   bookings, memberships, prints, screenshots, tickets, notifications, promo
+   codes, ratings, restrictions, notes and referrals. Tournament entries move
+   unless the kept account is already in that tournament. Favourites,
+   achievements and tags are combined.
+3. **The duplicate is erased**, as with **Erase**.
+
+Refused if the duplicate's wallet is frozen or has a refund balance waiting.
+Retrying is safe: every transfer has its own idempotency key.
+
 ## Customer app (`apps/customer`, PWA)
 
 - **What it is:** a mobile-first web app, installable to the home screen
@@ -197,6 +301,24 @@ Demo: `ahmed` / `ahmed123` has AED 150 + 20 bonus in the wallet and 2 h of prepa
   - Buying time and a membership from the wallet works, and insufficient funds are refused.
   - Booking respects the window, shows counts only, and a customer can't cancel someone else's booking.
   - Password guessing is throttled.
+
+## Tests — `apps/api/test/customer-admin.e2e.test.ts` (4)
+
+- **Bans:**
+  - A cashier can't ban.
+  - A ban sets BANNED, blocks app sign-in and session start; lifting it restores ACTIVE.
+  - A one-second ban returns to ACTIVE by itself.
+- **Restrictions on the PC:** a game block and an age limit arrive in `START_SESSION`
+  (`blockedGameIds`, capped `age`); a zone block and a used-up daily limit refuse the session.
+- **Profile:** birth date, home branch, tags (deduplicated) and language save; a
+  future birth date is refused; the tag filter and sorting work; notes can only be
+  deleted by their author; export needs `customer.export` and contains the tags;
+  verifying a missing email is refused.
+- **Merge:** wallet cash, prepaid time, notes, sessions and spend move to the kept
+  account; the duplicate is erased; a second merge is refused.
+
+The agent side (`clients/windows/tests`): a blocked game is refused by
+`LaunchPolicy`, and `blockedGameIds` is read from `START_SESSION`.
 
 **Debugging tip:** `TEST_LOGS=1 npm test -w @arena/api` prints server errors
 during e2e tests (they're silent by default).

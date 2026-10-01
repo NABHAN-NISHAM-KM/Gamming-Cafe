@@ -420,7 +420,7 @@ Counter staff (anyone without an organization-wide role) get a **short menu** of
 | - [ ] 4A.8 | POS → **Open bills** → Sam's bill → **Take payment** → Card | Bill settled; points added to Sam |
 | - [ ] 4A.9 | On that bill: refund one Cola (reason `spilled`) | Refund recorded |
 | - [ ] 4A.10 | Try Sidebar → **Roles** / **Branches & zones** / **Finance** | Missing from the menu, or "Your role doesn't allow this" |
-| - [ ] 4A.11 | **Customers** search `050` + the last digits of a customer's phone (saved as `+971 50 …`) | Found however the number was typed (spaces, +971 or a leading 0) |
+| - [ ] 4A.11 | **Customers** search `050` + the last digits of a customer's phone (saved as `+971 50 …`) | Found however the number was typed (spaces, +971 or a leading 0) || - [ ] 4A.11b | On Ali → **Tickets** → **Open a ticket**: About *game*, Subject `FIFA keeps crashing` → **Open ticket** | The ticket shows as open; **Resolve** closes it |
 | - [ ] 4A.12 | Top bar → **العربية** | Menu, Counter, Live Floor, start form and top bar switch to Arabic, right-to-left. Setup and finance pages stay in English. Switch back with **English** |
 | - [ ] 4A.13 | Wendy (waiter window) → **Settings → My counter PIN** → PIN `4680` + her password → **Save PIN**. Back in Carl's window → top bar **Switch staff** → **Wendy Waiter**, PIN `0000` | "Wrong PIN." |
 | - [ ] 4A.14 | Same dialog, PIN `4680` → **Switch** | The page reloads as **Wendy Waiter** with her menu; Carl is signed out of this browser (no password typed). Sign Carl back in for the rest of Part 4 |
@@ -502,6 +502,12 @@ Counter staff (anyone without an organization-wide role) get a **short menu** of
 | - [ ] 5.7 | **Dashboard → Day summary** (today) | Revenue, receipts, sessions and hours, cash counted vs expected, top sellers (food & drinks only), player rating, open handover notes, ready to send |
 | - [ ] 5.8 | **Send on WhatsApp** / **Email** / **Copy** | WhatsApp (or the mail app) opens with the summary as the message; **Copy** puts it on the clipboard. Nothing is sent until you press send there |
 | - [ ] 5.9 | **Dashboard**, lower half | **Player ratings** (average, stars, low ratings and comments first), **Running low** (stock at or under its minimum), plus the same counter cards staff see |
+| - [ ] 5.10 | **Customers** → sort **Top spend** | Sam near the top; the **Spend** column matches what Sam paid today |
+| - [ ] 5.11 | On Sam: **Overview** | Spend, time played, visits, spend per visit, last visit; warning flags if anything looks off |
+| - [ ] 5.12 | On Sam: **Activity** | Today's story in one list: top-up, booking, session, food order, points |
+| - [ ] 5.13 | On Sam: **Profile** → tags `regular` → **Save**; **Notes** → `Comes on Fridays` | Tag shows in the list; the note keeps your name and time |
+| - [ ] 5.14 | On Ali: **Restrictions** → **Restrict** → *Daily play limit* 30 min, 1 day, reason `school night` | Ali shows **restricted**. Selling Ali 1 hour on a PC → "Daily play limit: only … min left today" (30 minus what Ali already played today). **Lift** it (reason) |
+| - [ ] 5.15 | **Export** (reason) | A CSV of customers who agreed to offers |
 
 ---
 

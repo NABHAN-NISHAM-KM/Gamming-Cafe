@@ -1,22 +1,23 @@
 # 03 · Entity-relationship model
 
-**Source of truth:** `packages/db/prisma/schema/*.prisma`, which defines 121 tables across 14 bounded contexts. The diagrams below show relationships only, split by domain. Every tenant entity also has `organizationId`, and its relations are composite `(fk, organizationId)`. That column is omitted below for readability.
+**Source of truth:** `packages/db/prisma/schema/*.prisma`, which defines 129 tables across 15 bounded contexts. The diagrams below show relationships only, split by domain. Every tenant entity also has `organizationId`, and its relations are composite `(fk, organizationId)`. That column is omitted below for readability.
 
 | Context file | Tables |
 |---|---|
 | `platform.prisma` | Country, Currency, SubscriptionPlan, PlanFeature, ClientRelease, User, MfaFactor, PlatformRoleAssignment, RefreshToken, ImpersonationSession |
 | `tenancy.prisma` | Organization, Subscription, SubscriptionInvoice, OrganizationFeature, Brand, Branch, Zone, TaxProfile, TaxRate, PaymentGatewayConfig |
 | `iam.prisma` | Employee, Permission, Role, RolePermission, EmployeeRoleAssignment |
-| `devices.prisma` | Device, DeviceAccessory, DeviceEnrollmentToken, DeviceCredential, DeviceHardware, DeviceHeartbeat, DeviceCommand, MaintenanceSession, RemoteSupportSession, DisklessIntegration, DeviceBootInfo, Alert, PeripheralProfile |
-| `games.prisma` | Launcher, Game, OrgGameSetting, GameInstallation, GameUpdateJob, GameLicense, ShellApp |
+| `devices.prisma` | Device, DeviceAccessory, DeviceEnrollmentToken, DeviceCredential, DeviceHardware, DeviceHeartbeat, DeviceCommand, MaintenanceSession, RemoteSupportSession, DisklessIntegration, DeviceBootInfo, Alert, PeripheralProfile, BranchSigningKey |
+| `games.prisma` | Launcher, Game, OrgGameSetting, GameInstallation, GameUpdateJob, GameLicense, ShellApp, DetectedTitle |
 | `sessions.prisma` | PricingPlan, PricingPackage, GamingSession, SessionExtension, SessionTransfer, PrintJob |
-| `customers.prisma` | Customer, CustomerRestriction, CustomerSession, CustomerFavoriteGame, Achievement, CustomerAchievement, MembershipTier, Membership, Wallet, WalletTransaction, LoyaltyRule, LoyaltyReward, LoyaltyTransaction |
+| `customers.prisma` | Customer, CustomerNote, CustomerRestriction, CustomerSession, CustomerFavoriteGame, Achievement, CustomerAchievement, MembershipTier, Membership, Wallet, WalletTransaction, LoyaltyRule, LoyaltyReward, LoyaltyTransaction, Screenshot |
 | `bookings.prisma` | Booking, BookingResource |
 | `pos.prisma` | ProductCategory, Product, ProductBranchPrice, ModifierGroup, Modifier, ProductModifierGroup, ComboItem, RecipeLine, Bill, Order, OrderItem, KitchenStation, KitchenTicket, RestaurantTable |
 | `inventory.prisma` | Warehouse, InventoryItem, StockLevel, StockLot, StockMovement, Supplier, PurchaseOrder, PurchaseOrderLine, SupplierInvoice |
-| `finance.prisma` | Payment, Refund, CashDrawer, Shift, CashMovement, Invoice, LedgerAccount, JournalEntry, JournalLine, Expense |
+| `finance.prisma` | Payment, Refund, CashDrawer, Shift, CashMovement, Invoice, LedgerAccount, JournalEntry, JournalLine, Expense, PostingCursor |
 | `esports.prisma` | Tournament, Team, TournamentPlayer, Match |
 | `marketing.prisma` | Promotion, PromoCode, PromotionRedemption, CustomerSegment, CustomerSegmentMember, Campaign |
+| `staff-ops.prisma` | TimeClockEntry, HandoverNote, SessionFeedback |
 | `system.prisma` | NotificationTemplate, Notification, PushSubscription, AuditLog, AuditChainHead, IdempotencyRecord, OutboxEvent, EdgeNode, SyncBatch, ApiKey, WebhookEndpoint, SupportTicket |
 
 ## Tenancy & identity
@@ -88,7 +89,9 @@ erDiagram
   Customer ||--o{ LoyaltyTransaction : points
   LoyaltyReward |o--o{ LoyaltyTransaction : redeemed
   Customer ||--o{ CustomerSession : "logins (shell/app)"
-  Customer ||--o{ CustomerRestriction : "bans"
+  Customer ||--o{ CustomerRestriction : "bans & limits"
+  Customer ||--o{ CustomerNote : "staff notes"
+  Employee ||--o{ CustomerNote : writes
   Customer |o--o{ Booking : books
   Booking ||--o{ BookingResource : reserves
   Device |o--o{ BookingResource : "station"

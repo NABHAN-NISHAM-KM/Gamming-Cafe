@@ -102,9 +102,17 @@ See [09-sessions-and-shell](09-sessions-and-shell.md). Money is returned as deci
 | POST | /sessions/:sessionId/move | station.move_session |
 | GET | /pricing-plans | pricing.view |
 | POST / PATCH | /pricing-plans · /pricing-plans/:planId · …/packages · …/packages/:packageId | pricing.manage over the plan's branch or zone |
-| GET | /customers?q= · /customers/:customerId | customer.view (phone/email masked without customer.view_pii) |
+| GET | /customers?q=&status=&tag=&sort=recent\|name\|spend\|lastVisit\|points&page= · /customers/:customerId | customer.view (phone, email and birth date hidden without customer.view_pii); 50 a page |
+| GET | /customers/export?…same filters…&consented=1 | customer.export (sensitive) → CSV, up to 10,000 rows |
 | POST / PATCH | /customers · /customers/:customerId | customer.create / customer.edit |
 | POST | /customers/:customerId/credentials | customer.reset_password |
+| GET · POST | /customers/:customerId/restrictions | customer.view · customer.restrict (sensitive) |
+| POST | /customers/:customerId/restrictions/:restrictionId/lift | customer.restrict (sensitive) |
+| GET · POST · DELETE | /customers/:customerId/notes · …/notes/:noteId | customer.view · customer.edit (delete: the author only) |
+| GET | /customers/:customerId/insights · …/activity?before= | customer.view |
+| POST | /customers/:customerId/verify | customer.edit |
+| POST | /customers/:customerId/merge | customer.delete (sensitive); body `{ fromId, branchId }` |
+| GET · POST | /customers/:customerId/tickets · …/tickets/:ticketId/resolve | customer.view · support.handle |
 | POST | /customers/:customerId/time | wallet.topup over the selling branch; `Idempotency-Key` |
 
 Device WebSocket additions: `shell_login` / `shell_logout` → `shell_result`; `hello.activeSessionId`; `welcome.venue`.
