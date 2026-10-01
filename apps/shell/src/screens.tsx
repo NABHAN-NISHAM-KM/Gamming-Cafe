@@ -29,7 +29,7 @@ function GameTile({ game, playing, onPlay, busy }: { game: ShellGame; playing: b
     >
       <div className="absolute inset-0 bg-gradient-to-t from-void/95 via-void/20 to-transparent" />
       {icon ? (
-        <img src={icon} alt="" className="absolute left-1/2 top-[38%] size-20 -translate-x-1/2 -translate-y-1/2 drop-shadow-[0_8px_20px_rgba(0,0,0,0.55)]" />
+        <img src={icon} alt="" onError={(e) => (e.currentTarget.style.display = "none")} className="absolute left-1/2 top-[38%] size-20 -translate-x-1/2 -translate-y-1/2 drop-shadow-[0_8px_20px_rgba(0,0,0,0.55)]" />
       ) : (
         !cover && <span className="absolute -right-3 top-2 font-display text-[7rem] font-bold leading-none text-white/10 select-none">{game.title.slice(0, 1)}</span>
       )}
@@ -129,7 +129,7 @@ const APP_ICON: Record<string, typeof Globe> = { BROWSER: Globe, PLATFORM_LAUNCH
 export function AppIcon({ app, className = "size-12", busy }: { app: ShellAppItem; className?: string; busy?: boolean }) {
   const icon = useStation().art[app.id]?.icon;
   if (busy) return <div className={cx("grid place-items-center", className)}><Loader2 className="size-1/2 animate-spin" /></div>;
-  if (icon) return <img src={icon} alt="" className={cx("object-contain drop-shadow-[0_4px_10px_rgba(0,0,0,0.45)]", className)} />;
+  if (icon) return <img src={icon} alt="" onError={(e) => (e.currentTarget.style.display = "none")} className={cx("object-contain drop-shadow-[0_4px_10px_rgba(0,0,0,0.45)]", className)} />;
   const Icon = APP_ICON[app.kind] ?? AppWindow;
   return (
     <div className={cx("grid place-items-center rounded-xl", className)} style={{ background: tileColors(app.name)[0] }}>

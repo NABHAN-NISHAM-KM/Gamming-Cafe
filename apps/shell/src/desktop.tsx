@@ -331,7 +331,7 @@ export function Taskbar({ state, t, wm, onStart, startOpen, onAddTime, className
   const toDesktop = () => inBar && bridge.send({ type: "desktop_show" });
 
   return (
-    <footer className={cx("glass relative z-40 flex shrink-0 items-center gap-1.5 border-x-0 border-b-0 px-2", className)}>
+    <footer className={cx("glass relative z-40 flex shrink-0 items-center gap-1.5 border-x-0 border-b-0 pl-2", className)}>
       <button
         onClick={() => { toDesktop(); onStart(); }}
         aria-label="Start" aria-expanded={startOpen}
@@ -361,7 +361,7 @@ export function Taskbar({ state, t, wm, onStart, startOpen, onAddTime, className
         </TaskButton>
       ))}
 
-      <div className="ml-auto flex h-full items-center gap-3 pr-2">
+      <div className="ml-auto flex h-full items-center gap-3">
         <div className="flex h-[80%] items-center">
           <NetworkTray connected={state.connected} bringForward={toDesktop} />
           <VolumeTray bringForward={toDesktop} />

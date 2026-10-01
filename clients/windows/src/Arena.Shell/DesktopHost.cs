@@ -71,6 +71,7 @@ internal sealed class DesktopHost(Window window, Action<string> post, Action<boo
             _poll = new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Background, (_, _) => Refresh(), window.Dispatcher);
             _poll.Start();
             SetWorkArea(reserveBar: true);
+            HideMinimized();
             EnterDesktop();
         }
         else
@@ -137,8 +138,12 @@ internal sealed class DesktopHost(Window window, Action<string> post, Action<boo
     private void EnterDesktop()
     {
         _keepBottom = false;
-        window.Topmost = false;
         Place(fullScreen: true);
+        // Raise it over the app even when Windows won't hand it the focus (a staff message mid-game),
+        // or when it's already "active" from a taskbar click, where Activate() alone leaves it underneath.
+        // Topmost on then off puts it on top of the normal windows.
+        window.Topmost = true;
+        window.Topmost = false;
         window.Activate();
         SetMode("desktop");
     }
@@ -198,6 +203,18 @@ internal sealed class DesktopHost(Window window, Action<string> post, Action<boo
         var r = new RECT { Left = 0, Top = 0, Right = GetSystemMetrics(SM_CXSCREEN), Bottom = GetSystemMetrics(SM_CYSCREEN) };
         if (reserveBar) r.Bottom -= (int)Math.Round(BarHeightDips * scale);
         SystemParametersInfo(SPI_SETWORKAREA, 0, ref r, SPIF_SENDCHANGE);
+    }
+
+    /// <summary>
+    /// Without Explorer, Windows parks minimized windows as small title bars at the bottom-left
+    /// of the screen. Explorer hides them (ARW_HIDE); so do we, the taskbar lists them.
+    /// </summary>
+    private static void HideMinimized()
+    {
+        var m = new MINIMIZEDMETRICS { cbSize = (uint)Marshal.SizeOf<MINIMIZEDMETRICS>() };
+        if (!SystemParametersInfo(SPI_GETMINIMIZEDMETRICS, m.cbSize, ref m, 0)) return;
+        m.iArrange |= ARW_HIDE;
+        SystemParametersInfo(SPI_SETMINIMIZEDMETRICS, m.cbSize, ref m, SPIF_SENDCHANGE);
     }
 
     // ── events ─────────────────────────────────────────────────────────────
@@ -356,6 +373,7 @@ internal sealed class DesktopHost(Window window, Action<string> post, Action<boo
     private delegate IntPtr LowLevelKeyboardProc(int code, IntPtr wParam, IntPtr lParam);
 
     [StructLayout(LayoutKind.Sequential)] private struct RECT { public int Left, Top, Right, Bottom; }
+    [StructLayout(LayoutKind.Sequential)] private struct MINIMIZEDMETRICS { public uint cbSize; public int iWidth, iHorzGap, iVertGap, iArrange; }
     [StructLayout(LayoutKind.Sequential)] private struct WINDOWPOS { public IntPtr hwnd, hwndInsertAfter; public int x, y, cx, cy; public uint flags; }
 
     private const int ASFW_ANY = -1, GW_OWNER = 4, GWL_EXSTYLE = -20, DWMWA_CLOAKED = 14;
@@ -365,7 +383,8 @@ internal sealed class DesktopHost(Window window, Action<string> post, Action<boo
     private const int ICON_BIG = 1, ICON_SMALL2 = 2, GCLP_HICON = -14, GCLP_HICONSM = -34;
     private const uint EVENT_SYSTEM_FOREGROUND = 3, WINEVENT_OUTOFCONTEXT = 0;
     private const int WH_KEYBOARD_LL = 13, WM_KEYUP = 0x101, WM_SYSKEYUP = 0x105, VK_LWIN = 0x5B, VK_RWIN = 0x5C, VK_SNAPSHOT = 0x2C;
-    private const uint SPI_SETWORKAREA = 0x2F, SPI_GETWORKAREA = 0x30, SPIF_SENDCHANGE = 2;
+    private const uint SPI_SETWORKAREA = 0x2F, SPI_GETWORKAREA = 0x30, SPI_GETMINIMIZEDMETRICS = 0x2B, SPI_SETMINIMIZEDMETRICS = 0x2C, SPIF_SENDCHANGE = 2;
+    private const int ARW_HIDE = 0x8;
     private const int SM_CXSCREEN = 0, SM_CYSCREEN = 1;
     private static readonly IntPtr HWND_BOTTOM = new(1);
     private const uint SWP_NOSIZE = 0x1, SWP_NOMOVE = 0x2, SWP_NOZORDER = 0x4, SWP_NOACTIVATE = 0x10;
@@ -390,6 +409,7 @@ internal sealed class DesktopHost(Window window, Action<string> post, Action<boo
     [DllImport("user32.dll")] private static extern IntPtr SendMessageTimeout(IntPtr h, uint msg, IntPtr w, IntPtr l, uint flags, uint timeout, out IntPtr result);
     [DllImport("user32.dll")] private static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags);
     [DllImport("user32.dll")] private static extern bool SystemParametersInfo(uint action, uint param, ref RECT r, uint flags);
+    [DllImport("user32.dll")] private static extern bool SystemParametersInfo(uint action, uint param, ref MINIMIZEDMETRICS m, uint flags);
     [DllImport("user32.dll")] private static extern int GetSystemMetrics(int index);
     [DllImport("user32.dll")] private static extern IntPtr SetWinEventHook(uint min, uint max, IntPtr module, WinEventProc proc, uint pid, uint thread, uint flags);
     [DllImport("user32.dll")] private static extern bool UnhookWinEvent(IntPtr hook);

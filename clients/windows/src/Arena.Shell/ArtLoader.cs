@@ -27,16 +27,21 @@ internal sealed partial class ArtLoader(Action<string> post)
 
     [GeneratedRegex("^[0-9]{1,10}$")] private static partial Regex SteamAppId();
     [GeneratedRegex("^[0-9a-f]{40}\\.jpg$")] private static partial Regex SteamIconFile();
+    [GeneratedRegex("^[0-9a-f]{40}$")] private static partial Regex SteamHash();
 
-    public void Load(CoreWebView2 web, JsonElement msg)
+    /// <summary>True when the Steam cache was newly mapped: the page must reload to see it.</summary>
+    public bool Load(CoreWebView2 web, JsonElement msg)
     {
+        var remapped = false;
         var cache = msg.TryGetProperty("steamLibraryCache", out var c) && c.ValueKind == JsonValueKind.String ? c.GetString() : null;
         if (cache is not null && Directory.Exists(cache) && cache != _mappedCache)
         {
             web.SetVirtualHostNameToFolderMapping(SteamHost, cache, CoreWebView2HostResourceAccessKind.Allow);
             _mappedCache = cache;
+            // WebView2 applies a new mapping only to pages loaded after it (documented limitation).
+            remapped = true;
         }
-        if (!msg.TryGetProperty("items", out var list) || list.ValueKind != JsonValueKind.Array) return;
+        if (!msg.TryGetProperty("items", out var list) || list.ValueKind != JsonValueKind.Array) return remapped;
         var items = list.EnumerateArray()
             .Select(i => (Id: Str(i, "id"), Exe: Str(i, "exe"), Steam: Str(i, "steamAppId")))
             .Where(i => i.Id is not null)
@@ -54,7 +59,11 @@ internal sealed partial class ArtLoader(Action<string> post)
                 {
                     var dir = Path.Combine(steamCache, steam);
                     string Url(string file) => $"https://{SteamHost}/{steam}/{file}";
-                    cover = new[] { "library_600x900.jpg", "library_header.jpg", "header.jpg" }.FirstOrDefault(f => File.Exists(Path.Combine(dir, f))) is { } cf ? Url(cf) : null;
+                    // Newer Steam keeps some art one folder down: <appid>\<hash>\library_600x900.jpg.
+                    var subs = Directory.EnumerateDirectories(dir).Select(Path.GetFileName).Where(d => d is not null && SteamHash().IsMatch(d)).ToList();
+                    cover = new[] { "library_600x900.jpg", "library_header.jpg", "header.jpg" }
+                        .SelectMany(f => new[] { f }.Concat(subs.Select(d => $"{d}/{f}")))
+                        .FirstOrDefault(f => File.Exists(Path.Combine(dir, f))) is { } cf ? Url(cf) : null;
                     icon = Directory.EnumerateFiles(dir).Select(Path.GetFileName).FirstOrDefault(f => f is not null && SteamIconFile().IsMatch(f)) is { } icf ? Url(icf) : null;
                 }
                 if (icon is null && exe is not null) icon = ExeIcon(exe);
@@ -63,6 +72,7 @@ internal sealed partial class ArtLoader(Action<string> post)
             var json = JsonSerializer.Serialize(new { type = "art", items = art });
             Application.Current?.Dispatcher.BeginInvoke(() => post(json));
         });
+        return remapped;
     }
 
     private string? ExeIcon(string exe)

@@ -144,7 +144,7 @@ public sealed class MainWindow : Window
                 _pageReady = true;
                 // Answer at once with what we know, even before the agent replies.
                 Post(_lastState ?? OfflineState());
-                if (_artSources is { } art && _web.CoreWebView2 is { } core) _art.Load(core, art);
+                if (_artSources is { } art && _web.CoreWebView2 is { } core && _art.Load(core, art)) core.Reload();
             }
             if (!_pipe.TrySend(json) && type == "login" && doc.RootElement.TryGetProperty("requestId", out var id))
                 Post(JsonSerializer.Serialize(new { type = "login_result", requestId = id.GetString(), ok = false, error = "agent_unavailable", message = "This station isn't ready yet. Please ask staff." }));
@@ -164,7 +164,7 @@ public sealed class MainWindow : Window
             if (type == "art_sources") // paths stay in the host
             {
                 _artSources = doc.RootElement.Clone();
-                if (_pageReady && _web.CoreWebView2 is { } core) _art.Load(core, _artSources.Value);
+                if (_pageReady && _web.CoreWebView2 is { } core && _art.Load(core, _artSources.Value)) core.Reload();
                 return;
             }
             if (type == "state")

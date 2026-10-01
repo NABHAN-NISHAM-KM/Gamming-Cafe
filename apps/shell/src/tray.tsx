@@ -167,7 +167,7 @@ export function NotificationsTray({ bringForward }: { bringForward: () => void }
       {list.length === 0 ? (
         <div className="grid place-items-center py-8 text-sm text-dim"><BellOff className="mb-2 size-6 opacity-60" />Nothing new</div>
       ) : (
-        <ul className="mt-3 grid max-h-96 gap-2 overflow-y-auto pr-1">
+        <ul className="mt-3 grid max-h-96 gap-2 overflow-y-auto overflow-x-hidden pr-2 pt-2">
           {list.map((n) => (
             <li key={n.id} className={cx("group relative rounded-xl border bg-deck-2/60 p-3", n.tone === "warn" ? "border-warn/40" : n.tone === "alarm" ? "border-alarm/50" : n.tone === "good" ? "border-good/30" : "border-rim")}>
               <div className="flex items-baseline justify-between gap-3">
@@ -175,7 +175,7 @@ export function NotificationsTray({ bringForward }: { bringForward: () => void }
                 <span className="shrink-0 text-[0.6875rem] text-dim">{new Date(n.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
               </div>
               <p className="mt-1 text-sm text-dim">{n.text}</p>
-              <button onClick={() => { notices = notices.filter((x) => x.id !== n.id); changed(); }} aria-label="Dismiss" className="absolute -right-1.5 -top-1.5 hidden size-5 place-items-center rounded-full bg-rim text-dim group-hover:grid hover:text-text">
+              <button onClick={() => { notices = notices.filter((x) => x.id !== n.id); changed(); }} aria-label="Dismiss" className="absolute -right-1 -top-1.5 hidden size-5 place-items-center rounded-full bg-rim text-dim group-hover:grid hover:text-text">
                 <X className="size-3" />
               </button>
             </li>
@@ -210,5 +210,5 @@ export function ScreenshotButton() {
 
 /** Windows 11's sliver at the far right: minimize every app and show the desktop. */
 export function ShowDesktopButton() {
-  return <button onClick={() => bridge.send({ type: "show_desktop" })} aria-label="Show desktop" title="Show desktop" className="ml-1 h-[70%] w-2 rounded-sm border-l border-rim hover:bg-white/15" />;
+  return <button onClick={() => bridge.send({ type: "show_desktop" })} aria-label="Show desktop" title="Show desktop" className="ml-1 h-full w-2 border-l border-rim hover:bg-white/15" />;
 }
