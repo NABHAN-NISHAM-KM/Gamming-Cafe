@@ -227,6 +227,36 @@ public sealed class StationService(
         shell.Broadcast(ShellProtocol.Playing(_playing?.Id, _playing?.Title));
     }
 
+    /// <summary>
+    /// Sends a screenshot the Shell's host saved to the server, in pieces of 135 KB (the socket
+    /// takes at most 256 KB per message), then deletes the files. The server answers with
+    /// screenshot_result, which goes back to the Shell.
+    /// </summary>
+    private async Task UploadScreenshotAsync(ShellRequest.Screenshot shot)
+    {
+        const int MaxBytes = 2_000_000, MaxThumbBytes = 120_000, Piece = 135_000;
+        void Fail(string message) => shell.Broadcast(JsonSerializer.Serialize(new { type = "screenshot_result", id = shot.Id, ok = false, message }, Json.Options));
+        try
+        {
+            var image = new FileInfo(shot.Path);
+            var thumb = new FileInfo(shot.ThumbPath);
+            if (!image.Exists || !thumb.Exists || image.Length is 0 or > MaxBytes || thumb.Length is 0 or > MaxThumbBytes) { Fail("That screenshot is too big or missing."); return; }
+            if ((image.Attributes | thumb.Attributes).HasFlag(FileAttributes.ReparsePoint)) { Fail("That screenshot can't be read."); return; } // no links out of the folder
+            var bytes = await File.ReadAllBytesAsync(shot.Path);
+            var thumbBytes = await File.ReadAllBytesAsync(shot.ThumbPath);
+            if (sessions.Current is null) { Fail("Sign in to keep screenshots."); return; }
+            if (!await server.TrySendAsync(Outgoing.ScreenshotBegin(shot.Id, bytes.Length, shot.Width, shot.Height, thumbBytes))) { Fail("The venue is offline. Try again in a moment."); return; }
+            for (int seq = 0, at = 0; at < bytes.Length; seq++, at += Piece)
+                if (!await server.TrySendAsync(Outgoing.ScreenshotChunk(shot.Id, seq, bytes.AsSpan(at, Math.Min(Piece, bytes.Length - at))))) { Fail("The connection dropped. Try again."); return; }
+            await server.TrySendAsync(Outgoing.ScreenshotEnd(shot.Id));
+        }
+        catch (IOException e) { log.LogWarning("Screenshot upload: {Message}", e.Message); Fail("Couldn't read the screenshot."); }
+        finally
+        {
+            try { File.Delete(shot.Path); File.Delete(shot.ThumbPath); } catch (IOException) { }
+        }
+    }
+
     /// <summary>Where the library's icons and covers are on this PC, for the Shell's host (see ShellProtocol.ArtSources).</summary>
     private string ArtSources()
     {
@@ -291,6 +321,9 @@ public sealed class StationService(
             case ShellRequest.MenuRequest m:
                 if (!await server.TrySendAsync(Outgoing.MenuRequest(m.RequestId)))
                     shell.Broadcast(JsonSerializer.Serialize(new { type = "menu", requestId = m.RequestId, menu = (object?)null, error = "offline" }, Json.Options));
+                return;
+            case ShellRequest.Screenshot shot:
+                await UploadScreenshotAsync(shot);
                 return;
             case ShellRequest.TimeOffers to:
                 if (!await server.TrySendAsync(Outgoing.TimeOffers(to.RequestId)))

@@ -43,3 +43,22 @@ public class BuyTimeProtocolTests
         else Assert.Null(r);
     }
 }
+
+public class ScreenshotProtocolTests
+{
+    private const string Id = "0190a3b2-1c2d-7e8f-9a0b-1c2d3e4f5a6b";
+
+    private static ShellRequest? Parse(string path) =>
+        ShellProtocol.Parse(System.Text.Json.JsonSerializer.Serialize(new { type = "screenshot", id = Id, path, width = 1920, height = 1080 }));
+
+    [Fact]
+    public void Accepts_only_the_users_own_shell_screenshot_folder()
+    {
+        var ok = Assert.IsType<ShellRequest.Screenshot>(Parse($@"C:\Users\Player\AppData\Local\ArenaOS\Shell\Screenshots\{Id}.jpg"));
+        Assert.EndsWith($"{Id}.thumb.jpg", ok.ThumbPath);
+        Assert.Null(Parse(@"C:\ProgramData\ArenaOS\Agent\device.key"));
+        Assert.Null(Parse($@"C:\Users\Player\AppData\Local\ArenaOS\Shell\Screenshots\..\..\..\..\..\ProgramData\{Id}.jpg"));
+        Assert.Null(Parse($@"C:\Users\Player\AppData\Local\ArenaOS\Shell\Screenshots\0190a3b2-1c2d-7e8f-9a0b-000000000000.jpg")); // not its id
+        Assert.Null(Parse($@"\server\share\Users\Player\AppData\Local\ArenaOS\Shell\Screenshots\{Id}.jpg"));
+    }
+}

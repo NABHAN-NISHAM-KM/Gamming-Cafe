@@ -30,6 +30,8 @@ public abstract record ShellRequest
     public sealed record TimeOffers(string RequestId) : ShellRequest;
     /// <summary>"Add time": a package paid from the wallet, or saved (prepaid) minutes. The server checks and charges.</summary>
     public sealed record BuyTime(string RequestId, string? PackageId, int? SavedMinutes) : ShellRequest;
+    /// <summary>The Shell's host saved a screenshot (Print Screen): upload it to the customer's account.</summary>
+    public sealed record Screenshot(string Id, string Path, string ThumbPath, int Width, int Height) : ShellRequest;
     /// <summary>Shift+F12 on the Shell: staff leave for the Windows desktop. The agent checks the
     /// Windows account (must be an administrator on this PC).</summary>
     public sealed record StaffExit(string RequestId, string Username, string Password) : ShellRequest;
@@ -50,6 +52,10 @@ public static partial class ShellProtocol
 
     [GeneratedRegex("^[A-Za-z0-9_:.-]{3,80}$")]
     private static partial Regex JobKeyPattern();
+
+    /// <summary>Only the signed-in user's own Shell screenshot folder, a UUID name, .jpg.</summary>
+    [GeneratedRegex(@"^[A-Za-z]:\\Users\\[^\\/:*?""<>|]+\\AppData\\Local\\ArenaOS\\Shell\\Screenshots\\[0-9a-f-]{36}\.jpg$")]
+    public static partial Regex ScreenshotPath();
 
     private static readonly string[] HelpTopics = ["general", "game", "peripheral", "network", "payment"];
 
@@ -129,6 +135,15 @@ public static partial class ShellProtocol
                     var payWith = Str(root, "payWith");
                     if (key is null || !JobKeyPattern().IsMatch(key) || payWith is not ("BILL" or "WALLET")) return null;
                     return new ShellRequest.PrintConfirm(key, payWith);
+                }
+                case "screenshot":
+                {
+                    var id = Str(root, "id");
+                    var path = Str(root, "path");
+                    if (id is null || !UuidPattern().IsMatch(id) || path is null || !ScreenshotPath().IsMatch(path) || !path.EndsWith(id + ".jpg", StringComparison.OrdinalIgnoreCase)) return null;
+                    if (!root.TryGetProperty("width", out var w) || !w.TryGetInt32(out var width) || width is < 1 or > 8192) return null;
+                    if (!root.TryGetProperty("height", out var h) || !h.TryGetInt32(out var height) || height is < 1 or > 8192) return null;
+                    return new ShellRequest.Screenshot(id, path, path[..^4] + ".thumb.jpg", width, height);
                 }
                 case "time_offers":
                 {

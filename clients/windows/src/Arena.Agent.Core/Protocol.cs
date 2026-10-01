@@ -104,6 +104,14 @@ public static class Outgoing
 
     public static string MenuRequest(string requestId) => JsonSerializer.Serialize(new { type = "menu_request", requestId }, Json.Options);
 
+    public static string ScreenshotBegin(string id, int sizeBytes, int width, int height, byte[] thumb) =>
+        JsonSerializer.Serialize(new { type = "screenshot_begin", id, sizeBytes, width, height, thumb = Convert.ToBase64String(thumb) }, Json.Options);
+
+    public static string ScreenshotChunk(string id, int seq, ReadOnlySpan<byte> data) =>
+        JsonSerializer.Serialize(new { type = "screenshot_chunk", id, seq, data = Convert.ToBase64String(data) }, Json.Options);
+
+    public static string ScreenshotEnd(string id) => JsonSerializer.Serialize(new { type = "screenshot_end", id }, Json.Options);
+
     public static string TimeOffers(string requestId) => JsonSerializer.Serialize(new { type = "time_offers", requestId }, Json.Options);
 
     public static string BuyTime(string requestId, string? packageId, int? savedMinutes) =>

@@ -1,4 +1,4 @@
-import { Body, ConflictException, Controller, Get, HttpCode, HttpException, Inject, NotFoundException, Param, Post, Query, Req, UnauthorizedException } from "@nestjs/common";
+import { Body, ConflictException, Controller, Delete, Get, HttpCode, HttpException, Inject, NotFoundException, Param, Post, Query, Req, UnauthorizedException } from "@nestjs/common";
 import type { Request } from "express";
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
@@ -386,6 +386,37 @@ export class CustomerAppController {
     return this.as(req, (t, me) =>
       t.notification.findMany({ where: { customerId: me.customerId, channel: "IN_APP", createdAt: { gte: new Date(Date.now() - 60 * 86_400_000) } }, orderBy: { createdAt: "desc" }, take: 50, select: { id: true, title: true, body: true, data: true, readAt: true, createdAt: true } }),
     );
+  }
+
+  // ── screenshots (taken on a gaming PC with Print Screen) ─────────────────
+
+  @Get("screenshots")
+  screenshots(@Req() req: Request) {
+    return this.as(req, async (t, me) => {
+      const rows = await t.screenshot.findMany({
+        where: { customerId: me.customerId, expiresAt: { gt: new Date() } },
+        orderBy: { takenAt: "desc" },
+        take: 100,
+        select: { id: true, takenAt: true, expiresAt: true, width: true, height: true, thumb: true },
+      });
+      return rows.map(({ thumb, ...r }) => ({ ...r, thumb: `data:image/jpeg;base64,${Buffer.from(thumb).toString("base64")}` }));
+    });
+  }
+
+  @Get("screenshots/:id")
+  screenshot(@Param("id") id: string, @Req() req: Request) {
+    return this.as(req, async (t, me) => {
+      if (!/^[0-9a-f-]{36}$/i.test(id)) throw new NotFoundException({ error: "not_found" });
+      const s = await t.screenshot.findFirst({ where: { id, customerId: me.customerId }, select: { id: true, takenAt: true, image: true } });
+      if (!s) throw new NotFoundException({ error: "not_found" });
+      return { id: s.id, takenAt: s.takenAt, image: `data:image/jpeg;base64,${Buffer.from(s.image).toString("base64")}` };
+    });
+  }
+
+  @Delete("screenshots/:id")
+  @HttpCode(204)
+  async deleteScreenshot(@Param("id") id: string, @Req() req: Request) {
+    await this.as(req, (t, me) => t.screenshot.deleteMany({ where: { id, customerId: me.customerId } }));
   }
 
   @Post("inbox/:id/read")

@@ -132,6 +132,8 @@ export type HostMessage =
   | { type: "volume"; level: number; muted: boolean }
   | ({ type: "time_offers" } & TimeOffers)
   | ({ type: "buy_time_result" } & RequestResult)
+  | { type: "screenshot_taken" }
+  | { type: "screenshot_result"; id?: string; ok: boolean; message?: string }
   | { type: "shell_mode"; mode: ShellMode }
   | { type: "print_status"; jobKey: string; status: "WAITING_STAFF" | "PRINTING" | "COMPLETED" | "CANCELLED" | "FAILED"; message: string };
 
@@ -176,6 +178,7 @@ export type ShellMessage =
   | { type: "volume_get" }
   | { type: "volume_set"; level?: number; muted?: boolean }
   | { type: "time_offers"; requestId: string }
+  | { type: "screenshot" }
   | { type: "buy_time"; requestId: string; packageId?: string; savedMinutes?: 30 | 60 | 120 };
 
 type Listener = (m: HostMessage) => void;
@@ -490,6 +493,10 @@ function mockBridge(): Bridge {
           }, 500);
           break;
         }
+        case "screenshot":
+          emit({ type: "screenshot_taken" });
+          setTimeout(() => emit({ type: "screenshot_result", ok: true, message: "Screenshot saved — see it in the Arena app under Screenshots." }), 800);
+          break;
         case "volume_get":
           emit({ type: "volume", ...mockVolume });
           break;

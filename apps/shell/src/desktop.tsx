@@ -4,7 +4,7 @@ import { bridge, type OpenWindow, type ShellMode, type ShellState, type WindowAc
 import type { Strings } from "./i18n";
 import { AppIcon, AppsScreen, ConnectivityScreen, GamesScreen, PeripheralsScreen, SupportScreen, useLauncher, type Notify } from "./screens";
 import { useStation } from "./station";
-import { NetworkTray, NotificationsTray, ShowDesktopButton, VolumeTray } from "./tray";
+import { NetworkTray, NotificationsTray, ScreenshotButton, ShowDesktopButton, VolumeTray } from "./tray";
 import { FoodScreen } from "./food";
 import { askConfirm } from "./confirm";
 
@@ -357,6 +357,7 @@ export function Taskbar({ state, t, wm, onStart, startOpen, onAddTime, className
         <div className="flex h-[80%] items-center">
           <NetworkTray connected={state.connected} bringForward={toDesktop} />
           <VolumeTray bringForward={toDesktop} />
+          <ScreenshotButton />
           <NotificationsTray bringForward={toDesktop} />
         </div>
         <TimeLeftPill state={state} t={t} onAddTime={() => { toDesktop(); onAddTime(); }} />

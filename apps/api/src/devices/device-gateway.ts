@@ -108,6 +108,10 @@ const Incoming = z.discriminatedUnion("type", [
     packageId: z.uuid().nullish(),
     savedMinutes: z.union([z.literal(30), z.literal(60), z.literal(120)]).nullish(),
   }).refine((m) => (m.packageId ? 1 : 0) + (m.savedMinutes ? 1 : 0) === 1, "packageId or savedMinutes"),
+  // Screenshots from the Shell, in pieces (a socket message carries at most 256 KB).
+  z.object({ type: z.literal("screenshot_begin"), id: z.uuid(), sizeBytes: z.number().int().min(1).max(2_000_000), width: z.number().int().min(1).max(8192), height: z.number().int().min(1).max(8192), thumb: z.string().max(170_000) }),
+  z.object({ type: z.literal("screenshot_chunk"), id: z.uuid(), seq: z.number().int().min(0).max(40), data: z.string().max(180_000) }),
+  z.object({ type: z.literal("screenshot_end"), id: z.uuid() }),
   z.object({ type: z.literal("print_done"), jobKey: z.string().regex(/^[\w:.-]{3,80}$/), ok: z.boolean(), detail: z.string().max(300).nullish() }),
 ]);
 
@@ -120,7 +124,7 @@ export function shellWallpaper(theme: unknown): string | null {
   const url = theme && typeof theme === "object" ? (theme as Record<string, unknown>)["wallpaperUrl"] : null;
   return typeof url === "string" && url.length <= 500 && /^https:\/\/[^\s"'()<>]+$/.test(url) ? url : null;
 }
-export type StationMessage = Extract<Incoming, { type: "inventory" | "peripherals" | "network" | "boot" | "game_event" | "help_request" | "self_repair" | "menu_request" | "place_order" | "time_offers" | "buy_time" | "print_job" | "print_confirm" | "print_cancel" | "print_done" }>;
+export type StationMessage = Extract<Incoming, { type: "inventory" | "peripherals" | "network" | "boot" | "game_event" | "help_request" | "self_repair" | "menu_request" | "place_order" | "time_offers" | "buy_time" | "screenshot_begin" | "screenshot_chunk" | "screenshot_end" | "print_job" | "print_confirm" | "print_cancel" | "print_done" }>;
 
 /**
  * WebSocket endpoint for Windows agents. Each connection authenticates with a
@@ -285,6 +289,15 @@ export class DeviceGateway implements OnModuleDestroy {
                 (r) => reply(r as Record<string, unknown>),
                 (e) => { const error = e?.response?.error ?? "failed"; return reply({ ok: false, error, message: e?.response?.message ?? buyTimeMessage(error) }); },
               );
+            }
+            case "screenshot_begin":
+            case "screenshot_chunk":
+              return this.stationHandlers.get(msg.type)?.(conn, msg);
+            case "screenshot_end": {
+              const handler = this.stationHandlers.get("screenshot_end");
+              const reply = (r: Record<string, unknown>) => ws.send(JSON.stringify({ type: "screenshot_result", id: msg.id, ...r }));
+              if (!handler) return reply({ ok: false, error: "unavailable", message: "Screenshots aren't available right now." });
+              return handler(conn, msg).then((r) => reply(r as Record<string, unknown>), () => reply({ ok: false, error: "failed", message: "Couldn't save the screenshot." }));
             }
             case "help_request": {
               const handler = this.stationHandlers.get("help_request");

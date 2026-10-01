@@ -21,7 +21,7 @@ public sealed class MainWindow : Window
     /// <summary>Forwarded to the agent (which validates again).</summary>
     private static readonly HashSet<string> AllowedFromPage = ["ready", "login", "logout", "launch", "launch_app", "help", "repair", "menu_request", "place_order", "print_confirm", "print_cancel", "staff_exit", "time_offers", "buy_time"];
     /// <summary>Handled here, in the customer's desktop session.</summary>
-    private static readonly HashSet<string> HandledByHost = ["pointer_get", "pointer_apply", "window_action", "desktop_show", "show_desktop", "volume_get", "volume_set"];
+    private static readonly HashSet<string> HandledByHost = ["pointer_get", "pointer_apply", "window_action", "desktop_show", "show_desktop", "volume_get", "volume_set", "screenshot"];
     /// <summary>The venue's pointer settings, restored when a session ends or the Shell closes.</summary>
     private readonly Pointer.Settings _venuePointer = Pointer.Read();
     private bool _inSession;
@@ -64,6 +64,7 @@ public sealed class MainWindow : Window
             if (_web.CoreWebView2 is { } core) core.MemoryUsageTargetLevel = low ? CoreWebView2MemoryUsageTargetLevel.Low : CoreWebView2MemoryUsageTargetLevel.Normal;
         });
         _art = new ArtLoader(Post);
+        _desktop.PrintScreen += () => _ = TakeScreenshotAsync();
         _pipe = new AgentPipe(requireServiceServer: !dev);
         _pipe.LineReceived += line => Dispatcher.InvokeAsync(() => FromAgent(line));
         _pipe.ConnectionChanged += connected => Dispatcher.InvokeAsync(() => AgentConnectionChanged(connected));
@@ -128,7 +129,8 @@ public sealed class MainWindow : Window
                 || t.GetString() is not { } type) return;
             if (HandledByHost.Contains(type))
             {
-                if (type is "volume_get" or "volume_set") VolumeRequest(type, doc.RootElement);
+                if (type == "screenshot") _ = TakeScreenshotAsync();
+                else if (type is "volume_get" or "volume_set") VolumeRequest(type, doc.RootElement);
                 else if (!_desktop.FromPage(type, doc.RootElement)) PointerRequest(type, doc.RootElement);
                 return;
             }
@@ -178,6 +180,24 @@ public sealed class MainWindow : Window
         }
         catch (JsonException) { return; }
         Post(line);
+    }
+
+    private bool _capturing;
+
+    /// <summary>Print Screen / the taskbar camera: save the screen, hand it to the agent to upload.</summary>
+    private async Task TakeScreenshotAsync()
+    {
+        if (!_kiosk || !_inSession || _capturing) return;
+        _capturing = true;
+        try
+        {
+            Post("""{"type":"screenshot_taken"}"""); // the page flashes
+            if (await ScreenCapture.CaptureAsync() is not { } shot) { Post("""{"type":"screenshot_result","ok":false,"message":"Couldn't take a screenshot."}"""); return; }
+            if (!_pipe.TrySend(JsonSerializer.Serialize(new { type = "screenshot", id = shot.Id, path = shot.Path, width = shot.Width, height = shot.Height })))
+                Post("""{"type":"screenshot_result","ok":false,"message":"This PC's ArenaOS service isn't running."}""");
+        }
+        catch (Exception e) { System.Diagnostics.Trace.WriteLine($"ArenaShell: screenshot: {e.Message}"); }
+        finally { _capturing = false; }
     }
 
     /// <summary>The taskbar's volume control: the PC's default speakers.</summary>

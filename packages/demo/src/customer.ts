@@ -32,6 +32,7 @@ export function customerBackend(e: Engine, staff: StaffBackend) {
       e.set("customer", "/wallet", clone(w));
       e.set("customer", "/bookings", []);
       e.set("customer", "/inbox", [welcome(c.displayName)]);
+      e.set("customer", "/screenshots", []); // taken on a real gaming PC only
     }
     return { accessToken: `demo.${c.id}`, customer: { id: c.id, displayName: c.displayName } };
   };

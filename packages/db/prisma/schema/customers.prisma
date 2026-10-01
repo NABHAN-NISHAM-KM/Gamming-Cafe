@@ -67,6 +67,7 @@ model Customer {
   notifications          Notification[]
   pushSubscriptions      PushSubscription[]
   supportTickets         SupportTicket[]
+  screenshots            Screenshot[]
 
   @@unique([id, organizationId])
   @@unique([organizationId, username])
@@ -400,4 +401,26 @@ model LoyaltyTransaction {
 
   @@unique([organizationId, idempotencyKey])
   @@index([organizationId, customerId, createdAt])
+}
+
+/// A screenshot the customer took on a gaming PC (Print Screen on the Shell), kept on their account for 30 days.
+model Screenshot {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @db.Uuid
+  customerId     String   @db.Uuid
+  deviceId       String?  @db.Uuid
+  sessionId      String?  @db.Uuid
+  /// JPEG, at most 2 MB (checked on arrival)
+  image          Bytes
+  /// Small JPEG preview made on the PC (the server has no image library)
+  thumb          Bytes
+  width          Int
+  height         Int
+  sizeBytes      Int
+  takenAt        DateTime @default(now()) @db.Timestamptz(3)
+  expiresAt      DateTime @db.Timestamptz(3)
+  customer       Customer @relation(fields: [customerId, organizationId], references: [id, organizationId], onDelete: Cascade)
+
+  @@index([organizationId, customerId, takenAt])
+  @@index([expiresAt])
 }

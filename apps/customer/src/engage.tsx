@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { ChevronLeft, Crown, Gift, Inbox, Loader2, Medal, Swords, Trophy, Users } from "lucide-react";
+import { Camera, ChevronLeft, Crown, Download, Gift, Inbox, Loader2, Medal, Share2, Swords, Trash2, Trophy, Users, X } from "lucide-react";
 import { api, key } from "./api";
 import { askConfirm } from "./confirm";
 
@@ -288,6 +288,81 @@ export function InboxScreen({ back, onRead }: { back: () => void; onRead: () => 
               <p className="mt-2 text-xs text-dim">{new Date(m.createdAt).toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</p>
             </div>
           ))}
+        </div>
+      )}
+    </Screen>
+  );
+}
+
+// ── screenshots ─────────────────────────────────────────────────────────────
+
+interface Shot { id: string; takenAt: string; expiresAt: string; width: number; height: number; thumb: string }
+
+/** Screenshots taken on a gaming PC (Print Screen or the Shell's camera button), kept for 30 days. */
+export function ScreenshotsScreen({ back, toast }: { back: () => void; toast: Toast }) {
+  const list = useLoad(() => api<Shot[]>("/screenshots"));
+  const [open, setOpen] = useState<{ id: string; image: string | null } | null>(null);
+
+  const view = async (id: string) => {
+    setOpen({ id, image: null });
+    try {
+      const r = await api<{ image: string }>(`/screenshots/${id}`);
+      setOpen((o) => (o?.id === id ? { id, image: r.image } : o));
+    } catch {
+      setOpen(null);
+      toast("Couldn't open that screenshot.", false);
+    }
+  };
+  const save = async (image: string, id: string) => {
+    const blob = await (await fetch(image)).blob();
+    const file = new File([blob], `arena-${id.slice(0, 8)}.jpg`, { type: "image/jpeg" });
+    if (navigator.canShare?.({ files: [file] })) {
+      await navigator.share({ files: [file] }).catch(() => undefined);
+      return;
+    }
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = file.name;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+  const remove = async (id: string) => {
+    if (!(await askConfirm("Delete this screenshot?", { ok: "Delete" }))) return;
+    await api(`/screenshots/${id}`, { method: "DELETE" });
+    setOpen(null);
+    list.reload();
+  };
+
+  return (
+    <Screen title="Screenshots" back={back}>
+      {!list.data ? <Loading /> : list.data.length === 0 ? (
+        <div className="card p-8 text-center text-dim">
+          <Camera className="mx-auto size-10 opacity-60" />
+          <p className="mt-3">No screenshots yet.</p>
+          <p className="mt-1 text-sm">Press <b className="text-text">Print Screen</b> on a gaming PC while you play — they show up here for 30 days.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-3">
+          {list.data.map((s) => (
+            <button key={s.id} onClick={() => void view(s.id)} className="card press overflow-hidden p-0 text-left">
+              <img src={s.thumb} alt="" className="aspect-video w-full object-cover" />
+              <p className="px-3 py-2 text-xs text-dim">{new Date(s.takenAt).toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</p>
+            </button>
+          ))}
+        </div>
+      )}
+      {open && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/90 p-4" onClick={() => setOpen(null)}>
+          <button onClick={() => setOpen(null)} aria-label="Close" className="absolute right-4 top-4 rounded-full bg-white/10 p-2"><X className="size-6" /></button>
+          {!open.image ? <Loader2 className="size-8 animate-spin text-glow" /> : (
+            <div className="grid w-full max-w-3xl gap-4" onClick={(e) => e.stopPropagation()}>
+              <img src={open.image} alt="Screenshot" className="w-full rounded-xl" />
+              <div className="flex justify-center gap-3">
+                <button onClick={() => void save(open.image!, open.id)} className="btn btn-primary">{typeof navigator.share === "function" ? <Share2 className="size-5" /> : <Download className="size-5" />} Save</button>
+                <button onClick={() => void remove(open.id)} className="btn btn-ghost text-alarm"><Trash2 className="size-5" /> Delete</button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </Screen>

@@ -48,6 +48,9 @@ internal sealed class DesktopHost(Window window, Action<string> post, Action<boo
 
     public bool Active => _active;
 
+    /// <summary>Print Screen during a session (caught by the keyboard hook, so it works in games too).</summary>
+    public event Action? PrintScreen;
+
     /// <summary>Called on every agent state: a session started or ended.</summary>
     public void SetSession(bool inSession)
     {
@@ -210,6 +213,11 @@ internal sealed class DesktopHost(Window window, Action<string> post, Action<boo
         if (code >= 0)
         {
             var vk = Marshal.ReadInt32(lParam);
+            if (vk == VK_SNAPSHOT)
+            {
+                if ((int)wParam is WM_KEYUP or WM_SYSKEYUP) window.Dispatcher.BeginInvoke(() => PrintScreen?.Invoke());
+                return 1;
+            }
             if (vk is VK_LWIN or VK_RWIN)
             {
                 if ((int)wParam is WM_KEYUP or WM_SYSKEYUP) window.Dispatcher.BeginInvoke(EnterDesktop);
@@ -356,7 +364,7 @@ internal sealed class DesktopHost(Window window, Action<string> post, Action<boo
     private const uint WM_CLOSE = 0x10, WM_GETICON = 0x7F, SMTO_ABORTIFHUNG = 2;
     private const int ICON_BIG = 1, ICON_SMALL2 = 2, GCLP_HICON = -14, GCLP_HICONSM = -34;
     private const uint EVENT_SYSTEM_FOREGROUND = 3, WINEVENT_OUTOFCONTEXT = 0;
-    private const int WH_KEYBOARD_LL = 13, WM_KEYUP = 0x101, WM_SYSKEYUP = 0x105, VK_LWIN = 0x5B, VK_RWIN = 0x5C;
+    private const int WH_KEYBOARD_LL = 13, WM_KEYUP = 0x101, WM_SYSKEYUP = 0x105, VK_LWIN = 0x5B, VK_RWIN = 0x5C, VK_SNAPSHOT = 0x2C;
     private const uint SPI_SETWORKAREA = 0x2F, SPI_GETWORKAREA = 0x30, SPIF_SENDCHANGE = 2;
     private const int SM_CXSCREEN = 0, SM_CYSCREEN = 1;
     private static readonly IntPtr HWND_BOTTOM = new(1);

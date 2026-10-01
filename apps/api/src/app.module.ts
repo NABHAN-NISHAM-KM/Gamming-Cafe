@@ -67,6 +67,7 @@ import { OrdersService } from "./pos/orders.service.js";
 import { PosController } from "./pos/pos.controller.js";
 import { SeatOrderingService } from "./pos/seat-ordering.service.js";
 import { ShellTimeService } from "./sessions/shell-time.service.js";
+import { ScreenshotsService } from "./stations/screenshots.service.js";
 import { ShiftsService } from "./pos/shifts.service.js";
 import { AccountingController } from "./accounting/accounting.controller.js";
 import { AccountingPosterService } from "./accounting/poster.service.js";
@@ -168,6 +169,7 @@ export class AppModule {
         ShiftsService,
         SeatOrderingService,
         ShellTimeService,
+        ScreenshotsService,
         PromotionsService,
         LoyaltyService,
         TournamentsService,

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Bell, BellOff, Cable, Signal, Volume1, Volume2, VolumeX, Wifi, WifiOff, X } from "lucide-react";
+import { Bell, BellOff, Cable, Camera, Signal, Volume1, Volume2, VolumeX, Wifi, WifiOff, X } from "lucide-react";
 import { bridge } from "./bridge";
 import { useStation } from "./station";
 
@@ -30,6 +30,7 @@ bridge.subscribe((m) => {
   if (m.type === "message") addNotice(m.title || "Message from staff", m.text, "info");
   else if (m.type === "order_status") addNotice(`Food order ${m.number}`, m.message, "good");
   else if (m.type === "print_status") addNotice("Printing", m.message, m.status === "FAILED" || m.status === "CANCELLED" ? "warn" : "good");
+  else if (m.type === "screenshot_result") addNotice("Screenshot", m.message ?? (m.ok ? "Saved." : "Not saved."), m.ok ? "good" : "warn");
 });
 
 function useNotices() {
@@ -182,6 +183,28 @@ export function NotificationsTray({ bringForward }: { bringForward: () => void }
         </ul>
       )}
     </TrayButton>
+  );
+}
+
+/** Takes a screenshot (so does the Print Screen key, even in games); it's kept on the customer's account. */
+export function ScreenshotButton() {
+  const [flash, setFlash] = useState(false);
+  useEffect(
+    () =>
+      bridge.subscribe((m) => {
+        if (m.type !== "screenshot_taken") return;
+        setFlash(true);
+        setTimeout(() => setFlash(false), 180);
+      }),
+    [],
+  );
+  return (
+    <>
+      <button onClick={() => bridge.send({ type: "screenshot" })} aria-label="Screenshot (Print Screen)" title="Screenshot (Print Screen)" className="press grid h-full w-10 place-items-center rounded-lg text-dim hover:bg-white/10 hover:text-text">
+        <Camera className="size-4" />
+      </button>
+      {flash && <div aria-hidden className="pointer-events-none fixed inset-0 z-[60] bg-white/70" />}
+    </>
   );
 }
 

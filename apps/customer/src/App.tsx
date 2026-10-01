@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState, type InputHTMLAttributes, type ReactNode } from "react";
-import { CalendarClock, Check, ChevronRight, Clock, Crown, Gamepad2, Gift, Home, Inbox, Loader2, LogOut, ShoppingBag, Sparkles, Trophy, User, Users, Wallet, X } from "lucide-react";
+import { Camera, CalendarClock, Check, ChevronRight, Clock, Crown, Gamepad2, Gift, Home, Inbox, Loader2, LogOut, ShoppingBag, Sparkles, Trophy, User, Users, Wallet, X } from "lucide-react";
 import { api, ApiError, key, LOCKED_VENUE, setToken, setVenue, signedIn, SLUG_RE, venueSlug, whenSignedOut, type Booking, type LedgerRow, type Me, type Venue } from "./api";
 import { BookScreen } from "./book";
-import { InboxScreen, RewardsScreen, TournamentsScreen } from "./engage";
+import { InboxScreen, RewardsScreen, ScreenshotsScreen, TournamentsScreen } from "./engage";
 import { askConfirm } from "./confirm";
 
 const cx = (...c: Array<string | false | null | undefined>) => c.filter(Boolean).join(" ");
@@ -238,10 +238,11 @@ function HomeScreen({ me, bookings, go, unread }: { me: Me; bookings: Booking[];
         <ChevronRight className="size-5 text-mute" />
       </button>
 
-      <div className="mt-4 grid grid-cols-3 gap-3">
+      <div className="mt-4 grid grid-cols-2 gap-3">
         <button onClick={() => go("events")} className="card press hover:border-rim flex flex-col items-center gap-1.5 p-4 text-sm"><Trophy className="size-6 text-warn" /> Tournaments</button>
         <button onClick={() => go("inbox")} className="card press hover:border-rim relative flex flex-col items-center gap-1.5 p-4 text-sm"><Inbox className="size-6 text-glow" /> Inbox{unread > 0 && <span className="absolute right-3 top-3 grid size-5 place-items-center rounded-full bg-alarm text-[11px] font-bold text-white">{unread}</span>}</button>
         <button onClick={() => go("wallet")} className="card press hover:border-rim flex flex-col items-center gap-1.5 p-4 text-sm"><Wallet className="size-6 text-glow-2" /> Wallet</button>
+        <button onClick={() => go("screenshots")} className="card press hover:border-rim flex flex-col items-center gap-1.5 p-4 text-sm"><Camera className="size-6 text-good" /> Screenshots</button>
       </div>
       <div className="mt-6 grid grid-cols-2 gap-3">
         <button onClick={() => go("book")} className="btn btn-primary py-5"><CalendarClock className="size-5" /> Book</button>
@@ -477,7 +478,7 @@ function MeScreen({ me, venue, onOut }: { me: Me; venue: Venue; onOut: () => voi
 
 // ── root ────────────────────────────────────────────────────────────────────
 
-type Tab = "home" | "book" | "bookings" | "shop" | "wallet" | "me" | "rewards" | "events" | "inbox";
+type Tab = "home" | "book" | "bookings" | "shop" | "wallet" | "me" | "rewards" | "events" | "inbox" | "screenshots";
 const NAV: Array<{ id: Tab; label: string; icon: typeof Home }> = [
   { id: "home", label: "Home", icon: Home },
   { id: "book", label: "Book", icon: CalendarClock },
@@ -558,6 +559,7 @@ export function App() {
       {tab === "rewards" && <RewardsScreen toast={showToast} onChanged={() => void refresh()} />}
       {tab === "events" && <TournamentsScreen toast={showToast} onChanged={() => void refresh()} />}
       {tab === "inbox" && <InboxScreen back={() => setTab("home")} onRead={() => void refreshUnread()} />}
+      {tab === "screenshots" && <ScreenshotsScreen back={() => setTab("home")} toast={showToast} />}
       <nav className="glass safe-bottom fixed inset-x-0 bottom-0 z-40 border-x-0 border-b-0" aria-label="Main">
         <div className="mx-auto flex max-w-lg justify-around pt-2">
           {NAV.map((n) => {

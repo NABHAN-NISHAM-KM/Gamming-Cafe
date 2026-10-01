@@ -90,6 +90,7 @@ export const TENANT_MODELS: ReadonlySet<string> = new Set([
   "RemoteSupportSession",
   "RestaurantTable",
   "Role",
+  "Screenshot",
   "SessionExtension",
   "SessionTransfer",
   "ShellApp",
