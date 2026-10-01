@@ -127,13 +127,16 @@ Use **window B** (InPrivate, Ctrl+Shift+N) for the owner.
 ### 2A · First sign-in and two-step
 
 1. `http://localhost:3000/login` → **Email** `owner@myarena.test`, **Password** = the temporary password from 1C.1 → **Sign in**.
-   - [ ] **2A.1** Dashboard: "Welcome, (your name)" · My Arena · AED · Asia/Dubai. Top right: a yellow **Enable 2-step sign-in** badge.
+   - [ ] **2A.1** Dashboard: "Welcome, (your name)" · My Arena · AED · Asia/Dubai. Top right: **Clock in**, **Switch staff**, **العربية** and a yellow **Enable 2-step sign-in** badge.
+   - [ ] **2A.1b** A **Finish setting up · 0 of 7 done** card lists: branch, zones, connect your first PC, set your prices, add your food & drinks menu, invite staff, 2-step sign-in. Each line links to its page and ticks itself off as you work through Part 2.
 2. Click **Enable 2-step sign-in** (or Sidebar → **Settings**) → **Turn on** → scan the new QR with your authenticator app → type the code → confirm.
    - [ ] **2A.2** Settings shows 2-step sign-in **On**; the yellow badge is gone.
 3. Sign out (bottom-left) and sign in again.
    - [ ] **2A.3** After the password it asks for the 6-digit code.
 4. Press **Ctrl+K** and type a few page names; click around the empty pages.
    - [ ] **2A.4** Every page loads; empty pages say what to do next.
+5. Sidebar → **Settings** → **My counter PIN** → PIN `1357` + your password → **Save PIN**.
+   - [ ] **2A.5** "Counter PIN saved". (Used in 7.6 to check a PIN can't get round 2-step sign-in.)
 
 ### 2B · Branch and zones
 
@@ -189,7 +192,7 @@ Optional: **New rate** "Happy hour", PCs, per hour, 10, tick **Only at certain t
    - If a blue **Windows protected your PC** box appears: **More info → Run anyway** (the test build isn't code-signed).
 3. **Welcome** → **Next**. If asked what to do, choose **Connect it again with a new enrolment code** (only appears on a PC that was installed before).
 4. Fill in:
-   - **Server address:** `http://localhost:4000`
+   - **Server address:** `http://localhost:4000` (the installer comes pre-filled with the hosted address `https://api.arena-prod.duckdns.org`; replace it for this local test)
    - **Enrolment code:** paste the code
    - **Station name:** `PC-01`
    - ✅ Tick **Test mode: only simulate restart, shutdown and lock** (keeps your laptop safe while you test)
@@ -263,8 +266,9 @@ Sidebar → **Restaurant** → **Menu** tab (branch **MH1**).
 | Prep time (min) | 10 | (empty) |
 | Orderable from customers' PCs | ✅ | ✅ |
 | Options | Extras | — |
+| Barcode | (empty) | `5449000000996` (or scan a real can into the field) |
 
-   - [ ] **2E.1** Both products listed with price, kitchen station, "On PCs" ✓, **in stock**.
+   - [ ] **2E.1** Both products listed with price, kitchen station, "On PCs" ✓, **in stock**. The setup card on the Dashboard now ticks **Add your food & drinks menu**.
 5. **Tables** tab → **Add table**: `T1` 2 seats, `T2` 4 seats, `T3` 4 seats, `T4` 6 seats.
    - [ ] **2E.2** Four tables, all **available**.
 6. Sidebar → **POS** → **My shift**: "This branch has no cash drawer yet" → **Drawer name** `Front desk` → **Add cash drawer**.
@@ -276,7 +280,7 @@ Sidebar → **Restaurant** → **Menu** tab (branch **MH1**).
    - **Name** `Main store`, **Type** Branch store, **Branch** MH1 → **Add store**
    - **Name** `Kitchen`, **Type** Kitchen, **Branch** MH1 → **Add store**
    - [ ] **2F.1** Overview: 2 stores, stock value 0.
-2. **Items** tab → **Add** (three times): `Cola can` (unit: piece), `Burger bun` (piece), `Beef patty` (piece). Set a **reorder level** of 10 where offered.
+2. **Items** tab → **Add** (three times): `Cola can` (unit: piece), `Burger bun` (piece), `Beef patty` (piece). Set **Minimum** `10` on each. Anything at or under its minimum shows on the Dashboard and Counter in a **Running low** card (check it in 5.9).
 3. Back to **Restaurant → Menu**:
    - Chef-hat icon on **Smash burger** (recipe): 1 × Burger bun, 1 × Beef patty → save.
    - Chef-hat icon on **Cola**: **Sold straight from stock item** → Cola can → save.
@@ -324,7 +328,7 @@ Sidebar → **Employees** → **Add employee**, once for each row. Always: **Hom
 
 Then:
 - [ ] **2H.8** Sidebar → **Roles** → **New custom role** `Night desk`: tick a few cashier permissions. Try to tick a permission you don't have: the editor refuses ("You can't grant permissions you don't hold yourself").
-- [ ] **2H.9** Open **Carl Cashier** → set a **PIN** (for quick POS sign-in).
+- [ ] **2H.9** Open **Carl Cashier** → set a **PIN** `2580`. (Staff can also set their own under **Settings → My counter PIN**; Wendy does that in 4A.) This PIN is what **Switch staff** asks for.
 
 ✅ **The venue is ready.** Everything a real café needs before opening day is set up.
 
@@ -382,7 +386,8 @@ It asks for a **staff exit username and password** (the installer asks for them 
 | - [ ] 3B.7 | **Peripherals** | Your mouse/keyboard/headset; pointer speed slider |
 | - [ ] 3B.8 | **Connection** | Ping to router/internet |
 | - [ ] 3B.9 | **Support** → "Mouse, keyboard or headset" | "Help is on the way"; an alert appears on the admin Live Floor |
-| - [ ] 3B.10 | **Log out** (top-right door icon) | Confirm → back to the lock screen; unused time goes back to Sam's balance |
+| - [ ] 3B.10 | **Log out** (top-right door icon) | Confirm ("If you paid with saved hours, the time you didn't use goes back") → **How was your session?** → tap **4 stars**, type `Great PC` → **Send & log out** → back to the lock screen. Sam paid with saved hours, so the unused time goes back to Sam's balance |
+| - [ ] 3B.10b | Owner → **Dashboard** → **Player ratings** | Sam's 4-star rating with "Great PC" and PC-01. (**Skip** on the rating screen logs out without rating.) |
 | - [ ] 3B.11 | On the lock screen press **العربية** | Right-to-left Arabic layout; switch back to English |
 
 Sign in as sam again and leave the session running for Part 4. To reach the Windows desktop at any time: **Shift+F12** → staff exit username and password → **Open Windows**. Restart to go back to the Shell.
@@ -393,20 +398,32 @@ Sign in as sam again and leave the session running for Part 4. To reach the Wind
 
 Sign each role in at `http://localhost:3000/login` (or `http://LAPTOP:3000/login` on the phone), each in its own InPrivate window or browser.
 
+Counter staff (anyone without an organization-wide role) get a **short menu** of everyday pages; **Show all menus** at the bottom of the sidebar shows the rest (remembered per browser). Everyone can **Clock in** from the top bar.
+
 ### 4A · Cashier (`cashier@myarena.test`)
 
 | # | Do | Expect |
 |---|---|---|
+| - [ ] 4A.0 | Top bar → **Clock in** | Toast "Clocked in"; the button becomes **Clock out · (time)** |
+| - [ ] 4A.0b | Sidebar → **Counter** | Four big buttons: **Start a PC**, **Add time**, **Sell a snack**, **Take a payment**; below: ending in the next 10 minutes, food orders waiting, needs attention, handover notes |
+| - [ ] 4A.0c | Handover notes → type `PC-07 mouse is broken` → **Add note** | The note appears with Carl's name and the time |
 | - [ ] 4A.1 | Sidebar → **POS** → **My shift** → **Drawer** Front desk, **Opening cash** 200 → **Open shift** | Shift open; the X-report shows opening float 200 |
 | - [ ] 4A.2 | **Customers** → **New customer**: Username `ali`, Display name Ali, Password `ali12345` → save | Ali's page opens |
 | - [ ] 4A.3 | On Ali: **Sell prepaid time** → **Sold at** MH1 · **Package** 1 hour · **Payment** Cash | Ali has 60 min; the shift shows AED 15 cash |
+| - [ ] 4A.3b | Counter → **Start a PC** | Live Floor opens filtered to **Free** stations (others dimmed). Click **PS5-01**: the form shows customer, **How long?**, players, **How do they pay?** and one button **Start · 1 h · Cash · AED 20.00**; the rate and promo code sit under **More options** |
+| - [ ] 4A.3c | Type `ali`'s phone or name in **Customer** → pick Ali → **Saved hours** → **Start** | Session runs on PS5-01 from Ali's saved hour |
+| - [ ] 4A.3d | On PS5-01 → **End session** | The confirmation spells out the money: "…min unused go back to Ali's saved hours". (For a cash or card session it says "…min are left and are NOT refunded".) Confirm |
 | - [ ] 4A.4 | **Live Floor** → click **PC-01** | Sam's session: time left, rate, bill |
 | - [ ] 4A.5 | **Extend** → 30 min → Cash | The Shell's countdown jumps +30 min |
 | - [ ] 4A.6 | **Message** → `Your burger is coming` | Pops up on the Shell |
-| - [ ] 4A.7 | **POS** → **Sell** → **Counter** → tap Cola twice → **Charge** → Cash, **Cash received** 20 → **Charge & send** | "Give change: AED 4" (the 10% promotion is food-only, Cola is a drink) |
+| - [ ] 4A.7 | **POS** → **Sell** → **Counter** → type (or scan) `5449000000996` in the search box → **Enter**, again for a second can → **Charge** → Cash, **Cash received** 20 → **Charge & send** | Each Enter puts a Cola on the order and clears the box. "Give change: AED 4" (the 10% promotion is food-only, Cola is a drink). Once the branch has sales, a **★ Top sellers** tab comes first |
 | - [ ] 4A.8 | POS → **Open bills** → Sam's bill → **Take payment** → Card | Bill settled; points added to Sam |
 | - [ ] 4A.9 | On that bill: refund one Cola (reason `spilled`) | Refund recorded |
 | - [ ] 4A.10 | Try Sidebar → **Roles** / **Branches & zones** / **Finance** | Missing from the menu, or "Your role doesn't allow this" |
+| - [ ] 4A.11 | **Customers** search `050` + the last digits of a customer's phone (saved as `+971 50 …`) | Found however the number was typed (spaces, +971 or a leading 0) |
+| - [ ] 4A.12 | Top bar → **العربية** | Menu, Counter, Live Floor, start form and top bar switch to Arabic, right-to-left. Setup and finance pages stay in English. Switch back with **English** |
+| - [ ] 4A.13 | Wendy (waiter window) → **Settings → My counter PIN** → PIN `4680` + her password → **Save PIN**. Back in Carl's window → top bar **Switch staff** → **Wendy Waiter**, PIN `0000` | "Wrong PIN." |
+| - [ ] 4A.14 | Same dialog, PIN `4680` → **Switch** | The page reloads as **Wendy Waiter** with her menu; Carl is signed out of this browser (no password typed). Sign Carl back in for the rest of Part 4 |
 
 ### 4B · Kitchen (`kitchen@myarena.test`; phone, tablet or second window)
 
@@ -431,7 +448,10 @@ Sign each role in at `http://localhost:3000/login` (or `http://LAPTOP:3000/login
 | - [ ] 4D.1 | **Live Floor** → PC-01 → **Tools** → run **Flush DNS** | Command succeeds |
 | - [ ] 4D.2 | Unplug your USB mouse for 30 s | **Peripheral missing** alert on the floor → **Acknowledge** |
 | - [ ] 4D.3 | **Games** → **Scan PCs**; if something needs an update, **Update** | Scan result / update job on the **Updates** tab |
-| - [ ] 4D.4 | **Consoles & VR** → PS5-01 → switch to maintenance, then back | Its floor tile turns maintenance, then available |
+| - [ ] 4D.4 | **Live Floor** → PS5-01 (no session on it) → **Out of order** → **What's wrong with it?** `Controller 2 stick drift` → **Out of order** | Tile shows **Out of order** with a 🔧; the drawer shows the reason, who and when; **Needs attention** on the floor and Counter counts it; a handover note "PS5-01 is out of order: Controller 2 stick drift" appears |
+| - [ ] 4D.4b | Cashier: try to start a session on PS5-01 | Not possible: "Put it back in service to start a session" |
+| - [ ] 4D.4c | Technician: PS5-01 → **Back in service** | Tile turns **Free**; the handover note is ticked off by itself |
+| - [ ] 4D.5 | **Live Floor** → **What do the colours mean?** | Every colour explained in plain words (Free, In use, Booked, Ending soon, Switched off, Out of order, Needs cleaning…). Click a status chip to show only those stations; **All** shows everything again |
 
 ### 4E · Inventory manager (`stock@myarena.test`)
 
@@ -450,9 +470,12 @@ Sign each role in at `http://localhost:3000/login` (or `http://LAPTOP:3000/login
 | - [ ] 4F.1 | **Bookings** → tomorrow → Sam's booking → **Check in** (at start time) or **No-show** | Session starts on PC-01 / booking released |
 | - [ ] 4F.2 | **Sessions** | Live and recent sessions with what was paid |
 | - [ ] 4F.3 | Cashier: **POS → My shift → Close shift**, count AED 10 less than expected | "Pending approval" |
-| - [ ] 4F.4 | Manager: **POS → My shift** → all shifts → **Approve** the cashier's shift | Closed, variance −10 recorded |
+| - [ ] 4F.3b | Manager: **Counter** (or Live Floor) | Straight away, without a refresh: **Needs attention** shows "Carl Cashier closed Front desk short by AED 10.00" |
+| - [ ] 4F.4 | Manager: **POS → My shift** → all shifts → **Approve** the cashier's shift (give a reason) | Closed, variance −10 recorded; the cash alert disappears |
 | - [ ] 4F.5 | **Tournaments** → FIFA Friday: start check-in, seed, start, **Save result** for a match | Bracket advances; at the end the prize goes to the winner's wallet |
-| - [ ] 4F.6 | **Live Floor** → PC-01 → **End session** | The Shell locks; remaining prepaid time returns to Sam |
+| - [ ] 4F.6 | **Live Floor** → PC-01 → **End session** | The confirmation says how many minutes go back to Sam's saved hours; confirm → the Shell locks and the time returns to Sam |
+| - [ ] 4F.7 | **Reports → Attendance** (today) | Hours per person and each clock-in / clock-out (Carl from 4A.0; anyone still on shift shows **on shift**) |
+| - [ ] 4F.8 | Carl: top bar **Clock out** | "Clocked out", with the hours worked |
 
 ### 4G · Accountant (`accounts@myarena.test`)
 
@@ -470,12 +493,15 @@ Sign each role in at `http://localhost:3000/login` (or `http://LAPTOP:3000/login
 
 | # | Do | Expect |
 |---|---|---|
-| - [ ] 5.1 | **Dashboard** | Revenue today vs last week, bills, sessions, hours played; "Revenue per day" and "Hours played per day" charts |
+| - [ ] 5.1 | **Dashboard** | Revenue today vs last week, **Not paid yet**, **Receipts today**, sessions, hours played; "Revenue per day" and "Hours played per day" charts |
 | - [ ] 5.2 | **Reports → Sales** (From: first of the month) | Takings by day, by what was sold, by payment method; **CSV** downloads a file |
 | - [ ] 5.3 | **Reports → Gaming utilization** | Occupancy per zone, busiest and quietest stations, "when people play" heat map |
 | - [ ] 5.4 | **Reports → Staff** | Each person's orders, payments, refunds, voids, shift variance |
 | - [ ] 5.5 | **Customers → sam** | Wallet history, sessions, loyalty points, bookings |
 | - [ ] 5.6 | On Sam: **Sell membership** → Gold → Card | Sam is Gold; the next quote on the floor shows the 20% member discount |
+| - [ ] 5.7 | **Dashboard → Day summary** (today) | Revenue, receipts, sessions and hours, cash counted vs expected, top sellers (food & drinks only), player rating, open handover notes, ready to send |
+| - [ ] 5.8 | **Send on WhatsApp** / **Email** / **Copy** | WhatsApp (or the mail app) opens with the summary as the message; **Copy** puts it on the clipboard. Nothing is sent until you press send there |
+| - [ ] 5.9 | **Dashboard**, lower half | **Player ratings** (average, stars, low ratings and comments first), **Running low** (stock at or under its minimum), plus the same counter cards staff see |
 
 ---
 
@@ -501,6 +527,8 @@ Sign each role in at `http://localhost:3000/login` (or `http://LAPTOP:3000/login
 | - [ ] 7.3 | As the cashier, open `http://localhost:3000/platform` | Sent to sign-in: staff can't reach the platform |
 | - [ ] 7.4 | During a session, turn Wi-Fi/Ethernet off for 3 min | The Shell keeps counting; admin shows PC-01 offline, then online again |
 | - [ ] 7.5 | Stop the API terminal (Ctrl+C) for 1 min, start it again | The Shell and Live Floor reconnect on their own |
+| - [ ] 7.6 | Cashier: **Switch staff** → pick the owner (PIN set in 2A.5) → PIN `1357` | Refused: "This person uses 2-step sign-in — they need to sign in with their password and code." A PIN never gets round 2-step sign-in |
+| - [ ] 7.7 | **Switch staff** with a wrong PIN 5 times for one person | That person is locked out for 15 minutes, the same as wrong passwords |
 
 ---
 
