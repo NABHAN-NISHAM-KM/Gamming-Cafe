@@ -4,6 +4,7 @@ import { AuditService } from "../common/audit.service.js";
 import { RequirePermission } from "../common/decorators.js";
 import { orgId, tx } from "../common/request-state.js";
 import { ZodPipe } from "../common/zod.pipe.js";
+import { isImageDataUrl, LOGO_DATA_MAX, shellWallpaper } from "../devices/device-gateway.js";
 
 const ORG_FIELDS = {
   id: true, slug: true, legalName: true, displayName: true, status: true, countryCode: true,
@@ -27,9 +28,12 @@ const UpdateOrg = z
 
 const Brand = z.object({
   name: z.string().min(2).max(120),
-  logoUrl: z.url().max(500).nullable().optional(),
+  logoUrl: z.union([z.url().max(500), z.string().refine((v) => isImageDataUrl(v, LOGO_DATA_MAX), "Logo image is too large")]).nullable().optional(),
   primaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().optional(),
-  shellTheme: z.record(z.string(), z.unknown()).optional(),
+  shellTheme: z
+    .record(z.string(), z.unknown())
+    .refine((t) => t["wallpaperUrl"] == null || shellWallpaper(t) !== null, { message: "Wallpaper must be an https:// link or an image up to about 250 KB", path: ["wallpaperUrl"] })
+    .optional(),
   isActive: z.boolean().optional(),
 });
 

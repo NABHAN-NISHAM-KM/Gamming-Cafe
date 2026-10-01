@@ -140,6 +140,23 @@ describe.skipIf(!HAS_DB)("ArenaOS API (e2e)", () => {
       expect((await as(t.accessToken).get("/v1/auth/me")).status).toBe(401);
     });
 
+    it("changing your password checks the old one and signs out your other devices only", async () => {
+      const s = await newStaff("cashier", dxb1);
+      const here = (await login(s.email, s.password)).body;
+      const there = (await login(s.email, s.password)).body;
+      const next = `New-pass-${run}-x!`;
+
+      const wrong = await as(here.accessToken).post("/v1/auth/password", { currentPassword: "not-it-at-all", newPassword: next });
+      expect(wrong.status).toBe(422);
+      expect(wrong.body.error).toBe("invalid_current_password");
+
+      await as(here.accessToken).post("/v1/auth/password", { currentPassword: s.password, newPassword: next }).expect(204);
+      expect((await as(here.accessToken).get("/v1/auth/me")).status).toBe(200);
+      expect((await as(there.accessToken).get("/v1/auth/me")).status).toBe(401);
+      expect((await login(s.email, s.password)).status).toBe(401);
+      expect((await login(s.email, next)).status).toBe(200);
+    });
+
     it("TOTP MFA: enrol, then login requires a code, and a code cannot be replayed", async () => {
       const s = await newStaff("cashier", dxb1);
       const token = (await login(s.email, s.password)).body.accessToken;

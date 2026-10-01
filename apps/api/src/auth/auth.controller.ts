@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Inject, Post, Req } from "@nestjs/common";
+import { Body, Controller, ForbiddenException, Get, HttpCode, Inject, Post, Req } from "@nestjs/common";
 import type { Request } from "express";
 import { z } from "zod";
 import { PERMISSIONS } from "@arena/rbac";
@@ -15,6 +15,7 @@ const Login = z.object({
 const MfaVerify = z.object({ mfaToken: z.string().min(1), code: z.string().regex(/^\d{6}$/) });
 const Refresh = z.object({ refreshToken: z.string().min(20).max(200) });
 const Code = z.object({ code: z.string().regex(/^\d{6}$/) });
+const ChangePassword = z.object({ currentPassword: z.string().min(1).max(256), newPassword: z.string().min(12).max(256) });
 
 const meta = (req: Request): ClientMeta => ({ ip: req.ip ?? null, userAgent: req.headers["user-agent"] ?? null });
 
@@ -88,6 +89,16 @@ export class AuthController {
   @HttpCode(200)
   confirmTotp(@Body(new ZodPipe(Code)) body: z.infer<typeof Code>) {
     return this.auth.confirmTotpEnrolment(principal().userId, body.code);
+  }
+
+  /** The signed-in user's own password. Other devices are signed out; this one stays. */
+  @AnyStaff()
+  @Post("password")
+  @HttpCode(204)
+  async changePassword(@Body(new ZodPipe(ChangePassword)) body: z.infer<typeof ChangePassword>) {
+    const p = principal();
+    if (p.impersonatorId) throw new ForbiddenException({ error: "impersonating" });
+    await this.auth.changePassword(p.userId, p.sessionId, body.currentPassword, body.newPassword);
   }
 }
 

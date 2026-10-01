@@ -73,6 +73,7 @@ export class PrincipalService {
     return {
       organizationId: claims.org,
       userId: claims.sub,
+      sessionId: claims.sid,
       employeeId: employee.id,
       displayName: employee.displayName,
       grants,

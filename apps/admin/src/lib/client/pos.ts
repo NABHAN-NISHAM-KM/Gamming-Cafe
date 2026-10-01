@@ -125,3 +125,23 @@ export interface CartLine {
 
 export const cartTotal = (lines: CartLine[]) => lines.reduce((a, l) => a + l.unit * l.quantity, 0);
 export const money = (v: number | string, currency?: string) => `${currency ? `${currency} ` : ""}${Number(v).toFixed(2)}`;
+
+export const ORDER_TYPE: Record<string, string> = { DINE_IN: "Dine in", GAMING_SEAT: "To seat", TAKEAWAY: "Takeaway", DELIVERY: "Delivery", PICKUP: "Pickup", COUNTER: "Counter" };
+
+/** GET /branches/:id/orders — one row per order. */
+export interface OrderView {
+  id: string;
+  number: string;
+  type: string;
+  status: "DRAFT" | "PLACED" | "ACCEPTED" | "IN_PROGRESS" | "READY" | "SERVED" | "COMPLETED" | "CANCELLED" | "REFUNDED";
+  channel: string;
+  deliverTo: string | null;
+  notes: string | null;
+  currency: string;
+  total: string;
+  createdAt: string;
+  customer: { id: string; displayName: string } | null;
+  items: Array<{ id: string; nameSnapshot: string; quantity: number; status: string }>;
+  kitchenTickets: Array<{ id: string; status: string; station: { name: string } }>;
+  bill: { id: string; number: string; status: string; due: string } | null;
+}

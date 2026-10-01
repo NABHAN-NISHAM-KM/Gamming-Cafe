@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import QRCode from "qrcode";
-import { Check, CheckCircle2, Copy, Smartphone, Store } from "lucide-react";
+import { Check, CheckCircle2, Copy, KeyRound, Smartphone, Store } from "lucide-react";
 import { api } from "@/lib/client/api";
 import { useAction } from "@/lib/client/hooks";
 import { useMe } from "@/lib/client/me";
-import { Badge, Button, Card, ErrorNote, Field, Input, PageHeader } from "@/components/ui";
+import { Badge, Button, Card, ErrorNote, Field, Input, PageHeader, PasswordInput, toast } from "@/components/ui";
 import { ShellLook } from "@/components/shell-look";
 
 export default function SettingsPage() {
@@ -50,6 +50,7 @@ export default function SettingsPage() {
         </div>
       </Card>
       <ShellLook />
+      <ChangePassword />
       <Card className="max-w-2xl p-6">
         <div className="flex items-start gap-3">
           <Smartphone className="mt-0.5 size-5 text-accent" />
@@ -108,5 +109,54 @@ export default function SettingsPage() {
         </div>
       </Card>
     </>
+  );
+}
+
+function ChangePassword() {
+  const me = useMe();
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [again, setAgain] = useState("");
+  const mismatch = again !== "" && next !== again;
+  const save = useAction(async () => {
+    await api("/auth/password", { method: "POST", body: { currentPassword: current, newPassword: next } });
+    setCurrent("");
+    setNext("");
+    setAgain("");
+    toast("Password changed. Your other devices were signed out.");
+  });
+  return (
+    <Card className="mb-4 max-w-2xl p-6">
+      <div className="flex items-start gap-3">
+        <KeyRound className="mt-0.5 size-5 text-accent" />
+        <form
+          className="grid flex-1 gap-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!mismatch) void save.run();
+          }}
+        >
+          <div>
+            <h2 className="font-semibold">Password</h2>
+            <p className="mt-1 text-sm text-ink-2">Change the password for {me.user.email}. You stay signed in here; other devices are signed out.</p>
+          </div>
+          <input type="text" autoComplete="username" value={me.user.email ?? ""} readOnly hidden />
+          <Field label="Current password">
+            <PasswordInput value={current} onChange={(e) => setCurrent(e.target.value)} autoComplete="current-password" required />
+          </Field>
+          <Field label="New password" hint="At least 12 characters.">
+            <PasswordInput value={next} onChange={(e) => setNext(e.target.value)} autoComplete="new-password" minLength={12} maxLength={256} required />
+          </Field>
+          <Field label="New password again">
+            <PasswordInput value={again} onChange={(e) => setAgain(e.target.value)} autoComplete="new-password" required />
+          </Field>
+          {mismatch && <p className="text-sm text-reserved">The new passwords don't match.</p>}
+          <ErrorNote>{save.error}</ErrorNote>
+          <div>
+            <Button type="submit" variant="primary" pending={save.pending} disabled={mismatch || next.length < 12 || !current}>Change password</Button>
+          </div>
+        </form>
+      </div>
+    </Card>
   );
 }

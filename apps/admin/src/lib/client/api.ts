@@ -144,6 +144,8 @@ export function describeError(status: number, body: any): string {
     invalid_credentials: "Email or password is incorrect.",
     account_locked: "Too many failed attempts. The account is temporarily locked.",
     invalid_mfa_code: "That code is not valid. Wait for the next code and try again.",
+    invalid_current_password: "Your current password isn't right.",
+    same_password: "Pick a new password that's different from the current one.",
     no_membership: "This account has no access to that organization.",
     validation_failed: "Some fields are invalid.",
     plan_limit_reached: `Your plan limit has been reached (${body?.limit ?? "limit"}: ${body?.max ?? "?"}). Upgrade to add more.`,

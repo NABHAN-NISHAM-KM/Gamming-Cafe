@@ -12,7 +12,8 @@ export async function createApp(config: AppConfig = loadConfig()) {
   });
   app.set("trust proxy", 1); // behind Nginx: req.ip = client address
   app.disable("x-powered-by");
-  app.useBodyParser("json", { limit: "256kb" });
+  // Room for an uploaded Shell wallpaper + logo (see WALLPAPER_DATA_MAX / LOGO_DATA_MAX).
+  app.useBodyParser("json", { limit: "640kb" });
   app.setGlobalPrefix("v1", { exclude: ["/", "health"] });
   app.enableCors({ origin: config.CORS_ORIGINS.split(",").map((s) => s.trim()), credentials: true });
   app.enableShutdownHooks();

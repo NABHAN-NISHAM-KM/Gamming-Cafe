@@ -11,7 +11,7 @@ import { randomUUID } from "node:crypto";
 import type { Db } from "@arena/db";
 import { CONFIG, type AppConfig } from "../config.js";
 import { DB } from "../common/db.module.js";
-import { burnVerify, newTotpSecret, otpauthUrl, randomToken, seal, sha256, unseal, verifySecret, verifyTotp } from "./crypto.js";
+import { burnVerify, hashSecret, newTotpSecret, otpauthUrl, randomToken, seal, sha256, unseal, verifySecret, verifyTotp } from "./crypto.js";
 import { TokensService } from "./tokens.service.js";
 
 interface Membership {
@@ -151,6 +151,20 @@ export class AuthService {
     await this.db.global.mfaFactor.deleteMany({ where: { userId, type: "TOTP", confirmedAt: { not: null } } });
     await this.db.global.mfaFactor.update({ where: { id: pending.id }, data: { confirmedAt: new Date(), lastUsedAt: new Date(step * 30_000) } });
     return { enabled: true };
+  }
+
+  // ── Password (authenticated) ──────────────────────────────────────────────
+
+  async changePassword(userId: string, keepSessionId: string, current: string, next: string) {
+    const user = await this.db.global.user.findUniqueOrThrow({ where: { id: userId }, select: { passwordHash: true } });
+    // 422, not 401: a wrong current password must not read as "session expired".
+    if (!user.passwordHash || !(await verifySecret(user.passwordHash, current))) throw new UnprocessableEntityException({ error: "invalid_current_password" });
+    if (current === next) throw new UnprocessableEntityException({ error: "same_password" });
+    await this.db.global.user.update({ where: { id: userId }, data: { passwordHash: await hashSecret(next), failedLogins: 0, lockedUntil: null } });
+    await this.db.global.refreshToken.updateMany({
+      where: { userId, familyId: { not: keepSessionId }, revokedAt: null },
+      data: { revokedAt: new Date(), revokeReason: "password_changed" },
+    });
   }
 
   // ── internals ─────────────────────────────────────────────────────────────

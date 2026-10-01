@@ -119,11 +119,20 @@ type Incoming = z.infer<typeof Incoming>;
 
 type Venue = { name: string; branchName: string; logoUrl: string | null; wallpaperUrl: string | null };
 
-/** Brand.shellTheme.wallpaperUrl, only if it's an https image link (the Shell's CSP allows nothing else). */
+/** Brand.shellTheme.wallpaperUrl, only if it's an https link or an uploaded image (the Shell's CSP allows nothing else). */
 export function shellWallpaper(theme: unknown): string | null {
   const url = theme && typeof theme === "object" ? (theme as Record<string, unknown>)["wallpaperUrl"] : null;
-  return typeof url === "string" && url.length <= 500 && /^https:\/\/[^\s"'()<>]+$/.test(url) ? url : null;
+  if (typeof url !== "string") return null;
+  if (url.length <= 500 && /^https:\/\/[^\s"'()<>]+$/.test(url)) return url;
+  return isImageDataUrl(url, WALLPAPER_DATA_MAX) ? url : null;
 }
+
+// Uploaded pictures travel inline as data: URLs. Sized so the whole welcome
+// message stays under the agent's 512 KB frame cap (AgentWorker.ReceiveAsync).
+// ponytail: inline storage, move to object storage if venues want bigger/more images.
+export const WALLPAPER_DATA_MAX = 360_000;
+export const LOGO_DATA_MAX = 80_000;
+export const isImageDataUrl = (v: string, max: number) => v.length <= max && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+=*$/.test(v);
 export type StationMessage = Extract<Incoming, { type: "inventory" | "peripherals" | "network" | "boot" | "game_event" | "help_request" | "self_repair" | "menu_request" | "place_order" | "time_offers" | "buy_time" | "screenshot_begin" | "screenshot_chunk" | "screenshot_end" | "print_job" | "print_confirm" | "print_cancel" | "print_done" }>;
 
 /**

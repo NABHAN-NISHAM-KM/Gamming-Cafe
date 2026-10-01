@@ -613,9 +613,29 @@ export function staffBackend(e: Engine) {
     }
     return { ok: true };
   });
+  // Same shape as the real list: `items`, a live bill summary, order-level statuses.
+  const ORDER_STATUS: Record<string, string> = { NEW: "PLACED", PREPARING: "IN_PROGRESS" };
+  r.get("/branches/:id/orders", (q) => {
+    const rows = ordersDoc(q.params["id"]!).map((o: any) => {
+      const bill = o.billId ? e.get("staff", `/bills/${o.billId}`) : null;
+      return {
+        ...o, status: ORDER_STATUS[o.status] ?? o.status, currency: o.currency ?? currency(), items: o.items ?? o.orderItems ?? [], kitchenTickets: o.kitchenTickets ?? [],
+        bill: bill ? { id: bill.id, number: bill.number, status: bill.status, due: bill.due } : o.bill ?? null,
+      };
+    });
+    return q.query.get("open") ? rows.filter((o: any) => ["PLACED", "ACCEPTED", "IN_PROGRESS", "READY"].includes(o.status)) : rows;
+  });
   r.post("/orders/:id/cancel", (q) => {
-    e.patchById(q.params["id"]!, { status: "CANCELLED" });
-    return e.findById(q.params["id"]!);
+    const id = q.params["id"]!;
+    e.patchById(id, { status: "CANCELLED", cancelReason: q.body?.reason ?? null });
+    // The kitchen stops working on it.
+    for (const b of branches()) {
+      const kd = kitchenDoc(b.id);
+      const before = kd.tickets.length;
+      kd.tickets = kd.tickets.filter((t: any) => t.order.id !== id);
+      if (kd.tickets.length !== before) e.emit({ type: "kitchen", branchId: b.id });
+    }
+    return e.findById(id);
   });
   r.get("/branches/:id/kitchen", (q) => {
     const kd = clone(kitchenDoc(q.params["id"]!));
@@ -710,6 +730,9 @@ export function staffBackend(e: Engine) {
     if (m) m.user.mfaEnabled = true;
     return { enabled: true };
   });
+
+  // Demo: every account shares the demo password, so any change is accepted and forgotten.
+  r.post("/auth/password", () => noContent());
 
   return { router: r, endSession, startSession, allDevices, customers, walletDoc, spendWallet, ledger, floorDoc, branches, quote, plansFor };
 }

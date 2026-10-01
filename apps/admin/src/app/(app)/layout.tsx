@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   BarChart3, Boxes, Building2, CalendarClock, ChefHat, Coins, Cpu, Gamepad2, Gauge, Joystick, LayoutGrid, LogOut,
-  Megaphone, Menu, Printer, Search, Settings, ShieldAlert, ShieldCheck, ShoppingCart, Tag, Timer, Trophy, Truck, UserRound, Users, UtensilsCrossed, X,
+  Megaphone, Menu, Printer, ReceiptText, Search, Settings, ShieldAlert, ShieldCheck, ShoppingCart, Tag, Timer, Trophy, Truck, UserRound, Users, UtensilsCrossed, X,
 } from "lucide-react";
 import { session } from "@/lib/client/api";
 import { useApi } from "@/lib/client/hooks";
@@ -40,6 +40,7 @@ const NAV: Array<{ group: string; items: NavItem[] }> = [
   { group: "Food & sales", items: [
     { href: "/restaurant", label: "Restaurant", icon: UtensilsCrossed, anyOf: ["restaurant.order", "restaurant.menu_manage"] },
     { href: "/pos", label: "POS", icon: ShoppingCart, anyOf: ["pos.sell"] },
+    { href: "/orders", label: "Orders", icon: ReceiptText, anyOf: ["pos.sell"] },
     { href: "/kitchen", label: "Kitchen", icon: ChefHat, anyOf: ["kds.view"] },
     { href: "/inventory", label: "Inventory", icon: Boxes, anyOf: ["inventory.view"] },
     { href: "/purchasing", label: "Purchasing", icon: Truck, anyOf: ["purchasing.view"] },

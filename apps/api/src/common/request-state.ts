@@ -6,6 +6,8 @@ import type { LimitKey } from "@arena/contracts";
 /** The authenticated staff member behind a request. */
 export interface StaffPrincipal extends Principal {
   userId: string;
+  /** Refresh-token family behind this access token (the signed-in session). */
+  sessionId: string;
   employeeId: string;
   displayName: string;
   limits: Partial<Record<LimitKey, number>>;
