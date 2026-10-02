@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ar" dir="rtl" data-page="contact" data-base="../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>تواصل مع المبيعات — ArenaOS</title>
+  <meta name="description" content="تحدّث مع فريق ArenaOS عن تجربة في مكانك، أو احجز مكالمة مدتها 30 دقيقة." />
+  <link rel="canonical" href="%SITE%/ar/contact.html" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="ArenaOS" />
+  <meta property="og:title" content="تواصل مع المبيعات — ArenaOS" />
+  <meta property="og:description" content="تحدّث مع فريق ArenaOS عن تجربة في مكانك، أو احجز مكالمة مدتها 30 دقيقة." />
+  <meta property="og:url" content="%SITE%/ar/contact.html" />
+  <meta property="og:image" content="%SITE%/assets/og.png" />
+  <meta property="og:locale" content="ar_AE" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="تواصل مع المبيعات — ArenaOS" />
+  <meta name="twitter:description" content="تحدّث مع فريق ArenaOS عن تجربة في مكانك، أو احجز مكالمة مدتها 30 دقيقة." />
+  <meta name="twitter:image" content="%SITE%/assets/og.png" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%226%22 fill=%22%237c5cff%22/%3E%3Ctext x=%2216%22 y=%2223%22 font-size=%2220%22 font-family=%22Arial%22 font-weight=%22900%22 text-anchor=%22middle%22 fill=%22white%22%3EA%3C/text%3E%3C/svg%3E" />
+  <link rel="alternate" hreflang="en" href="%SITE%/contact.html" />
+  <link rel="alternate" hreflang="ar" href="%SITE%/ar/contact.html" />
+  <link rel="alternate" hreflang="x-default" href="%SITE%/contact.html" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@400;600;800&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../assets/site.css?v=7" />
+</head>
+<body>
+  <header id="nav"></header>
+  <main>
+    <section class="hero" data-scroll style="border-bottom:0">
+      <div class="hero-grid"></div>
+      <div class="wrap split" style="align-items:start">
+        <div>
+          <span class="eyebrow">تواصل مع المبيعات</span>
+          <h1>لنفتتح مكانك.</h1>
+          <p class="lead">أخبرنا عن مكانك وسنجهّز لك جولة بمخطط صالتك وأسعارك وقائمة طعامك.</p>
+          <ul class="checks">
+            <li>جولة مدتها 30 دقيقة مخصّصة لنوع مكانك</li>
+            <li>مساعدة في الانتقال من برنامجك الحالي</li>
+            <li>تجربة على منطقة واحدة قبل التعميم</li>
+            <li>تدريب بالعربية والإنجليزية</li>
+          </ul>
+        </div>
+        <div class="form-card reveal">
+          <form class="form" id="contactForm">
+            <div class="row"><label>الاسم<input required name="name" autocomplete="name" /></label><label>البريد الإلكتروني للعمل<input required type="email" name="email" autocomplete="email" dir="ltr" /></label></div>
+            <div class="row"><label>اسم المكان<input name="venue" /></label><label>الدولة<select name="country"><option>الإمارات العربية المتحدة</option><option>المملكة العربية السعودية</option><option>قطر</option><option>الكويت</option><option>البحرين</option><option>عُمان</option><option>الهند</option><option>المملكة المتحدة</option><option>الولايات المتحدة</option><option>أخرى</option></select></label></div>
+            <div class="row"><label>نوع المكان<select name="venueType"><option value="Gaming café">مقهى ألعاب</option><option value="Esports arena">ساحة رياضات إلكترونية</option><option value="Internet café">مقهى إنترنت</option><option value="Console / VR centre">مركز كونسول / واقع افتراضي</option><option value="Gaming restaurant">مطعم ألعاب</option></select></label><label>الخطة المهتم بها<select name="plan" id="planSel"><option value="starter">Starter</option><option value="pro">Pro</option><option value="enterprise">Enterprise</option><option value="unsure">لم أقرر بعد</option></select></label></div>
+            <div class="row"><label>عدد الفروع<input type="number" min="1" value="1" name="branches" /></label><label>عدد الأجهزة<input type="number" min="1" value="30" name="stations" /></label></div>
+            <label>احجز مكالمة مدتها 30 دقيقة (اختياري)<select name="demoAt" id="slotSel"><option value="">لا مكالمة الآن — راسلوني بالبريد</option></select></label>
+            <label>ملاحظات أخرى<textarea rows="4" name="notes" placeholder="برنامجك الحالي، موعد الافتتاح، متطلبات خاصة…"></textarea></label>
+            <label class="hp" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off" /></label>
+            <button class="btn btn-primary btn-lg" type="submit">اطلب جولة <span data-icon="arrow" data-size="16"></span></button>
+            <div class="ok-msg" id="ok" role="status"></div>
+          </form>
+        </div>
+      </div>
+    </section>
+  </main>
+  <footer id="footer"></footer>
+  <script src="../assets/site.js?v=7"></script>
+  <script src="../assets/forms.js?v=1"></script>
+  <script>
+    const q = new URLSearchParams(location.search);
+    if (q.get("plan")) document.getElementById("planSel").value = q.get("plan");
+    arenaSlots(document.getElementById("slotSel")).then(() => q.has("call") && document.getElementById("slotSel").focus());
+    const form = document.getElementById("contactForm");
+    arenaForm(form, (v) => (v.demoAt ? "/v1/public/demo" : "/v1/public/leads"), (data) => {
+      form.querySelector("button[type=submit]").style.display = "none";
+      const ok = document.getElementById("ok");
+      ok.textContent = data.demoAt
+        ? `تم الحجز! مكالمتك يوم ${new Date(data.demoAt).toLocaleString("ar", { weekday: "long", day: "numeric", month: "long", hour: "numeric", minute: "2-digit" })}. سنرسل الدعوة بالبريد قريباً.`
+        : "شكراً! وصلتنا بياناتك وسنتواصل معك خلال يوم عمل واحد.";
+      ok.style.display = "block";
+    }, (v) => ({ ...v, source: "contact-ar" }));
+  </script>
+</body>
+</html>

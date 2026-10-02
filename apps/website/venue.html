@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en" data-page="venue" data-base="/">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Venue — ArenaOS</title>
+  <meta name="description" content="Opening hours, free stations right now, prices and upcoming tournaments." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/assets/site.css?v=7" />
+  <style>
+    .v-head { display: flex; align-items: center; gap: 20px; }
+    .v-head img[hidden] { display: none; }
+    .v-head img { width: 72px; height: 72px; object-fit: contain; border: 1px solid var(--line-2); background: var(--panel); }
+    .zones { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-top: 16px; }
+    .zone { border: 1px solid var(--line-2); padding: 16px; background: var(--panel); }
+    .zone b { font: 800 40px/1 var(--display); color: var(--green); }
+    .zone b.none { color: var(--ink-3); }
+    .zone small { display: block; color: var(--ink-3); font: 12px var(--mono); margin-top: 6px; }
+    .hours { width: 100%; max-width: 420px; border-collapse: collapse; color: var(--ink-2); font-size: 14px; }
+    .hours td { padding: 6px 0; border-bottom: 1px solid var(--line); }
+    .hours td:last-child { text-align: right; font-family: var(--mono); }
+    .price { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); color: var(--ink-2); }
+    .price b { color: var(--ink); font-family: var(--mono); }
+    .branch { padding: 48px 0; border-top: 1px solid var(--line); }
+    .branch h2 { font-size: clamp(32px, 4vw, 52px); margin: 0 0 6px; }
+    #state { color: var(--ink-2); }
+  </style>
+</head>
+<body>
+  <header id="nav"></header>
+  <main>
+    <section class="hero" style="border-bottom:0;padding-bottom:24px">
+      <div class="hero-grid"></div>
+      <div class="wrap">
+        <div class="v-head"><img id="logo" alt="" hidden /><div><span class="eyebrow" id="eyebrow">Gaming venue</span><h1 id="name" style="font-size:clamp(48px,7vw,104px)!important;margin:8px 0 0">…</h1></div></div>
+        <p class="lead" id="state">Loading…</p>
+        <div class="hero-cta" id="cta" hidden><a class="btn btn-primary btn-lg" id="app">Book &amp; top up in the app <span data-icon="arrow" data-size="16"></span></a></div>
+      </div>
+    </section>
+    <div class="wrap" id="body"></div>
+  </main>
+  <footer id="footer"></footer>
+  <script src="/assets/site.js?v=7"></script>
+  <script>
+    const slug = location.pathname.split("/").filter(Boolean)[1] ?? new URLSearchParams(location.search).get("venue");
+    const el = (tag, attrs = {}, ...kids) => { const e = Object.assign(document.createElement(tag), attrs); e.append(...kids.filter((k) => k != null)); return e; };
+    const DAYS = [["mon", "Monday"], ["tue", "Tuesday"], ["wed", "Wednesday"], ["thu", "Thursday"], ["fri", "Friday"], ["sat", "Saturday"], ["sun", "Sunday"]];
+    const per = { PER_HOUR: "/ hour", PER_MINUTE: "/ minute", PER_SESSION: "/ session", FIXED: "" };
+    // openingHours is { mon: [{ open: "10:00", close: "02:00" }], … } (or a single { open, close }); empty means not published.
+    const hoursOf = (h) => {
+      if (!h || !Object.keys(h).length) return null;
+      return el("table", { className: "hours" }, ...DAYS.map(([k, label]) => {
+        const v = h[k];
+        const list = Array.isArray(v) ? v : v ? [v] : [];
+        return el("tr", {}, el("td", {}, label), el("td", {}, list.length ? list.map((x) => `${x.open}–${x.close}`).join(", ") : "Closed"));
+      }));
+    };
+    async function load() {
+      const r = slug ? await fetch(`/v1/app/${encodeURIComponent(slug)}/public`).catch(() => null) : null;
+      if (!r?.ok) {
+        document.getElementById("name").textContent = "Venue not found";
+        document.getElementById("state").textContent = "This venue doesn't have a public page, or the link is wrong.";
+        return;
+      }
+      const v = await r.json();
+      const money = (x, cur = v.currency) => new Intl.NumberFormat(undefined, { style: "currency", currency: cur }).format(Number(x));
+      document.title = `${v.name} — prices, free PCs and tournaments`;
+      document.getElementById("name").textContent = v.name;
+      if (v.color) document.documentElement.style.setProperty("--accent", v.color);
+      if (v.logoUrl) Object.assign(document.getElementById("logo"), { src: v.logoUrl, hidden: false });
+      const free = v.branches.reduce((s, b) => s + b.zones.reduce((t, z) => t + z.free, 0), 0);
+      document.getElementById("state").textContent = free ? `${free} station${free === 1 ? "" : "s"} free right now.` : "Every station is busy right now — book ahead in the app.";
+      Object.assign(document.getElementById("app"), { href: v.appUrl });
+      document.getElementById("cta").hidden = false;
+      const body = document.getElementById("body");
+      for (const b of v.branches.filter((b) => b.zones.length || Object.keys(b.openingHours ?? {}).length)) {
+        body.append(el("section", { className: "branch" },
+          el("h2", {}, b.name),
+          el("p", { style: "color:var(--ink-3);margin:0 0 24px" }, [b.addressLine1, b.city, b.phone].filter(Boolean).join(" · ")),
+          b.zones.length ? el("div", { className: "zones" }, ...b.zones.map((z) => el("div", { className: "zone" }, el("b", { className: z.free ? "" : "none", textContent: String(z.free) }), el("small", {}, `free of ${z.total} · ${z.name}`)))) : null,
+          (() => { const t = hoursOf(b.openingHours); return t ? el("div", { style: "margin-top:32px" }, el("h3", {}, "Opening hours"), t) : null; })(),
+        ));
+      }
+      if (v.prices.length) body.append(el("section", { className: "branch" }, el("h2", {}, "Prices"), ...v.prices.map((p) => el("div", { style: "margin:24px 0" },
+        el("div", { className: "price" }, el("span", {}, `${p.name}${p.zone ? ` · ${p.zone.name}` : ""}`), el("b", {}, `${money(p.rate, p.currency)} ${per[p.billingMode] ?? ""}`)),
+        ...p.pricingPackages.map((k) => el("div", { className: "price", style: "padding-left:16px" }, el("span", {}, `${k.name}${k.bonusMinutes ? ` (+${k.bonusMinutes} min free)` : ""}`), el("b", {}, money(k.price, p.currency)))),
+      ))));
+      if (v.tournaments.length) body.append(el("section", { className: "branch" }, el("h2", {}, "Tournaments"), ...v.tournaments.map((t) => el("div", { className: "price" },
+        el("span", {}, `${t.name}${t.game ? ` · ${t.game}` : ""} · ${new Date(t.startsAt).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}${t.teamSize > 1 ? ` · ${t.teamSize}v${t.teamSize}` : ""}`),
+        el("b", {}, Number(t.prizePool) ? `Prize ${money(t.prizePool, t.currency)}` : Number(t.entryFee) ? `Entry ${money(t.entryFee, t.currency)}` : "Free entry"),
+      ))));
+    }
+    load();
+    setInterval(() => document.visibilityState === "visible" && (document.getElementById("body").replaceChildren(), load()), 60_000);
+  </script>
+</body>
+</html>

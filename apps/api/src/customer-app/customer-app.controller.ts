@@ -104,6 +104,45 @@ export class CustomerAppController {
     });
   }
 
+  /**
+   * The venue's public page on the website (/v/<venue>): opening hours, free
+   * stations right now, prices and upcoming tournaments. Counts and prices only
+   * — never who is playing. Off unless the venue switched it on (Settings).
+   */
+  @Get(":slug/public")
+  async publicPage(@Param("slug") slug: string) {
+    const organizationId = await this.org(slug);
+    return this.db.withTenant({ organizationId, actorType: "SYSTEM", actorId: null }, async (t) => {
+      const o = await t.organization.findFirstOrThrow({ select: { displayName: true, defaultCurrency: true, settings: true, brands: { select: { logoUrl: true, primaryColor: true }, take: 1 } } });
+      if (!(o.settings as { publicPage?: boolean } | null)?.publicPage) throw new NotFoundException({ error: "venue_not_found" });
+      const branches = await t.branch.findMany({
+        where: { status: "OPEN" },
+        select: { id: true, name: true, addressLine1: true, city: true, phone: true, openingHours: true, timezone: true, zones: { where: { isActive: true }, select: { id: true, name: true, type: true }, orderBy: { sortOrder: "asc" } } },
+        orderBy: { name: "asc" },
+      });
+      const counts = await t.device.groupBy({ by: ["zoneId", "status"], where: { isEnabled: true, kind: { in: ["GAMING_PC", "INTERNET_PC", "CONSOLE", "VR_HEADSET", "SIMULATOR"] } }, _count: { _all: true } });
+      const of = (zoneId: string, free: boolean) => counts.filter((c) => c.zoneId === zoneId && (!free || c.status === "AVAILABLE")).reduce((s, c) => s + c._count._all, 0);
+      const plans = await t.pricingPlan.findMany({
+        where: { isActive: true, membershipTierId: null, OR: [{ validTo: null }, { validTo: { gt: new Date() } }] },
+        select: { name: true, currency: true, rate: true, billingMode: true, paymentTiming: true, schedule: true, passStartTime: true, passEndTime: true, zone: { select: { name: true } }, pricingPackages: { where: { isActive: true }, select: { name: true, durationMinutes: true, bonusMinutes: true, price: true }, orderBy: { sortOrder: "asc" } } },
+        orderBy: { name: "asc" },
+      });
+      const tournaments = await t.tournament.findMany({
+        where: { isPublic: true, status: { in: ["REGISTRATION_OPEN", "REGISTRATION_CLOSED", "CHECK_IN", "IN_PROGRESS"] } },
+        orderBy: { startsAt: "asc" },
+        take: 6,
+        select: { name: true, startsAt: true, status: true, entryFee: true, prizePool: true, currency: true, teamSize: true, customGameName: true, game: { select: { title: true } } },
+      });
+      return {
+        name: o.displayName, currency: o.defaultCurrency, logoUrl: o.brands[0]?.logoUrl ?? null, color: o.brands[0]?.primaryColor ?? null,
+        appUrl: `${this.cfg.CUSTOMER_APP_URL.replace(/\/+$/, "")}/${slug}`,
+        branches: branches.map(({ zones, ...b }) => ({ ...b, zones: zones.map((z) => ({ name: z.name, type: z.type, total: of(z.id, false), free: of(z.id, true) })).filter((z) => z.total > 0) })),
+        prices: plans.map((p) => ({ ...p, rate: p.rate.toFixed(2), pricingPackages: p.pricingPackages.map((k) => ({ ...k, price: k.price.toFixed(2) })) })),
+        tournaments: tournaments.map((x) => ({ name: x.name, game: x.game?.title ?? x.customGameName, startsAt: x.startsAt, status: x.status, entryFee: x.entryFee.toFixed(2), prizePool: x.prizePool.toFixed(2), currency: x.currency, teamSize: x.teamSize })),
+      };
+    });
+  }
+
   @Post(":slug/register")
   async register(@Param("slug") slug: string, @Body(new ZodPipe(Register)) body: z.infer<typeof Register>, @Req() req: Request) {
     if (!this.registerByIp.take(req.ip ?? "?")) throw new HttpException({ error: "too_many_attempts" }, 429);

@@ -6,6 +6,7 @@ import type { OrganizationStatus, PlatformClient, SubscriptionStatus } from "@ar
 import { hashSecret } from "../auth/crypto.js";
 import { uuidParam, ZodPipe } from "../common/zod.pipe.js";
 import { PDB } from "./config.js";
+import { provisionOrganization } from "./provision.js";
 import { PlatformAuthService } from "./auth.service.js";
 import { clientMeta, PlatformRoles, READ_ROLES, type PlatformRequest } from "./guard.js";
 
@@ -199,46 +200,10 @@ export class PlatformAdminController {
   @PlatformRoles("SUPER_ADMIN")
   @Post("organizations")
   async createOrganization(@Body(new ZodPipe(CreateOrg)) body: z.infer<typeof CreateOrg>, @Req() req: PlatformRequest) {
-    const [country, plan, ownerRole] = await Promise.all([
-      this.db.country.findUnique({ where: { code: body.countryCode } }),
-      this.db.subscriptionPlan.findUnique({ where: { id: body.planId } }),
-      this.db.role.findFirst({ where: { organizationId: null, key: "org_owner" } }),
-    ]);
-    if (!country) throw new BadRequestException({ error: "validation_failed", issues: [{ path: "countryCode", message: "Unknown country" }] });
-    if (!plan || !plan.isActive) throw new BadRequestException({ error: "validation_failed", issues: [{ path: "planId", message: "Unknown or retired plan" }] });
-    if (!ownerRole) throw new Error("org_owner role template missing — run the seed");
-    if (await this.db.organization.findUnique({ where: { slug: body.slug }, select: { id: true } })) throw new ConflictException({ error: "slug_taken" });
-
-    const existing = await this.db.user.findUnique({ where: { email: body.ownerEmail } });
-    const tempPassword = existing ? null : `Arena-${randomBytes(9).toString("base64url")}`;
-    const passwordHash = tempPassword ? await hashSecret(tempPassword) : null;
-    const now = new Date();
-    const trial = body.trialDays > 0;
-
-    const org = await this.db.$transaction(async (t) => {
-      const org = await t.organization.create({
-        data: {
-          slug: body.slug, displayName: body.displayName, legalName: body.legalName ?? body.displayName, status: trial ? "TRIAL" : "ACTIVE",
-          countryCode: country.code, defaultCurrency: country.defaultCurrency, defaultTimezone: country.defaultTimezone, defaultLocale: country.defaultLocale,
-          supportedLocales: [...new Set([country.defaultLocale, "en"])], billingEmail: body.ownerEmail,
-        },
-      });
-      await t.brand.create({ data: { organizationId: org.id, name: body.displayName } });
-      await t.subscription.create({
-        data: {
-          organizationId: org.id, planId: plan.id, status: trial ? "TRIALING" : "ACTIVE",
-          currentPeriodStart: now, currentPeriodEnd: new Date(now.getTime() + (trial ? body.trialDays : 30) * 86_400_000),
-        },
-      });
-      const user = existing ?? (await t.user.create({ data: { email: body.ownerEmail, displayName: body.ownerName, passwordHash, mfaRequired: true } }));
-      const emp = await t.employee.create({ data: { organizationId: org.id, userId: user.id, employeeCode: "E001", displayName: body.ownerName, status: "ACTIVE", hiredAt: now } });
-      await t.employeeRoleAssignment.create({ data: { organizationId: org.id, employeeId: emp.id, roleId: ownerRole.id, scope: "ORGANIZATION" } });
-      return org;
-    });
-
+    const r = await provisionOrganization(this.db, body);
     const p = req.platform!;
-    await this.auth.audit(p.userId, p.viaRole, clientMeta(req), { action: "platform.org.create", entityType: "Organization", entityId: org.id, organizationId: org.id, after: { slug: org.slug, displayName: org.displayName, plan: plan.code, owner: body.ownerEmail } });
-    return { organization: { id: org.id, slug: org.slug, displayName: org.displayName }, owner: { email: body.ownerEmail, existingAccount: !!existing, tempPassword } };
+    await this.auth.audit(p.userId, p.viaRole, clientMeta(req), { action: "platform.org.create", entityType: "Organization", entityId: r.organization.id, organizationId: r.organization.id, after: { slug: r.organization.slug, displayName: r.organization.displayName, plan: r.plan.code, owner: body.ownerEmail } });
+    return { organization: r.organization, owner: r.owner };
   }
 
   @PlatformRoles("SUPER_ADMIN", "PLATFORM_SUPPORT")
@@ -312,6 +277,32 @@ export class PlatformAdminController {
     await this.db.organizationFeature.delete({ where });
     const p = req.platform!;
     await this.auth.audit(p.userId, p.viaRole, clientMeta(req), { action: "platform.feature.reset", entityType: "OrganizationFeature", entityId: key, organizationId: before.organizationId, before });
+  }
+
+  // ── Leads from the website ────────────────────────────────────────────────
+
+  @PlatformRoles(...READ_ROLES)
+  @Get("leads")
+  leads(@Query("status") status?: string, @Query("kind") kind?: string) {
+    return this.db.lead.findMany({
+      where: {
+        ...(status && ["NEW", "CONTACTED", "WON", "LOST"].includes(status) ? { status: status as "NEW" } : {}),
+        ...(kind && ["CONTACT", "DEMO", "TRIAL"].includes(kind) ? { kind: kind as "DEMO" } : {}),
+      },
+      orderBy: { createdAt: "desc" },
+      take: 200,
+    });
+  }
+
+  @PlatformRoles("SUPER_ADMIN", "PLATFORM_SUPPORT", "PLATFORM_BILLING")
+  @Patch("leads/:leadId")
+  async updateLead(@Param("leadId") leadId: string, @Body(new ZodPipe(z.object({ status: z.enum(["NEW", "CONTACTED", "WON", "LOST"]) }).strict())) body: { status: "NEW" | "CONTACTED" | "WON" | "LOST" }, @Req() req: PlatformRequest) {
+    const before = await this.db.lead.findUnique({ where: { id: id(leadId) } });
+    if (!before) throw new NotFoundException({ error: "not_found" });
+    const after = await this.db.lead.update({ where: { id: before.id }, data: { status: body.status } });
+    const p = req.platform!;
+    await this.auth.audit(p.userId, p.viaRole, clientMeta(req), { action: "platform.lead.status", entityType: "Lead", entityId: before.id, before: { status: before.status }, after: { status: after.status } });
+    return after;
   }
 
   // ── Plans ─────────────────────────────────────────────────────────────────

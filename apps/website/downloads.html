@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en" data-page="downloads">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Downloads — ArenaOS</title>
+  <meta name="description" content="Download the ArenaOS station installer, Gaming Shell demo, desktop console and customer app — with versions, release notes, sizes and SHA-256 checksums." />
+  <link rel="canonical" href="%SITE%/downloads.html" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="ArenaOS" />
+  <meta property="og:title" content="Downloads — ArenaOS" />
+  <meta property="og:description" content="Download the ArenaOS station installer, Gaming Shell demo, desktop console and customer app — with versions, release notes, sizes and SHA-256 checksums." />
+  <meta property="og:url" content="%SITE%/downloads.html" />
+  <meta property="og:image" content="%SITE%/assets/og.png" />
+  <meta property="og:locale" content="en_US" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Downloads — ArenaOS" />
+  <meta name="twitter:description" content="Download the ArenaOS station installer, Gaming Shell demo, desktop console and customer app — with versions, release notes, sizes and SHA-256 checksums." />
+  <meta name="twitter:image" content="%SITE%/assets/og.png" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%226%22 fill=%22%237c5cff%22/%3E%3Ctext x=%2216%22 y=%2223%22 font-size=%2220%22 font-family=%22Arial%22 font-weight=%22900%22 text-anchor=%22middle%22 fill=%22white%22%3EA%3C/text%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/site.css?v=7" />
+  <style>
+    .dl-row { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 5fr) auto; gap: 24px; align-items: start; padding: 32px 0; border-top: 1px solid var(--line); }
+    .dl-row h3 { margin: 6px 0 8px; font-size: 26px; }
+    .dl-row p { color: var(--ink-2); margin: 0; }
+    .facts { font: 12.5px/1.9 var(--mono); color: var(--ink-3); word-break: break-all; }
+    .facts b { color: var(--ink-2); font-weight: 500; }
+    .notes { white-space: pre-line; color: var(--ink-2); font-size: 14px; margin-top: 8px; }
+    .verify { margin-top: 48px; }
+    @media (max-width: 900px) { .dl-row { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header id="nav"></header>
+  <main>
+    <section class="hero" style="border-bottom:0;padding-bottom:16px">
+      <div class="hero-grid"></div>
+      <div class="wrap">
+        <span class="eyebrow">Downloads</span>
+        <h1 data-split style="font-size:clamp(52px,7vw,112px)!important">Get the apps.</h1>
+        <p class="lead">The demos run the same sample venue offline. The station installer is the real thing for your gaming PCs — check its checksum before you roll it out.</p>
+      </div>
+    </section>
+    <div class="wrap" id="list">
+      <article class="dl-row" data-file="ArenaOS-Station-Setup.exe" data-component="WINDOWS_AGENT">
+        <div><span class="eyebrow">Windows 10/11 · x64 · installer</span><h3>Station installer</h3><p>Agent service and the locked-down Gaming Shell for your gaming PCs. Needs an enrolment code from Stations. Changes the PC it's installed on.</p></div>
+        <div class="facts"></div>
+        <a class="btn btn-primary" href="downloads/ArenaOS-Station-Setup.exe" download>Download</a>
+      </article>
+      <article class="dl-row" data-file="ArenaOS-Shell-Demo.exe" data-component="WINDOWS_SHELL">
+        <div><span class="eyebrow">Windows 10/11 · x64 · demo</span><h3>Gaming Shell demo</h3><p>The player's screen in a normal window. Not locked down — safe on any PC.</p></div>
+        <div class="facts"></div>
+        <a class="btn btn-primary" href="downloads/ArenaOS-Shell-Demo.exe" download>Download</a>
+      </article>
+      <article class="dl-row" data-file="ArenaOS-Console.exe">
+        <div><span class="eyebrow">Windows 10/11 · x64 · demo</span><h3>Admin &amp; Super Admin</h3><p>The venue console and the Super Admin console as a desktop app, with the demo built in.</p></div>
+        <div class="facts"></div>
+        <a class="btn btn-primary" href="downloads/ArenaOS-Console.exe" download>Download</a>
+      </article>
+      <article class="dl-row" data-file="ArenaOS-Customer.apk">
+        <div><span class="eyebrow">Android 5.1+ · APK</span><h3>Customer app</h3><p>Wallet, bookings, food, rewards and tournaments. Enter your venue code once to connect. Also works in any browser as a web app.</p></div>
+        <div class="facts"></div>
+        <a class="btn btn-primary" href="downloads/ArenaOS-Customer.apk" download>Download</a>
+      </article>
+      <div class="verify doc">
+        <h3>Check a download</h3>
+        <p style="color:var(--ink-2)">Compare the SHA-256 above with the file you downloaded. In PowerShell:</p>
+        <pre><code>Get-FileHash .\ArenaOS-Station-Setup.exe -Algorithm SHA256</code></pre>
+        <p style="color:var(--ink-2)">Stations also verify every update's signature themselves before installing it. See the <a href="install.html" style="color:var(--accent)">install guide</a>.</p>
+      </div>
+    </div>
+  </main>
+  <footer id="footer"></footer>
+  <script src="assets/site.js?v=7"></script>
+  <script>
+    const mb = (n) => `${(n / 1048576).toFixed(1)} MB`;
+    Promise.all([
+      fetch("downloads/manifest.json").then((r) => r.json()).catch(() => []),
+      fetch("/v1/public/releases").then((r) => (r.ok ? r.json() : [])).catch(() => []),
+    ]).then(([files, releases]) => {
+      document.querySelectorAll("[data-file]").forEach((row) => {
+        const f = files.find((x) => x.name === row.dataset.file);
+        const rel = releases.find((x) => x.component === row.dataset.component);
+        const facts = row.querySelector(".facts");
+        if (!f) {
+          facts.textContent = "Coming soon";
+          row.querySelector(".btn").classList.add("soon");
+          return;
+        }
+        const line = (k, v) => { const d = document.createElement("div"); d.innerHTML = `<b>${k}</b> `; d.append(v); facts.append(d); };
+        if (rel) line("Version", `${rel.version} · ${new Date(rel.publishedAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}`);
+        line("Size", mb(f.size));
+        line("SHA-256", f.sha256);
+        if (rel?.releaseNotes) { const n = document.createElement("div"); n.className = "notes"; n.textContent = rel.releaseNotes; facts.append(n); }
+      });
+    });
+  </script>
+</body>
+</html>

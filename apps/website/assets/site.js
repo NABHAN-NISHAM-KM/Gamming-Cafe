@@ -47,23 +47,31 @@
     `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[name] ?? ""}</svg>`;
   document.querySelectorAll("[data-icon]").forEach((el) => (el.innerHTML = window.arenaIcon(el.dataset.icon, Number(el.dataset.size) || 22)));
 
-  const links = [
-    ["index.html", "Product", "home"],
-    ["features.html", "Features", "features"],
-    ["pricing.html", "Pricing", "pricing"],
-    ["demos.html", "Live demos", "demos"],
-    ["index.html#downloads", "Download", "downloads"],
-    ["guide.html", "Guide", "guide"],
-    ["install.html", "Install", "install"],
-    ["contact.html", "Contact", "contact"],
-  ];
+  // Arabic pages live under /ar/ (lang="ar", dir="rtl", data-base="../") and get Arabic chrome.
+  const ar = document.documentElement.lang === "ar";
+  const T = (en, arText) => (ar ? arText : en);
+  const AR_PAGES = ["index.html", "contact.html", "signup.html"];
+  const file = location.pathname.split("/").pop() || "index.html";
+  const other = ar ? `${base}${file}` : `${base}ar/${AR_PAGES.includes(file) ? file : "index.html"}`;
+  const links = ar
+    ? [["ar/index.html", "المنتج", "home"], ["features.html", "الميزات", "features"], ["pricing.html", "الأسعار", "pricing"], ["demos.html", "عروض حية", "demos"], ["downloads.html", "التنزيلات", "downloads"], ["help.html", "المساعدة", "help"], ["ar/contact.html", "تواصل معنا", "contact"]]
+    : [
+        ["index.html", "Product", "home"],
+        ["features.html", "Features", "features"],
+        ["pricing.html", "Pricing", "pricing"],
+        ["demos.html", "Live demos", "demos"],
+        ["downloads.html", "Download", "downloads"],
+        ["help.html", "Help", "help"],
+        ["install.html", "Install", "install"],
+        ["contact.html", "Contact", "contact"],
+      ];
   const nav = document.getElementById("nav");
   if (nav) {
     nav.className = "nav";
     nav.innerHTML = `<div class="wrap">
       <a class="brand" href="${base}index.html" aria-label="ArenaOS home"><span class="brand-mark" aria-hidden="true">A</span><span>Arena<b>OS</b></span></a>
       <nav class="nav-links" id="navLinks">${links.map(([h, l, k]) => `<a href="${base}${h}" class="${k === page ? "on" : ""}"${k === page ? ' aria-current="page"' : ""}>${l}</a>`).join("")}</nav>
-      <div class="nav-cta"><a class="btn btn-ghost btn-sm" href="${base}contact.html">Book a call</a><a class="btn btn-primary btn-sm" href="${base}live/admin/login/">Try it live</a></div>
+      <div class="nav-cta"><a class="btn btn-ghost btn-sm" href="${other}" hreflang="${ar ? "en" : "ar"}" lang="${ar ? "en" : "ar"}">${ar ? "English" : "العربية"}</a><a class="btn btn-ghost btn-sm" href="${base}${ar ? "ar/" : ""}contact.html?call">${T("Book a call", "احجز مكالمة")}</a><a class="btn btn-primary btn-sm" href="${base}${ar ? "ar/" : ""}signup.html">${T("Start free trial", "ابدأ مجاناً")}</a></div>
       <button class="menu-btn" aria-label="Menu" aria-expanded="false" aria-controls="navLinks"><i></i></button>
     </div><span class="bar" aria-hidden="true"></span>`;
     const btn = nav.querySelector(".menu-btn");
@@ -84,13 +92,13 @@
     foot.innerHTML = `<div class="wrap">
       <div class="foot">
         <div><a class="brand" href="${base}index.html"><span class="brand-mark" aria-hidden="true">A</span><span>Arena<b>OS</b></span></a>
-          <p>The operating system for gaming cafés, esports arenas, internet cafés, console &amp; VR centres and gaming restaurants.</p></div>
-        <div><h4>Product</h4><a href="${base}features.html#stations">Stations &amp; Live Floor</a><a href="${base}features.html#sessions">Sessions &amp; Shell</a><a href="${base}features.html#pos">POS &amp; restaurant</a><a href="${base}features.html#engage">Loyalty &amp; tournaments</a></div>
-        <div><h4>Live demos</h4><a href="${base}live/admin/login/">Venue admin</a><a href="${base}live/admin/login/?next=%2Fplatform">Super Admin</a><a href="${base}live/shell/">Gaming Shell</a><a href="${base}live/app/">Customer app</a><a href="${base}index.html#downloads">Downloads</a></div>
-        <div><h4>Company</h4><a href="${base}pricing.html">Pricing</a><a href="${base}contact.html">Contact sales</a><a href="${base}guide.html">How it works</a><a href="${base}install.html">Install guide</a><a href="${base}pricing.html#faq">FAQ</a></div>
+          <p>${T("The operating system for gaming cafés, esports arenas, internet cafés, console &amp; VR centres and gaming restaurants.", "نظام تشغيل مقاهي الألعاب وساحات الرياضات الإلكترونية ومقاهي الإنترنت ومراكز الكونسول والواقع الافتراضي ومطاعم الألعاب.")}</p></div>
+        <div><h4>${T("Built for", "مصمّم لـ")}</h4><a href="${base}for-gaming-cafes.html">${T("Gaming cafés", "مقاهي الألعاب")}</a><a href="${base}for-esports-arenas.html">${T("Esports arenas", "ساحات الرياضات الإلكترونية")}</a><a href="${base}for-internet-cafes.html">${T("Internet cafés", "مقاهي الإنترنت")}</a><a href="${base}for-console-vr-centres.html">${T("Console &amp; VR centres", "مراكز الكونسول والواقع الافتراضي")}</a><a href="${base}for-gaming-restaurants.html">${T("Gaming restaurants", "مطاعم الألعاب")}</a></div>
+        <div><h4>${T("Product", "المنتج")}</h4><a href="${base}features.html">${T("Features", "الميزات")}</a><a href="${base}changelog.html">${T("What's new", "الجديد")}</a><a href="${base}compare.html">${T("Why switch", "لماذا تنتقل")}</a><a href="${base}demos.html">${T("Live demos", "عروض حية")}</a><a href="${base}downloads.html">${T("Downloads", "التنزيلات")}</a></div>
+        <div><h4>${T("Company", "الشركة")}</h4><a href="${base}pricing.html">${T("Pricing", "الأسعار")}</a><a href="${base}${ar ? "ar/" : ""}signup.html">${T("Free trial", "تجربة مجانية")}</a><a href="${base}${ar ? "ar/" : ""}contact.html">${T("Contact sales", "تواصل مع المبيعات")}</a><a href="${base}help.html">${T("Help centre", "مركز المساعدة")}</a><a href="${base}install.html">${T("Install guide", "دليل التثبيت")}</a></div>
       </div>
       <div class="wordmark" data-scroll aria-hidden="true">Arena<b>OS</b></div>
-      <div class="copy"><span>© ${new Date().getFullYear()} ArenaOS. All rights reserved.</span><span>Built for venues that never close.</span></div>
+      <div class="copy"><span>© ${new Date().getFullYear()} ArenaOS. ${T("All rights reserved.", "جميع الحقوق محفوظة.")}</span><span>${T("Built for venues that never close.", "صُمّم لأماكن لا تُغلق أبوابها.")}</span></div>
     </div>`;
   }
 

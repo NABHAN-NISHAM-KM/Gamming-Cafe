@@ -6,7 +6,8 @@
   "description": "ArenaOS marketing site with interactive product demos (static, no build step)",
   "scripts": {
     "dev": "node serve.mjs 5180",
-    "start": "node serve.mjs 5180"
+    "start": "node serve.mjs 5180",
+    "build:help": "node scripts/build-help.mjs"
   },
   "devDependencies": {
     "three": "^0.180.0"

@@ -31,6 +31,12 @@ const Env = z.object({
     .string({ error: "MFA_ENCRYPTION_KEY_B64 is required — run `npm run keys -w @arena/api`" })
     .refine((v) => Buffer.from(v, "base64").length === 32, "MFA_ENCRYPTION_KEY_B64 must decode to 32 bytes"),
   PLATFORM_CORS_ORIGINS: z.string().default("http://localhost:3000"),
+  /** Website leads are also POSTed here (Slack, an e-mail relay, a CRM). Optional. */
+  LEADS_WEBHOOK_URL: z.url().optional(),
+  /** Demo-call slots on the website are offered in this time zone. */
+  SALES_TIMEZONE: z.string().default("Asia/Dubai"),
+  /** The plan a self-serve trial starts on (all its features for 14 days). */
+  TRIAL_PLAN_CODE: z.string().default("PRO"),
   LOGIN_MAX_FAILURES: z.coerce.number().int().default(5),
   LOGIN_LOCK_MINUTES: z.coerce.number().int().default(15),
 });

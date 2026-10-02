@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="ar" dir="rtl" data-page="signup" data-base="../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ابدأ تجربة مجانية — ArenaOS</title>
+  <meta name="description" content="افتح مكانك على ArenaOS في دقيقتين: 14 يوماً مجاناً بكل ميزات Pro، مع فرع وأسعار جاهزة للتعديل. دون بطاقة." />
+  <link rel="canonical" href="%SITE%/ar/signup.html" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="ArenaOS" />
+  <meta property="og:title" content="ابدأ تجربة مجانية — ArenaOS" />
+  <meta property="og:description" content="افتح مكانك على ArenaOS في دقيقتين: 14 يوماً مجاناً بكل ميزات Pro، مع فرع وأسعار جاهزة للتعديل. دون بطاقة." />
+  <meta property="og:url" content="%SITE%/ar/signup.html" />
+  <meta property="og:image" content="%SITE%/assets/og.png" />
+  <meta property="og:locale" content="ar_AE" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="ابدأ تجربة مجانية — ArenaOS" />
+  <meta name="twitter:description" content="افتح مكانك على ArenaOS في دقيقتين: 14 يوماً مجاناً بكل ميزات Pro، مع فرع وأسعار جاهزة للتعديل. دون بطاقة." />
+  <meta name="twitter:image" content="%SITE%/assets/og.png" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%226%22 fill=%22%237c5cff%22/%3E%3Ctext x=%2216%22 y=%2223%22 font-size=%2220%22 font-family=%22Arial%22 font-weight=%22900%22 text-anchor=%22middle%22 fill=%22white%22%3EA%3C/text%3E%3C/svg%3E" />
+  <link rel="alternate" hreflang="en" href="%SITE%/signup.html" />
+  <link rel="alternate" hreflang="ar" href="%SITE%/ar/signup.html" />
+  <link rel="alternate" hreflang="x-default" href="%SITE%/signup.html" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@400;600;800&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../assets/site.css?v=7" />
+  <style>
+    .slug { display: flex; align-items: stretch; }
+    .slug span { display: flex; align-items: center; padding: 0 10px; border: 1px solid var(--line-2); border-right: 0; color: var(--ink-3); font: 13px var(--mono); text-transform: none; letter-spacing: 0; }
+    .slug input { flex: 1; min-width: 0; }
+    .done h2 { font-size: clamp(36px, 4vw, 56px); margin: 0 0 12px; }
+    .done ol { color: var(--ink-2); padding-left: 20px; line-height: 1.8; }
+  </style>
+</head>
+<body>
+  <header id="nav"></header>
+  <main>
+    <section class="hero" data-scroll style="border-bottom:0">
+      <div class="hero-grid"></div>
+      <div class="wrap split" style="align-items:start">
+        <div>
+          <span class="eyebrow">14 يوماً مجاناً · دون بطاقة</span>
+          <h1>افتح مكانك اليوم.</h1>
+          <p class="lead">نسختك من ArenaOS جاهزة خلال دقيقة — مع فرع ومنطقتين للأجهزة وقائمة أسعار يمكنك تغييرها.</p>
+          <ul class="checks">
+            <li>كل ميزات Pro: الخريطة الحية، الجلسات، نقاط البيع، المطعم، الولاء، البطولات</li>
+            <li>اربط أجهزتك الفعلية بمثبّت المحطة، أو استكشف دون أجهزة</li>
+            <li>بياناتك ملكك — صدّرها متى شئت، وسنساعدك في الانتقال</li>
+            <li>عند انتهاء التجربة اختر خطة أو اتركها تنتهي. لا يُخصم أي مبلغ تلقائياً.</li>
+          </ul>
+        </div>
+        <div class="form-card reveal">
+          <form class="form" id="trialForm" novalidate>
+            <label>اسم المكان<input required name="venueName" id="venueName" minlength="2" maxlength="120" autocomplete="organization" /></label>
+            <label>عنوان مكانك على ArenaOS<div class="slug" dir="ltr"><span>arenaos/</span><input required name="slug" id="slug" pattern="[a-z0-9][a-z0-9-]{1,38}[a-z0-9]" maxlength="40" autocapitalize="off" spellcheck="false" /></div></label>
+            <div class="row">
+              <label>الدولة<select name="countryCode"><option value="AE">الإمارات العربية المتحدة</option><option value="SA">المملكة العربية السعودية</option><option value="QA">قطر</option><option value="KW">الكويت</option><option value="BH">البحرين</option><option value="OM">عُمان</option><option value="IN">الهند</option><option value="GB">المملكة المتحدة</option><option value="US">الولايات المتحدة</option></select></label>
+              <label>نوع المكان<select name="venueType"><option value="Gaming café">مقهى ألعاب</option><option value="Esports arena">ساحة رياضات إلكترونية</option><option value="Internet café">مقهى إنترنت</option><option value="Console / VR centre">مركز كونسول / واقع افتراضي</option><option value="Gaming restaurant">مطعم ألعاب</option></select></label>
+            </div>
+            <div class="row"><label>اسمك<input required name="ownerName" minlength="2" autocomplete="name" /></label><label>الهاتف (اختياري)<input name="phone" type="tel" autocomplete="tel" /></label></div>
+            <div class="row"><label>البريد الإلكتروني للعمل<input required type="email" name="email" autocomplete="email" /></label><label>كلمة المرور (10 أحرف أو أكثر)<input required type="password" name="password" minlength="10" autocomplete="new-password" /></label></div>
+            <label class="hp" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off" /></label>
+            <button class="btn btn-primary btn-lg" type="submit">ابدأ تجربتي المجانية <span data-icon="arrow" data-size="16"></span></button>
+            <p style="color:var(--ink-3);font-size:13px;margin:0">ببدء التجربة توافق على أن نتواصل معك بشأن حسابك. تفضّل بداية بمساعدتنا؟ <a href="contact.html?call">احجز مكالمة</a>.</p>
+          </form>
+          <div class="done" id="done" hidden>
+            <span class="eyebrow">تم!</span>
+            <h2 id="doneTitle">مكانك جاهز.</h2>
+            <ol>
+              <li>سجّل الدخول بالبريد وكلمة المرور التي اخترتها.</li>
+              <li>فعّل التحقق بخطوتين بتطبيق مصادقة (إلزامي للمالكين).</li>
+              <li>أعد تسمية المناطق، حدّد أسعارك، ثم أضف الأجهزة من <b>Stations</b>.</li>
+            </ol>
+            <a class="btn btn-primary btn-lg" id="signin" href="#">تسجيل الدخول إلى ArenaOS <span data-icon="arrow" data-size="16"></span></a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+  <footer id="footer"></footer>
+  <script src="../assets/site.js?v=7"></script>
+  <script src="../assets/forms.js?v=1"></script>
+  <script>
+    const name = document.getElementById("venueName");
+    const slug = document.getElementById("slug");
+    let typed = false;
+    slug.addEventListener("input", () => (typed = true));
+    name.addEventListener("input", () => {
+      if (!typed) slug.value = name.value.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+    });
+    const form = document.getElementById("trialForm");
+    arenaForm(form, "/v1/public/trial", async (data) => {
+      const { adminUrl } = await fetch("/config.json").then((r) => r.json()).catch(() => ({ adminUrl: "/" }));
+      form.hidden = true;
+      document.getElementById("doneTitle").textContent = `${data.organization.displayName} جاهز.`;
+      document.getElementById("signin").href = `${adminUrl}/login`;
+      document.getElementById("done").hidden = false;
+    });
+  </script>
+</body>
+</html>

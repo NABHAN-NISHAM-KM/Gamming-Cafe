@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en" data-page="signup">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Start a free trial — ArenaOS</title>
+  <meta name="description" content="Open your venue on ArenaOS in two minutes: 14 days free, every Pro feature, a starter branch and rate card ready to edit. No card needed." />
+  <link rel="canonical" href="%SITE%/signup.html" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="ArenaOS" />
+  <meta property="og:title" content="Start a free trial — ArenaOS" />
+  <meta property="og:description" content="Open your venue on ArenaOS in two minutes: 14 days free, every Pro feature, a starter branch and rate card ready to edit. No card needed." />
+  <meta property="og:url" content="%SITE%/signup.html" />
+  <meta property="og:image" content="%SITE%/assets/og.png" />
+  <meta property="og:locale" content="en_US" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Start a free trial — ArenaOS" />
+  <meta name="twitter:description" content="Open your venue on ArenaOS in two minutes: 14 days free, every Pro feature, a starter branch and rate card ready to edit. No card needed." />
+  <meta name="twitter:image" content="%SITE%/assets/og.png" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%226%22 fill=%22%237c5cff%22/%3E%3Ctext x=%2216%22 y=%2223%22 font-size=%2220%22 font-family=%22Arial%22 font-weight=%22900%22 text-anchor=%22middle%22 fill=%22white%22%3EA%3C/text%3E%3C/svg%3E" />
+  <link rel="alternate" hreflang="en" href="%SITE%/signup.html" />
+  <link rel="alternate" hreflang="ar" href="%SITE%/ar/signup.html" />
+  <link rel="alternate" hreflang="x-default" href="%SITE%/signup.html" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/site.css?v=7" />
+  <style>
+    .slug { display: flex; align-items: stretch; }
+    .slug span { display: flex; align-items: center; padding: 0 10px; border: 1px solid var(--line-2); border-right: 0; color: var(--ink-3); font: 13px var(--mono); text-transform: none; letter-spacing: 0; }
+    .slug input { flex: 1; min-width: 0; }
+    .done h2 { font-size: clamp(36px, 4vw, 56px); margin: 0 0 12px; }
+    .done ol { color: var(--ink-2); padding-left: 20px; line-height: 1.8; }
+  </style>
+</head>
+<body>
+  <header id="nav"></header>
+  <main>
+    <section class="hero" data-scroll style="border-bottom:0">
+      <div class="hero-grid"></div>
+      <div class="wrap split" style="align-items:start">
+        <div>
+          <span class="eyebrow">Free for 14 days · no card</span>
+          <h1 data-split style="font-size:clamp(52px,7vw,112px)!important">Open your venue today.</h1>
+          <p class="lead">Your own ArenaOS, ready in a minute — with a starter branch, two PC zones and a rate card you can change.</p>
+          <ul class="checks">
+            <li>Every Pro feature: Live Floor, sessions, POS, restaurant, loyalty, tournaments</li>
+            <li>Connect real PCs with the Station installer, or explore without any</li>
+            <li>Your data stays yours — export any time; we'll help you move in</li>
+            <li>When the trial ends, pick a plan or let it lapse. Nothing is charged automatically.</li>
+          </ul>
+        </div>
+        <div class="form-card reveal">
+          <form class="form" id="trialForm" novalidate>
+            <label>Venue name<input required name="venueName" id="venueName" minlength="2" maxlength="120" autocomplete="organization" /></label>
+            <label>Your venue's address on ArenaOS<div class="slug"><span>arenaos/</span><input required name="slug" id="slug" pattern="[a-z0-9][a-z0-9-]{1,38}[a-z0-9]" maxlength="40" autocapitalize="off" spellcheck="false" /></div></label>
+            <div class="row">
+              <label>Country<select name="countryCode"><option value="AE">United Arab Emirates</option><option value="SA">Saudi Arabia</option><option value="QA">Qatar</option><option value="KW">Kuwait</option><option value="BH">Bahrain</option><option value="OM">Oman</option><option value="IN">India</option><option value="GB">United Kingdom</option><option value="US">United States</option></select></label>
+              <label>Venue type<select name="venueType"><option>Gaming café</option><option>Esports arena</option><option>Internet café</option><option>Console / VR centre</option><option>Gaming restaurant</option></select></label>
+            </div>
+            <div class="row"><label>Your name<input required name="ownerName" minlength="2" autocomplete="name" /></label><label>Phone (optional)<input name="phone" type="tel" autocomplete="tel" /></label></div>
+            <div class="row"><label>Work email<input required type="email" name="email" autocomplete="email" /></label><label>Password (10+ characters)<input required type="password" name="password" minlength="10" autocomplete="new-password" /></label></div>
+            <label class="hp" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off" /></label>
+            <button class="btn btn-primary btn-lg" type="submit">Start my free trial <span data-icon="arrow" data-size="16"></span></button>
+            <p style="color:var(--ink-3);font-size:13px;margin:0">By starting a trial you agree to be contacted about your account. Prefer a guided start? <a href="contact.html?call">Book a call</a>.</p>
+          </form>
+          <div class="done" id="done" hidden>
+            <span class="eyebrow">You're in</span>
+            <h2 id="doneTitle">Your venue is ready.</h2>
+            <ol>
+              <li>Sign in with the email and password you just chose.</li>
+              <li>Set up 2-step sign-in with an authenticator app (owners always use it).</li>
+              <li>Rename the starter zones, set your prices, then add PCs from <b>Stations</b>.</li>
+            </ol>
+            <a class="btn btn-primary btn-lg" id="signin" href="#">Sign in to ArenaOS <span data-icon="arrow" data-size="16"></span></a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+  <footer id="footer"></footer>
+  <script src="assets/site.js?v=7"></script>
+  <script src="assets/forms.js?v=1"></script>
+  <script>
+    const name = document.getElementById("venueName");
+    const slug = document.getElementById("slug");
+    let typed = false;
+    slug.addEventListener("input", () => (typed = true));
+    name.addEventListener("input", () => {
+      if (!typed) slug.value = name.value.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+    });
+    const form = document.getElementById("trialForm");
+    arenaForm(form, "/v1/public/trial", async (data) => {
+      const { adminUrl } = await fetch("/config.json").then((r) => r.json()).catch(() => ({ adminUrl: "/" }));
+      form.hidden = true;
+      document.getElementById("doneTitle").textContent = `${data.organization.displayName} is ready.`;
+      document.getElementById("signin").href = `${adminUrl}/login`;
+      document.getElementById("done").hidden = false;
+    });
+  </script>
+</body>
+</html>

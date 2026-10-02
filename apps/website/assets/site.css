@@ -494,3 +494,13 @@ table.t tr:last-child td { border-bottom: 0; }
   .tilt, .panel, .shot-wrap, .devices, .cta-band h2, .wordmark { transform: none !important; }
   .btn, .btn svg { transition: none; }
 }
+.err-msg:empty { display: none; }
+.err-msg { padding: 12px 0; border-top: 2px solid #f87171; color: #fecaca; }
+.form [aria-invalid="true"] { border-color: #f87171; }
+.hp { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+/* Arabic (RTL) pages under /ar/ */
+[dir="rtl"] body { font-family: "Noto Kufi Arabic", var(--font); }
+[dir="rtl"] .checks li { padding: 14px 34px 14px 0; }
+[dir="rtl"] .checks li::before { left: auto; right: 0; content: "←"; }
+[dir="rtl"] h1, [dir="rtl"] h2, [dir="rtl"] h3 { font-family: "Noto Kufi Arabic", var(--font); font-weight: 800; letter-spacing: 0; line-height: 1.2; }
+[dir="rtl"] [data-icon="arrow"] svg { transform: scaleX(-1); }

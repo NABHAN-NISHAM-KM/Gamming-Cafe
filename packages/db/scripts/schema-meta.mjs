@@ -24,6 +24,7 @@ export const RLS_EXEMPT = {
   Permission: "platform permission catalog (read-only to tenants via GRANT)",
   RolePermission: "scoped through Role via EXISTS policy (see 010_rls.sql)",
   AuditChainHead: "maintained only by SECURITY DEFINER audit trigger",
+  Lead: "platform sales pipeline from the website; platform service only (revoked from the tenant API)",
 };
 
 export function loadSchemaText(dir = SCHEMA_DIR) {

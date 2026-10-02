@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import QRCode from "qrcode";
-import { Check, CheckCircle2, Copy, KeyRound, Smartphone, Store } from "lucide-react";
+import { Check, CheckCircle2, Copy, Globe, KeyRound, Smartphone, Store } from "lucide-react";
 import { api } from "@/lib/client/api";
-import { useAction } from "@/lib/client/hooks";
-import { useMe } from "@/lib/client/me";
+import { useAction, useApi } from "@/lib/client/hooks";
+import { useCanOrg, useMe } from "@/lib/client/me";
 import { Badge, Button, Card, ErrorNote, Field, Input, PageHeader, PasswordInput, toast } from "@/components/ui";
 import { ShellLook } from "@/components/shell-look";
 
@@ -49,6 +49,7 @@ export default function SettingsPage() {
           </div>
         </div>
       </Card>
+      <PublicPage />
       <ShellLook />
       <ChangePassword />
       <CounterPin />
@@ -200,6 +201,38 @@ function CounterPin() {
             <Button type="submit" variant="primary" pending={save.pending} disabled={pin.length < 4 || !password}>Save PIN</Button>
           </div>
         </form>
+      </div>
+    </Card>
+  );
+}
+
+/** The venue's page on the ArenaOS website (/v/<code>): hours, free stations, prices, tournaments. Never who is playing. */
+function PublicPage() {
+  const me = useMe();
+  const canOrg = useCanOrg();
+  const { data: org, setData } = useApi<{ settings: Record<string, unknown> | null }>("/organization");
+  const on = !!org?.settings?.["publicPage"];
+  const toggle = useAction(async () => {
+    // PATCH replaces the whole settings object, so send the rest of it back unchanged.
+    const saved = await api<{ settings: Record<string, unknown> | null }>("/organization", { method: "PATCH", body: { settings: { ...(org?.settings ?? {}), publicPage: !on } } });
+    setData(saved);
+    toast(!on ? "Your venue page is live" : "Your venue page is hidden");
+  });
+  if (!org) return null;
+  return (
+    <Card className="mb-4 max-w-2xl p-6">
+      <div className="flex items-start gap-3">
+        <Globe className="mt-0.5 size-5 text-accent" />
+        <div className="flex-1">
+          <h2 className="flex items-center gap-2 font-semibold">Public venue page {on ? <Badge tone="ok">Live</Badge> : <Badge>Hidden</Badge>}</h2>
+          <p className="mt-1 text-sm text-ink-2">A page on the ArenaOS website at <span className="font-mono">/v/{me.organization.slug}</span> showing your opening hours, how many stations are free right now, your prices and upcoming public tournaments — with a link to your app. It never shows who is playing.</p>
+          <ErrorNote>{toggle.error}</ErrorNote>
+          {canOrg("org.manage") ? (
+            <Button className="mt-4" variant={on ? "secondary" : "primary"} onClick={() => void toggle.run()} disabled={toggle.pending}>{on ? "Hide the page" : "Publish the page"}</Button>
+          ) : (
+            <p className="mt-3 text-sm text-ink-3">Only someone who can manage the organization can change this.</p>
+          )}
+        </div>
       </div>
     </Card>
   );

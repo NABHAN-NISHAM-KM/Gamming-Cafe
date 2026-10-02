@@ -8,6 +8,7 @@ import { PlatformAuthController } from "./auth.controller.js";
 import { PlatformAuthService } from "./auth.service.js";
 import { PlatformGuard, PlatformPublic } from "./guard.js";
 import { PlatformTokens } from "./tokens.js";
+import { PlatformPublicController } from "./public.controller.js";
 
 @Controller()
 class HealthController {
@@ -31,7 +32,7 @@ export class PlatformModule {
   static forRoot(config: PlatformConfig): DynamicModule {
     return {
       module: PlatformModule,
-      controllers: [HealthController, PlatformAuthController, PlatformAdminController],
+      controllers: [HealthController, PlatformAuthController, PlatformAdminController, PlatformPublicController],
       providers: [
         { provide: PLATFORM_CONFIG, useValue: config },
         { provide: PDB, useFactory: () => createPlatformClient(config.PLATFORM_DATABASE_URL) },

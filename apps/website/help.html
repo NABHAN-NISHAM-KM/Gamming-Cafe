@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en" data-page="help">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Help centre — ArenaOS</title>
+  <meta name="description" content="Search the ArenaOS help centre: stations, sessions, the Gaming Shell, customers, POS, kitchen, inventory, loyalty, tournaments, reports and the Super Admin." />
+  <link rel="canonical" href="%SITE%/help.html" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="ArenaOS" />
+  <meta property="og:title" content="Help centre — ArenaOS" />
+  <meta property="og:description" content="Search the ArenaOS help centre: stations, sessions, the Gaming Shell, customers, POS, kitchen, inventory, loyalty, tournaments, reports and the Super Admin." />
+  <meta property="og:url" content="%SITE%/help.html" />
+  <meta property="og:image" content="%SITE%/assets/og.png" />
+  <meta property="og:locale" content="en_US" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Help centre — ArenaOS" />
+  <meta name="twitter:description" content="Search the ArenaOS help centre: stations, sessions, the Gaming Shell, customers, POS, kitchen, inventory, loyalty, tournaments, reports and the Super Admin." />
+  <meta name="twitter:image" content="%SITE%/assets/og.png" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%226%22 fill=%22%237c5cff%22/%3E%3Ctext x=%2216%22 y=%2223%22 font-size=%2220%22 font-family=%22Arial%22 font-weight=%22900%22 text-anchor=%22middle%22 fill=%22white%22%3EA%3C/text%3E%3C/svg%3E" />
+  <script type="application/ld+json">{"@context": "https://schema.org", "@type": "WebSite", "name": "ArenaOS", "url": "%SITE%/", "potentialAction": {"@type": "SearchAction", "target": "%SITE%/help.html?q={query}", "query-input": "required name=query"}}</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/site.css?v=7" />
+  <style>
+    .help { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 48px; padding-bottom: 96px; }
+    .help aside { position: sticky; top: 90px; align-self: start; max-height: calc(100vh - 110px); overflow: auto; font-size: 14px; }
+    .help aside h4 { font: 500 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); margin: 18px 0 6px; }
+    .help aside a { display: block; color: var(--ink-2); padding: 3px 0; }
+    .help aside a.on, .help aside a:hover { color: var(--accent); }
+    .search { width: 100%; background: var(--panel); border: 1px solid var(--line-2); color: var(--ink); padding: 16px 18px; font-size: 18px; margin-top: 24px; }
+    .search:focus { outline: none; border-color: var(--accent); }
+    .hit { display: block; padding: 18px 0; border-bottom: 1px solid var(--line); color: var(--ink-2); }
+    .hit b { color: var(--ink); display: block; font-size: 18px; }
+    .hit small { font: 12px var(--mono); color: var(--ink-3); }
+    .hit mark { background: none; color: var(--accent); }
+    article.doc h2 { font-size: clamp(32px, 4vw, 52px); margin: 6px 0 20px; }
+    article.doc table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 14px; }
+    article.doc td { border-bottom: 1px solid var(--line); padding: 8px 10px 8px 0; vertical-align: top; color: var(--ink-2); }
+    article.doc p, article.doc li { color: var(--ink-2); line-height: 1.7; }
+    article.doc blockquote { border-left: 2px solid var(--accent); margin: 16px 0; padding: 4px 16px; color: var(--ink-2); }
+    .pager { display: flex; justify-content: space-between; gap: 16px; margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--line); }
+    .pager a { color: var(--accent); }
+    @media (max-width: 900px) { .help { grid-template-columns: 1fr; } .help aside { position: static; max-height: none; } }
+  </style>
+</head>
+<body>
+  <header id="nav"></header>
+  <main>
+    <section class="hero" style="border-bottom:0;padding-bottom:16px">
+      <div class="hero-grid"></div>
+      <div class="wrap">
+        <span class="eyebrow">Help centre</span>
+        <h1 style="font-size:clamp(48px,6vw,96px)!important;margin:8px 0 0">How can we help?</h1>
+        <input class="search" id="q" type="search" placeholder="Search — e.g. happy hour, refund, enrol a PC, kitchen display" aria-label="Search the help centre" autocomplete="off" />
+      </div>
+    </section>
+    <div class="wrap help">
+      <aside id="toc" aria-label="Topics"></aside>
+      <div id="view" aria-live="polite"></div>
+    </div>
+  </main>
+  <footer id="footer"></footer>
+  <script src="assets/site.js?v=7"></script>
+  <script>
+    let A = [];
+    const view = document.getElementById("view");
+    const q = document.getElementById("q");
+    const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+
+    function toc(active) {
+      const byDoc = new Map();
+      for (const a of A) (byDoc.get(a.doc) ?? byDoc.set(a.doc, []).get(a.doc)).push(a);
+      document.getElementById("toc").innerHTML = [...byDoc].map(([doc, list]) =>
+        `<h4>${esc(doc)}</h4>${list.map((a) => `<a href="#${a.id}" class="${a.id === active ? "on" : ""}">${esc(a.title)}</a>`).join("")}`).join("");
+    }
+
+    function show(id) {
+      const i = A.findIndex((a) => a.id === id);
+      const a = A[i] ?? A[0];
+      toc(a.id);
+      const prev = A[i - 1], next = A[i + 1];
+      view.innerHTML = `<article class="doc"><span class="eyebrow">${esc(a.doc)}</span><h2>${esc(a.title)}</h2>${a.html}
+        <div class="pager">${prev ? `<a href="#${prev.id}">← ${esc(prev.title)}</a>` : "<span></span>"}${next ? `<a href="#${next.id}">${esc(next.title)} →</a>` : ""}</div></article>`;
+    }
+
+    function search(text) {
+      const words = text.toLowerCase().split(/\s+/).filter((w) => w.length > 1);
+      if (!words.length) return show(location.hash.slice(1));
+      const scored = A.map((a) => {
+        const t = a.title.toLowerCase(), b = a.text.toLowerCase();
+        let s = 0;
+        for (const w of words) {
+          if (!t.includes(w) && !b.includes(w)) return { a, s: 0 };
+          s += (t.includes(w) ? 10 : 0) + Math.min(5, b.split(w).length - 1);
+        }
+        return { a, s };
+      }).filter((x) => x.s).sort((x, y) => y.s - x.s).slice(0, 25);
+      const re = new RegExp(`(${words.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})`, "gi");
+      const snippet = (b) => {
+        const at = Math.max(0, b.toLowerCase().indexOf(words[0]) - 60);
+        return esc((at ? "…" : "") + b.slice(at, at + 200) + "…").replace(re, "<mark>$1</mark>");
+      };
+      view.innerHTML = scored.length
+        ? `<p class="dim">${scored.length} result${scored.length === 1 ? "" : "s"}</p>` + scored.map(({ a }) => `<a class="hit" href="#${a.id}"><small>${esc(a.doc)}</small><b>${esc(a.title).replace(re, "<mark>$1</mark>")}</b>${snippet(a.text)}</a>`).join("")
+        : `<p class="dim">Nothing found. Try fewer words, or <a href="contact.html" style="color:var(--accent)">ask us</a>.</p>`;
+    }
+
+    fetch("assets/help.json").then((r) => r.json()).then((data) => {
+      A = data;
+      const initial = new URLSearchParams(location.search).get("q");
+      if (initial) { q.value = initial; search(initial); } else show(location.hash.slice(1));
+    });
+    q.addEventListener("input", () => search(q.value));
+    addEventListener("hashchange", () => { q.value = ""; show(location.hash.slice(1)); scrollTo({ top: 0 }); });
+  </script>
+</body>
+</html>

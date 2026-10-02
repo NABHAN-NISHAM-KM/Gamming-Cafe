@@ -7,6 +7,7 @@ import { staffBackend } from "./staff";
 import { platformBackend } from "./platform";
 import { customerBackend, DEMO_CUSTOMERS } from "./customer";
 import { createShellLink, type ShellLink } from "./shell";
+import { installTour } from "./tour";
 
 export const DEMO_PASSWORD = "ArenaDemo!2026";
 export const DEMO_STAFF = ["owner@demo.test", "manager@demo.test", "cashier@demo.test", "tech@demo.test", "waiter@demo.test", "kitchen@demo.test", "inventory@demo.test"];
@@ -348,5 +349,6 @@ export async function installDemo(app: "admin" | "customer" | "shell"): Promise<
     },
   };
   window.__ARENA_DEMO__ = handle;
+  installTour(app);
   return handle;
 }

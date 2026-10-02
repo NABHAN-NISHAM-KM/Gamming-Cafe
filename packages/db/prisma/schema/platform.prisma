@@ -209,3 +209,46 @@ model ImpersonationSession {
 
   @@index([organizationId])
 }
+
+// ── Sales pipeline (marketing website) ──
+
+enum LeadKind {
+  CONTACT // "Request a walkthrough"
+  DEMO // booked a call slot
+  TRIAL // signed up for a trial venue
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  WON
+  LOST
+}
+
+/// Someone who reached out on the website. Platform-level: never visible to venues.
+model Lead {
+  id         String     @id @default(uuid(7)) @db.Uuid
+  kind       LeadKind
+  status     LeadStatus @default(NEW)
+  name       String
+  email      String
+  phone      String?
+  venue      String?
+  country    String?
+  venueType  String?
+  plan       String?
+  branches   Int?
+  stations   Int?
+  notes      String?
+  /// DEMO: the call's start (30 minutes, UTC)
+  demoAt     DateTime?  @db.Timestamptz(3)
+  /// TRIAL: the venue that was created
+  trialOrgId String?    @db.Uuid
+  source     String? // page or campaign it came from
+  ip         String?
+  createdAt  DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime   @updatedAt @db.Timestamptz(3)
+
+  @@index([status, createdAt])
+  @@index([kind, demoAt])
+}
