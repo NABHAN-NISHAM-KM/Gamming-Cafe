@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
+import { t } from "./i18n";
 
 /**
  * Themed replacement for window.confirm(): `if (!(await askConfirm("…"))) return;`
@@ -15,7 +16,7 @@ export function askConfirm(message: string, labels: { ok?: string; cancel?: stri
       root.unmount();
       host.remove();
     };
-    root.render(<Confirm message={message} ok={labels.ok ?? "Yes"} cancel={labels.cancel ?? "Cancel"} onDone={done} />);
+    root.render(<Confirm message={message} ok={labels.ok ?? t("Yes")} cancel={labels.cancel ?? t("Cancel")} onDone={done} />);
   });
 }
 

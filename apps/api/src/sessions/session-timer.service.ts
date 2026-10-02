@@ -6,6 +6,7 @@ import { DeviceRuntimeService } from "../devices/device-runtime.service.js";
 import type { Connection } from "../devices/live.js";
 import { LiveBus } from "../devices/live.js";
 import { activeRestrictions, playerLimits } from "../customers/restrictions.js";
+import { PushService } from "../push/push.service.js";
 import { ageOn, ENDING_SOON_MINUTES, LIVE_STATUSES, SessionsService, WARNING_MINUTES } from "./sessions.service.js";
 
 const SYSTEM = { type: "SYSTEM" as const, id: null };
@@ -34,6 +35,7 @@ export class SessionTimerService implements OnModuleInit, OnModuleDestroy {
     @Inject(CommandsService) private readonly commands: CommandsService,
     @Inject(DeviceRuntimeService) private readonly runtime: DeviceRuntimeService,
     @Inject(LiveBus) private readonly bus: LiveBus,
+    @Inject(PushService) private readonly push: PushService,
   ) {}
 
   onModuleInit() {
@@ -68,6 +70,10 @@ export class SessionTimerService implements OnModuleInit, OnModuleDestroy {
           await this.db.withTenant({ organizationId: row.organization_id, actorType: "SYSTEM", actorId: null }, async (t) => {
             if (crossed.length) {
               await t.gamingSession.updateMany({ where: { id: row.session_id, status: { in: [...LIVE_STATUSES] } }, data: { warningsSent: { push: crossed } } });
+              if (crossed.includes(10)) {
+                const s = await t.gamingSession.findUnique({ where: { id: row.session_id }, select: { customerId: true, branchId: true, device: { select: { name: true } } } });
+                if (s?.customerId) await this.push.notify(t, { customerId: s.customerId, event: "session.ending", title: "10 minutes left", body: `Your time on ${s.device.name} is almost up. Add time from the app or the PC.`, screen: "home", dedupeKey: `session-ending:${row.session_id}`, branchId: s.branchId });
+              }
             }
             if (endingSoon) {
               const moved = await t.device.updateMany({ where: { id: row.device_id, status: "OCCUPIED" }, data: { status: "SESSION_ENDING" } });

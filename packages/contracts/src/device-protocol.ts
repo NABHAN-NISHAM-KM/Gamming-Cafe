@@ -305,6 +305,7 @@ export type DeviceToServer =
   // Phase 7 — in-seat food & drink ordering from the Shell
   | { type: "menu_request"; requestId: string }
   | { type: "place_order"; requestId: string; lines: SeatOrderLine[]; notes?: string | null; payWith: "BILL" | "WALLET" }
+  | { type: "qr_login"; requestId: string }
   // Phase 9 — internet-café printing: the agent pauses every new job and asks
   | { type: "print_job"; job: PrintJobReport }
   | { type: "print_confirm"; jobKey: string; payWith: "BILL" | "WALLET" }
@@ -347,6 +348,8 @@ export type ServerToDevice =
   | { type: "help_result"; requestId: string; ok: boolean; error?: string }
   | { type: "menu"; requestId: string; menu: SeatMenu | null; error?: string }
   | { type: "order_result"; requestId: string; ok: boolean; orderId?: string; number?: string; total?: string; currency?: string; error?: string; message?: string }
+  // "Sign in with your phone": a one-time code for this PC, shown as a QR of `url`.
+  | { type: "qr_login_code"; requestId: string; ok: boolean; code?: string; url?: string; expiresAt?: string; error?: string }
   | { type: "order_status"; orderId: string; number: string; status: "PREPARING" | "READY" | "SERVED"; message: string }
   | { type: "print_quote"; quote: PrintQuote }
   | { type: "print_status"; jobKey: string; status: "WAITING_STAFF" | "PRINTING" | "COMPLETED" | "CANCELLED" | "FAILED"; message: string }

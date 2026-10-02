@@ -106,6 +106,7 @@ See [09-sessions-and-shell](09-sessions-and-shell.md). Money is returned as deci
 | GET | /customers/export?…same filters…&consented=1 | customer.export (sensitive) → CSV, up to 10,000 rows |
 | POST / PATCH | /customers · /customers/:customerId | customer.create / customer.edit |
 | POST | /customers/:customerId/credentials | customer.reset_password |
+| POST | /customers/:customerId/reset-code | customer.reset_password → a 6-digit code for "Forgot password" in the app |
 | GET · POST | /customers/:customerId/restrictions | customer.view · customer.restrict (sensitive) |
 | POST | /customers/:customerId/restrictions/:restrictionId/lift | customer.restrict (sensitive) |
 | GET · POST · DELETE | /customers/:customerId/notes · …/notes/:noteId | customer.view · customer.edit (delete: the author only) |
@@ -141,6 +142,13 @@ See [11-customers-wallet-bookings](11-customers-wallet-bookings.md). Money payme
 **Customer app** (`/v1/app`, customer token):
 - **Public:** `GET /:slug/venue`, `POST /:slug/register`, `POST /:slug/login`.
 - **Signed in:** `/me`, `/logout`, `/wallet`, `/visits`, `/availability`, `/bookings` (list, create, `:id/cancel`), `/shop`, `/time`, `/memberships`.
+- **Self-service** (see [11](11-customers-wallet-bookings.md#self-service-customer-appself-servicecontrollerts)):
+  - Public: `POST /:slug/reset` (staff reset code + new password).
+  - Profile: `PATCH /me`, `POST /me/password`, `POST /me/pin`, `POST /me/delete`, `GET /me/stats`.
+  - Playing: `GET /menu`, `GET · POST /orders`, `GET /session/offers`, `POST /session/extend`, `GET /pc-login/:code`, `POST /pc-login`.
+  - Venue: `GET /live`, `GET /games`, `POST · DELETE /games/:gameId/favorite`.
+  - Friends & money: `GET /referrals`, `POST /gift`, `POST /wallet/topup` (demo card), `POST /bookings/:id/invite`, `GET /bookings/:id/shares`, `POST /inbox/:id/pay-share`.
+  - Other: `GET · POST /tickets`, `GET /leaderboard`, `GET /challenges`, `GET /push/key`, `POST /push/subscribe`, `POST /push/unsubscribe`.
 
 ## Accounting, reports & analytics (Phase 11)
 

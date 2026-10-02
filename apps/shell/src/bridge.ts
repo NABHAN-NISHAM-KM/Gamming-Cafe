@@ -132,6 +132,7 @@ export type HostMessage =
   | { type: "volume"; level: number; muted: boolean }
   | ({ type: "time_offers" } & TimeOffers)
   | ({ type: "buy_time_result" } & RequestResult)
+  | ({ type: "qr_login_code"; code?: string; url?: string; expiresAt?: string } & RequestResult)
   | { type: "screenshot_taken" }
   | { type: "screenshot_result"; id?: string; ok: boolean; message?: string }
   | { type: "shell_mode"; mode: ShellMode }
@@ -179,6 +180,7 @@ export type ShellMessage =
   | { type: "volume_get" }
   | { type: "volume_set"; level?: number; muted?: boolean }
   | { type: "time_offers"; requestId: string }
+  | { type: "qr_login"; requestId: string }
   | { type: "screenshot" }
   | { type: "buy_time"; requestId: string; packageId?: string; savedMinutes?: 30 | 60 | 120 };
 
@@ -485,6 +487,9 @@ function mockBridge(): Bridge {
             ],
           }), 300);
           break;
+        case "qr_login":
+          setTimeout(() => emit({ type: "qr_login_code", requestId: m.requestId, ok: true, code: "DEMO7K2Q9P", url: "https://arena.example/demo?pc=DEMO7K2Q9P", expiresAt: new Date(Date.now() + 180_000).toISOString() }), 200);
+          break;
         case "buy_time": {
           const add = (m.savedMinutes ?? (m.packageId?.endsWith("a2") ? 195 : 60)) * 60_000;
           setTimeout(() => {
@@ -554,7 +559,7 @@ function mockBridge(): Bridge {
 export const bridge: Bridge = window.chrome?.webview ? webviewBridge() : mockBridge();
 
 /** Sends a request and resolves with the matching *_result (or a timeout failure). */
-export function request(m: Extract<ShellMessage, { requestId: string }>, resultType: "launch_result" | "help_result" | "repair_result" | "login_result" | "order_result" | "time_offers" | "buy_time_result", timeoutMs = 15_000): Promise<RequestResult & Record<string, any>> {
+export function request(m: Extract<ShellMessage, { requestId: string }>, resultType: "launch_result" | "help_result" | "repair_result" | "login_result" | "order_result" | "time_offers" | "buy_time_result" | "qr_login_code", timeoutMs = 15_000): Promise<RequestResult & Record<string, any>> {
   return new Promise((resolve) => {
     const t = setTimeout(() => {
       off();

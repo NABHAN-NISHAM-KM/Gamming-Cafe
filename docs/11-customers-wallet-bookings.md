@@ -217,13 +217,70 @@ Retrying is safe: every transfer has its own idempotency key.
   (manifest + a service worker that caches only the app shell, never API data).
 - **Venue link:** the first path segment, e.g. `https://…/demo`.
 - **Screens:**
-  - **Home:** wallet, prepaid time, membership, "playing now", next booking.
+  - **Home:** wallet, prepaid time, membership, next booking, free stations
+    right now per zone, and tiles for Tournaments, Inbox, Games, Friends,
+    Wallet, Screenshots, My stats and Help. While playing: **Add time** and
+    **Order food**.
   - **Book:** zone, day, time, duration and players; live free count.
-  - **My bookings** (cancel), **Shop** (time packages and memberships paid from
-    the wallet), **Wallet** history, **Me**.
+  - **My bookings** (cancel, split with friends), **Shop** (time packages and
+    memberships paid from the wallet), **Wallet** (history, top up, send a
+    gift), **Rewards** (points, rewards, challenges, leaderboard), **Me**.
 - **Sign up:** username, password (8+), optional phone and date of birth. The
   date of birth is used for game age ratings on the PCs. The same login works
   at every PC.
+- **Languages:** English and Arabic (right-to-left) for every screen. Strings
+  are written in English in the code (`t("…")`) and looked up in
+  `src/i18n-ar.ts`. The choice is saved on the account (`Customer.locale`).
+
+### Self-service (`customer-app/self-service.controller.ts`)
+
+| Feature | How it works |
+|---|---|
+| Profile | Name, phone, email, language, marketing consent. Date of birth can be set **once** (it unlocks age-rated games); after that staff correct it (`dob_locked`). A phone/email used by another account is refused. |
+| Password & PIN | Both need the current password (6 tries / 15 min). A new password signs out every other phone. |
+| Forgot password | No SMS/e-mail provider yet, so staff press **Give a reset code** (Customers → Password / PIN): a 6-digit code, one use, 30 minutes. The player types it in **Forgot password?** with a new password. |
+| Delete my account | Needs the password; same rules and effect as staff **Erase** (wallet empty, nothing booked, running or unpaid). |
+| Order food | Only while playing: the menu of the PC's branch (`shellOnly`), delivered to that PC, on the session's bill or paid from the wallet. Recent orders show their kitchen status. |
+| Add time | The same offers and extension as the Shell's "Add time": a package of the session's rate (wallet) or saved minutes. Sessions started from saved time have no packages. |
+| Live status | Stations per zone and how many are AVAILABLE right now — counts only. |
+| Games | The venue's enabled games, how many PCs at the branch have each installed, and the player's favourites (starred ones first). |
+| Friends | Invite code with a Share button, the friends who joined (first names only), points earned from them. |
+| Help | A support ticket to staff (branch: where they're playing, else their home branch). Staff see it in the customer's Tickets tab. |
+| My stats | Hours, visits, spend, favourite PC, hours per month for 6 months. |
+| Gifts | Wallet money (up to 500 per gift) or play time (15–600 min) to another player by username, as ledger transfers. Bonus credit can't be given. The friend gets an inbox message and a push. |
+| Top up | The demo card only (`demoPayments`), 5–2000 per top-up, into the home branch. Off in production until a payment gateway is connected. |
+| Leaderboard | Hours played this month. Only players who opted in are listed (first names); everyone sees their own place. |
+| Challenges | Milestones set by the owner (see [15](15-loyalty-promotions-tournaments-crm.md)), with progress bars. |
+| Split a booking | The booker invites friends by username; each gets an inbox message with **Pay my share** (the booking's estimate divided by everyone), paid from their wallet into the booker's. The booker sees who paid. |
+
+### Signing in at a PC with the phone
+
+1. The Shell's sign-in screen shows a QR code. The agent asks the API for a
+   one-time code (`qr_login`); the QR is `CUSTOMER_APP_URL/<venue>?pc=<code>`.
+   Codes last 3 minutes, are single use, and the Shell fetches a new one
+   before the old one runs out.
+2. The phone's camera opens the app on that link (signing in first if needed);
+   the app asks "Sign in on PC-07?".
+3. `POST /app/pc-login` starts a saved-time session on that PC, exactly like
+   typing the password there; the PC unlocks when `START_SESSION` arrives.
+
+ponytail: the codes are kept in the API's memory (one API node per venue);
+with several nodes they move to Redis.
+
+### Push notifications
+
+- **Which:** 10 minutes left, food ready, booking starting within 30 minutes,
+  new inbox messages (IN_APP and PUSH campaigns), gifts, a friend paying their
+  share, a challenge completed.
+- **How:** Web Push with VAPID keys (`VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY`,
+  made by `npm run keys -w @arena/api`; without them push is off). Players turn
+  it on under **Me → Profile & settings → Notifications**. Tapping a
+  notification opens the matching screen.
+- **Never twice:** each push is a `Notification` row (channel PUSH) with a
+  unique dedupe key, so a retried sweep doesn't buzz a phone again. Expired
+  subscriptions are removed when the push service says so.
+- **Android app:** the APK's web view has no web push; it shows "Not available
+  on this device".
 
 ### Booking flow and "Pay now"
 
@@ -319,6 +376,27 @@ Demo: `ahmed` / `ahmed123` has AED 150 + 20 bonus in the wallet and 2 h of prepa
 
 The agent side (`clients/windows/tests`): a blocked game is refused by
 `LaunchPolicy`, and `blockedGameIds` is read from `START_SESSION`.
+
+## Tests — `apps/api/test/customer-app-self.e2e.test.ts` (6)
+
+- **Profile:** fields save; birth date only once; a taken phone is refused; a
+  password change signs out other phones; PIN set; a staff reset code works
+  once and ends every session.
+- **PC by QR:** a simulated PC gets a code; the phone previews and redeems it,
+  the PC receives `START_SESSION`, and the code can't be reused. Then adding a
+  package and ordering food from the phone; a player who isn't playing can't
+  order.
+- **Live, games, help, stats, friends:** counts per zone; favourite on/off; a
+  ticket reaches the staff view; a friend who signs up with the code is listed.
+- **Gifts, top-up, challenges, leaderboard:** no gifts to yourself or over the
+  cap; a retried gift moves money once; demo top-up; a "1 visit" challenge pays
+  its points after a session; players who didn't opt in aren't listed.
+- **Split:** the friend pays their share once, into the booker's wallet; the
+  booker sees it paid; others can't read the shares.
+- **Push & delete:** subscribe/unsubscribe; deleting needs the password and an
+  empty wallet, then sign-in fails and the account shows as erased.
+
+The agent side: `qr_login` from the Shell is parsed and relayed.
 
 **Debugging tip:** `TEST_LOGS=1 npm test -w @arena/api` prints server errors
 during e2e tests (they're silent by default).

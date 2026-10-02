@@ -90,6 +90,7 @@ model PushSubscription {
 
   @@unique([platform, token])
   @@index([organizationId])
+  @@index([customerId])
 }
 
 // ── Audit ──

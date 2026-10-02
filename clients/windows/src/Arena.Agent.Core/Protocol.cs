@@ -117,6 +117,8 @@ public static class Outgoing
 
     public static string TimeOffers(string requestId) => JsonSerializer.Serialize(new { type = "time_offers", requestId }, Json.Options);
 
+    public static string QrLogin(string requestId) => JsonSerializer.Serialize(new { type = "qr_login", requestId }, Json.Options);
+
     public static string BuyTime(string requestId, string? packageId, int? savedMinutes) =>
         JsonSerializer.Serialize(new { type = "buy_time", requestId, packageId, savedMinutes }, Json.Options);
 

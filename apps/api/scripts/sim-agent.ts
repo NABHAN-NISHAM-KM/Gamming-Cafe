@@ -181,6 +181,11 @@ export class SimAgent {
     return this.seat({ type: "place_order", lines, payWith, notes });
   }
 
+  /** The Shell's "sign in with your phone" QR: a one-time code for this PC. */
+  qrCode(): Promise<any> {
+    return this.seat({ type: "qr_login" });
+  }
+
   /** The spooler caught a new job: the agent paused it and reports it. */
   print(job: { jobKey?: string; printerName?: string; document?: string | null; pages: number; copies?: number; color?: boolean }) {
     const jobKey = job.jobKey ?? `${Math.floor(Math.random() * 1e6)}:${Date.now()}`;
@@ -231,7 +236,7 @@ export class SimAgent {
       this.pendingShell.delete(msg.requestId);
       return;
     }
-    if (msg.type === "menu" || msg.type === "order_result") {
+    if (msg.type === "menu" || msg.type === "order_result" || msg.type === "qr_login_code") {
       this.pendingSeat.get(msg.requestId)?.(msg);
       this.pendingSeat.delete(msg.requestId);
       return;

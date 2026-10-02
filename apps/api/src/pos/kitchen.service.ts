@@ -3,6 +3,7 @@ import type { TenantTx } from "@arena/db";
 import { auditAs } from "../common/audit.service.js";
 import { DeviceHub, LiveBus } from "../devices/live.js";
 import { requestStore } from "../common/request-state.js";
+import { PushService } from "../push/push.service.js";
 
 type TicketStatus = "NEW" | "ACCEPTED" | "PREPARING" | "READY" | "SERVED";
 const NEXT: Record<string, TicketStatus[]> = { NEW: ["ACCEPTED", "PREPARING"], ACCEPTED: ["PREPARING"], PREPARING: ["READY"], READY: ["SERVED"] };
@@ -20,6 +21,7 @@ export class KitchenService {
   constructor(
     @Inject(LiveBus) private readonly bus: LiveBus,
     @Inject(DeviceHub) private readonly hub: DeviceHub,
+    @Inject(PushService) private readonly push: PushService,
   ) {}
 
   async board(t: TenantTx, branchId: string, stationId?: string | null) {
@@ -48,7 +50,7 @@ export class KitchenService {
   }
 
   async bump(t: TenantTx, ticketId: string, to: TicketStatus, actor: { type: "EMPLOYEE"; id: string }) {
-    const tk = await t.kitchenTicket.findUnique({ where: { id: ticketId }, include: { order: { select: { id: true, number: true, deviceId: true, organizationId: true, branchId: true, status: true } } } });
+    const tk = await t.kitchenTicket.findUnique({ where: { id: ticketId }, include: { order: { select: { id: true, number: true, deviceId: true, organizationId: true, branchId: true, status: true, customerId: true } } } });
     if (!tk) throw new NotFoundException({ error: "not_found" });
     if (!(NEXT[tk.status] ?? []).includes(to)) throw new ConflictException({ error: "bad_transition", from: tk.status, to });
     const now = new Date();
@@ -73,6 +75,9 @@ export class KitchenService {
       await t.order.update({ where: { id: tk.orderId }, data: { status: orderStatus, ...(orderStatus === "SERVED" ? { completedAt: now } : {}) } });
     }
     await auditAs(t, actor, { action: `kitchen.${to.toLowerCase()}`, entityType: "KitchenTicket", entityId: ticketId, branchId: tk.branchId, after: { order: tk.order.number } });
+    if (orderStatus === "READY" && tk.order.status !== "READY" && tk.order.customerId) {
+      await this.push.notify(t, { customerId: tk.order.customerId, event: "order.ready", title: `Order ${tk.order.number} is ready`, body: tk.order.deviceId ? "It's on its way to your seat." : "Pick it up at the counter.", screen: "orders", dedupeKey: `order-ready:${tk.orderId}`, branchId: tk.order.branchId });
+    }
 
     const publish = () => {
       this.bus.publish(tk.order.organizationId, tk.order.branchId, { type: "kitchen", ticket: { id: ticketId, stationId: tk.stationId, status: to, orderId: tk.orderId } });

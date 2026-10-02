@@ -110,6 +110,8 @@ const Incoming = z.discriminatedUnion("type", [
     packageId: z.uuid().nullish(),
     savedMinutes: z.union([z.literal(30), z.literal(60), z.literal(120)]).nullish(),
   }).refine((m) => (m.packageId ? 1 : 0) + (m.savedMinutes ? 1 : 0) === 1, "packageId or savedMinutes"),
+  // "Sign in with your phone": the Shell asks for a one-time code to show as a QR.
+  z.object({ type: z.literal("qr_login"), requestId: z.string().min(8).max(64) }),
   // Screenshots from the Shell, in pieces (a socket message carries at most 256 KB).
   z.object({ type: z.literal("screenshot_begin"), id: z.uuid(), sizeBytes: z.number().int().min(1).max(2_000_000), width: z.number().int().min(1).max(8192), height: z.number().int().min(1).max(8192), thumb: z.string().max(170_000) }),
   z.object({ type: z.literal("screenshot_chunk"), id: z.uuid(), seq: z.number().int().min(0).max(40), data: z.string().max(180_000) }),
@@ -135,7 +137,7 @@ export function shellWallpaper(theme: unknown): string | null {
 export const WALLPAPER_DATA_MAX = 360_000;
 export const LOGO_DATA_MAX = 80_000;
 export const isImageDataUrl = (v: string, max: number) => v.length <= max && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+=*$/.test(v);
-export type StationMessage = Extract<Incoming, { type: "inventory" | "peripherals" | "network" | "boot" | "game_event" | "help_request" | "session_feedback" | "self_repair" | "menu_request" | "place_order" | "time_offers" | "buy_time" | "screenshot_begin" | "screenshot_chunk" | "screenshot_end" | "print_job" | "print_confirm" | "print_cancel" | "print_done" }>;
+export type StationMessage = Extract<Incoming, { type: "inventory" | "peripherals" | "network" | "boot" | "game_event" | "help_request" | "session_feedback" | "self_repair" | "menu_request" | "place_order" | "time_offers" | "buy_time" | "qr_login" | "screenshot_begin" | "screenshot_chunk" | "screenshot_end" | "print_job" | "print_confirm" | "print_cancel" | "print_done" }>;
 
 /**
  * WebSocket endpoint for Windows agents. Each connection authenticates with a
@@ -300,6 +302,12 @@ export class DeviceGateway implements OnModuleDestroy {
                 (r) => reply(r as Record<string, unknown>),
                 (e) => { const error = e?.response?.error ?? "failed"; return reply({ ok: false, error, message: e?.response?.message ?? buyTimeMessage(error) }); },
               );
+            }
+            case "qr_login": {
+              const handler = this.stationHandlers.get("qr_login");
+              const reply = (r: Record<string, unknown>) => ws.send(JSON.stringify({ type: "qr_login_code", requestId: msg.requestId, ...r }));
+              if (!handler) return reply({ ok: false, error: "unavailable" });
+              return handler(conn, msg).then((r) => reply(r as Record<string, unknown>), () => reply({ ok: false, error: "failed" }));
             }
             case "screenshot_begin":
             case "screenshot_chunk":

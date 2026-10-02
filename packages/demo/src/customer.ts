@@ -191,5 +191,130 @@ export function customerBackend(e: Engine, staff: StaffBackend) {
     return { ok: true };
   });
 
+  // ── self-service (profile, food, add time, live, games, friends, help…) ─
+  const first = (n: string) => n.split(" ")[0] ?? n;
+  const branchIds = () => staff.branches().map((b: any) => b.id);
+  const mySeat = () => staff.allDevices().find((x: any) => x.session?.customer?.id === me().id) ?? null;
+  r.patch("/me", (q) => {
+    const m = me();
+    Object.assign(m, Object.fromEntries(Object.entries(q.body ?? {}).filter(([k]) => ["displayName", "phone", "email", "dateOfBirth", "locale", "marketingConsent", "showOnLeaderboard"].includes(k))));
+    return m;
+  });
+  r.post("/me/password", () => ({ ok: true }));
+  r.post("/me/pin", (q) => {
+    me().hasPin = !!q.body?.pin;
+    return { ok: true };
+  });
+  r.post("/me/delete", () => fail(409, "wallet_not_empty"));
+  r.post("/:slug/reset", () => fail(401, "invalid_code"));
+  r.get("/me/stats", () => ({ minutes: 1260, spend: "385.00", visits: 9, sessions: 12, memberSince: me().createdAt, favouriteStation: "PC-07", months: [{ month: nowIso().slice(0, 7), minutes: 420, visits: 3 }] }));
+  r.get("/live", () =>
+    staff.branches().map((b: any) => {
+      const devices = staff.floorDoc(b.id).devices.filter((d: any) => d.kind !== "SMART_TV");
+      const zones = ((e.get("staff", `/branches/${b.id}/zones`) ?? []) as any[]).map((z) => {
+        const mine = devices.filter((d: any) => d.zoneId === z.id);
+        return { id: z.id, name: z.name, type: z.type, total: mine.length, free: mine.filter((d: any) => d.status === "AVAILABLE").length };
+      });
+      return { id: b.id, name: b.name, zones: zones.filter((z) => z.total > 0) };
+    }),
+  );
+  r.get("/menu", () => {
+    const d = mySeat();
+    return d ? { station: d.name, menu: e.get("staff", `/branches/${d.branchId ?? branchIds()[0]}/menu`) } : { station: null, menu: null };
+  });
+  r.get("/orders", () => e.get("customer", "/orders") ?? []);
+  r.post("/orders", (q) => {
+    const d = mySeat() ?? fail(409, "not_playing");
+    const menu = e.get("staff", `/branches/${d.branchId ?? branchIds()[0]}/menu`);
+    const products = menu.categories.flatMap((c: any) => c.products);
+    const lines = (q.body?.lines ?? []).map((l: any) => ({ p: products.find((p: any) => p.id === l.productId), quantity: num(l.quantity) }));
+    const total = lines.reduce((s: number, l: any) => s + num(l.p?.price) * l.quantity, 0);
+    if (q.body?.payWith === "WALLET") staff.spendWallet(me().id, total, "Food & drinks");
+    const o = { id: uuid(), number: `A${code(4)}`, status: "PLACED", total: money(total), currency: menu.currency, createdAt: nowIso(), orderItems: lines.map((l: any) => ({ nameSnapshot: l.p?.name ?? "?", quantity: l.quantity })) };
+    e.set("customer", "/orders", [o, ...(e.get("customer", "/orders") ?? [])]);
+    return created(o);
+  });
+  const shopPlan = () => (Object.entries(e.docs("customer")).find(([k]) => k.startsWith("/shop"))?.[1] as any)?.plans?.find((p: any) => p.pricingPackages?.length);
+  r.get("/session/offers", () => {
+    const d = mySeat();
+    if (!d?.session?.expiresAt) return { ok: false, message: "This session can't be extended here." };
+    const w = staff.walletDoc(me().id);
+    const plan = shopPlan();
+    return {
+      ok: true, currency: w.currency, wallet: w.frozen ? null : w.total, savedMinutes: w.timeMinutes, savedSteps: [30, 60, 120].filter((m) => m <= w.timeMinutes),
+      packages: (plan?.pricingPackages ?? []).map((k: any) => ({ id: k.id, name: k.name, minutes: k.durationMinutes + (k.bonusMinutes ?? 0), bonusMinutes: k.bonusMinutes ?? 0, price: k.price })),
+    };
+  });
+  r.post("/session/extend", (q) => {
+    const d = mySeat() ?? fail(409, "no_session");
+    let minutes = num(q.body?.savedMinutes);
+    if (minutes) staff.ledger(me().id, "SPEND", "TIME", -minutes, `Added to ${d.name}`);
+    else {
+      const k = shopPlan()?.pricingPackages.find((x: any) => x.id === q.body?.packageId) ?? fail(404, "not_found");
+      staff.spendWallet(me().id, num(k.price), `${k.name} on ${d.name}`);
+      minutes = k.durationMinutes + (k.bonusMinutes ?? 0);
+    }
+    d.session.expiresAt = new Date(Date.parse(d.session.expiresAt) + minutes * 60_000).toISOString();
+    e.emit({ type: "device", branchId: d.branchId, device: d });
+    return created({ ok: true, expiresAt: d.session.expiresAt });
+  });
+  const favs = () => (e.get("customer", "/favorites") as string[] | undefined) ?? [];
+  r.get("/games", () =>
+    ((e.get("staff", "/games")?.games ?? []) as any[])
+      .filter((g) => g.setting?.isEnabled !== false)
+      .map((g) => ({ id: g.id, title: g.title, coverUrl: g.coverUrl, categories: g.categories, minAge: g.minAge, featured: !!g.setting?.isFeatured, stations: g.installedCount ?? 6, favorite: favs().includes(g.id) }))
+      .sort((a, b) => Number(b.favorite) - Number(a.favorite) || a.title.localeCompare(b.title)),
+  );
+  r.post("/games/:id/favorite", (q) => {
+    e.set("customer", "/favorites", [...new Set([...favs(), q.params["id"]!])]);
+    return { ok: true };
+  });
+  r.delete("/games/:id/favorite", (q) => {
+    e.set("customer", "/favorites", favs().filter((x) => x !== q.params["id"]));
+    return { ok: true };
+  });
+  r.get("/referrals", () => ({ code: me().referralCode, friends: [{ name: "Omar", joinedAt: nowIso(), played: true }], points: 200 }));
+  r.get("/tickets", () => e.get("customer", "/tickets") ?? []);
+  r.post("/tickets", (q) => {
+    const tk = { id: uuid(), category: q.body?.category, subject: q.body?.subject, message: q.body?.message ?? null, status: "OPEN", createdAt: nowIso(), resolvedAt: null };
+    e.set("customer", "/tickets", [tk, ...(e.get("customer", "/tickets") ?? [])]);
+    return created(tk);
+  });
+  r.get("/pc-login/:code", () => fail(404, "pc_code_expired"));
+  r.post("/pc-login", () => fail(404, "pc_code_expired"));
+  r.post("/gift", (q) => {
+    const to = staff.customers().find((c: any) => c.username === String(q.body?.to ?? "").toLowerCase()) ?? fail(404, "player_not_found", { usernames: [q.body?.to] });
+    if (to.id === me().id) fail(409, "gift_to_self");
+    const amount = num(q.body?.amount);
+    if (q.body?.bucket === "TIME") {
+      staff.ledger(me().id, "TRANSFER_OUT", "TIME", -amount, `Gift to ${first(to.displayName)}`);
+      staff.ledger(to.id, "TRANSFER_IN", "TIME", amount, `Gift from ${first(me().displayName)}`);
+      return created({ sent: `${amount} min of play time`, to: first(to.displayName) });
+    }
+    staff.spendWallet(me().id, amount, `Gift to ${first(to.displayName)}`);
+    staff.ledger(to.id, "TRANSFER_IN", "CASH", amount, `Gift from ${first(me().displayName)}`);
+    return created({ sent: `${venue()?.currency ?? "AED"} ${money(amount)}`, to: first(to.displayName) });
+  });
+  r.post("/wallet/topup", (q) => {
+    staff.ledger(me().id, "TOPUP", "CASH", num(q.body?.amount), "Top-up (demo card)");
+    return created({ ok: true });
+  });
+  r.get("/leaderboard", () => ({
+    top: [{ place: 1, name: "Omar", minutes: 1840, me: false }, { place: 2, name: "Lina", minutes: 1420, me: false }, ...(me().showOnLeaderboard ? [{ place: 3, name: first(me().displayName), minutes: 420, me: true }] : [])],
+    me: { minutes: 420, place: 3, of: 41, shown: !!me().showOnLeaderboard },
+  }));
+  r.get("/challenges", () => [
+    { id: "c1", name: "First visit", description: null, rewardPoints: 25, type: "VISITS", target: 1, progress: 1, earnedAt: nowIso() },
+    { id: "c2", name: "Night owl: 10 hours", description: null, rewardPoints: 100, type: "PLAY_MINUTES", target: 600, progress: 420, earnedAt: null },
+  ]);
+  r.post("/bookings/:id/invite", (q) => {
+    const bk = e.findById(q.params["id"]!) ?? fail(404, "booking_not_found");
+    const n = (q.body?.usernames ?? []).length;
+    return created({ invited: q.body?.usernames ?? [], share: money(num(bk.estimatedTotal) / (n + 1)), currency: bk.currency });
+  });
+  r.get("/bookings/:id/shares", () => []);
+  r.post("/inbox/:id/pay-share", () => ({ paid: true }));
+  r.get("/push/key", () => ({ publicKey: null })); // the demo has no push server
+
   return r;
 }

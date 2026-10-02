@@ -155,6 +155,8 @@ function SellTime({ customer, onDone }: { customer: Customer; onDone: () => void
 function SetCredentials({ customer, onDone }: { customer: Customer; onDone: () => void }) {
   const [password, setPassword] = useState("");
   const [pin, setPin] = useState("");
+  const [code, setCode] = useState<{ code: string; expiresAt: string } | null>(null);
+  const resetCode = useAction(async () => setCode(await api<{ code: string; expiresAt: string }>(`/customers/${customer.id}/reset-code`, { method: "POST" })));
   const save = useAction(async () => {
     await api(`/customers/${customer.id}/credentials`, { method: "POST", body: { password: password || undefined, pin: pin || undefined } });
     onDone();
@@ -171,6 +173,18 @@ function SetCredentials({ customer, onDone }: { customer: Customer; onDone: () =
       <Button type="submit" variant="primary" pending={save.pending} disabled={!password && !pin}>
         Save
       </Button>
+      <div className="border-t border-line pt-4">
+        <p className="text-sm text-ink-2">Customer on the phone? Give them a one-time code for <strong className="text-ink">Forgot password</strong> in the app, so they choose their own password.</p>
+        {code ? (
+          <p className="mt-3 rounded-lg border border-accent/40 bg-accent/10 px-4 py-3 text-center">
+            <span className="tabular font-mono text-2xl tracking-[0.3em]">{code.code}</span>
+            <span className="mt-1 block text-xs text-ink-3">Works once, until {new Date(code.expiresAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+          </p>
+        ) : (
+          <Button type="button" size="sm" className="mt-3" pending={resetCode.pending} onClick={() => void resetCode.run()}>Give a reset code</Button>
+        )}
+        <ErrorNote>{resetCode.error}</ErrorNote>
+      </div>
     </form>
   );
 }

@@ -52,6 +52,16 @@ How points move:
 
 Redeeming is idempotent. Stock is decremented conditionally, so it can't go negative.
 
+**Challenges** (`loyalty/challenges.ts`) are milestones worth points once, set
+by the owner in **Marketing → Loyalty → Challenges**: minutes played, days
+visited, bookings kept or tournaments entered, with a target and the points.
+They are the `Achievement` rows (`criteria = { type, target }`). Progress is
+read from the customer's own history, so nothing extra is tracked. When a
+session ends (and whenever the app shows the list), anything newly reached is
+recorded once (`CustomerAchievement`), the points are paid (source
+ACHIEVEMENT, idempotent) and the player gets a push. Turning a challenge off
+hides it; points already given stay.
+
 ## Promotions engine
 
 A promotion is a set of **conditions**, **effects**, a priority, a stackable flag and limits.

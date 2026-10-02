@@ -10,6 +10,7 @@ import { RequirePermissionAnyScope, AnyStaff } from "../common/decorators.js";
 import { orgId, principal, tx } from "../common/request-state.js";
 import { ZodPipe } from "../common/zod.pipe.js";
 import { csvName, toCsv } from "../common/csv.js";
+import { resetCode } from "../customer-app/self-service.controller.js";
 import { eraseCustomer } from "./merge.js";
 import { adjustTime } from "../sessions/time-balance.js";
 import { moveMoney, orgCurrency, toMinor, walletView } from "../wallet/wallet.js";
@@ -205,6 +206,17 @@ export class CustomersController {
       data: { ...(body.password ? { passwordHash: await hashSecret(body.password) } : {}), ...(body.pin ? { pinHash: await hashSecret(body.pin) } : {}) },
     });
     await this.audit.record({ action: "customer.reset_credentials", entityType: "Customer", entityId: customerId, after: { password: !!body.password, pin: !!body.pin } });
+  }
+
+  /** A one-time code (30 min) the customer types into "Forgot password" in the app. */
+  @RequirePermissionAnyScope("customer.reset_password")
+  @Post(":customerId/reset-code")
+  async resetCode(@Param("customerId") customerId: string) {
+    const code = resetCode();
+    const expiresAt = new Date(Date.now() + 30 * 60_000);
+    await tx().customer.update({ where: { id: customerId }, data: { resetCodeHash: await hashSecret(code), resetCodeExpiresAt: expiresAt } });
+    await this.audit.record({ action: "customer.reset_code", entityType: "Customer", entityId: customerId });
+    return { code, expiresAt };
   }
 
   /**

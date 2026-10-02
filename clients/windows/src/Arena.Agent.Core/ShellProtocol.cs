@@ -30,6 +30,8 @@ public abstract record ShellRequest
     public sealed record PrintCancel(string JobKey) : ShellRequest;
     /// <summary>"Add time": what the customer can buy for their running session.</summary>
     public sealed record TimeOffers(string RequestId) : ShellRequest;
+    /// <summary>"Sign in with your phone": a one-time code for this PC, shown as a QR.</summary>
+    public sealed record QrLogin(string RequestId) : ShellRequest;
     /// <summary>"Add time": a package paid from the wallet, or saved (prepaid) minutes. The server checks and charges.</summary>
     public sealed record BuyTime(string RequestId, string? PackageId, int? SavedMinutes) : ShellRequest;
     /// <summary>The Shell's host saved a screenshot (Print Screen): upload it to the customer's account.</summary>
@@ -157,6 +159,11 @@ public static partial class ShellProtocol
                 {
                     var rid = Str(root, "requestId");
                     return rid is not null && RequestIdPattern().IsMatch(rid) ? new ShellRequest.TimeOffers(rid) : null;
+                }
+                case "qr_login":
+                {
+                    var rid = Str(root, "requestId");
+                    return rid is not null && RequestIdPattern().IsMatch(rid) ? new ShellRequest.QrLogin(rid) : null;
                 }
                 case "buy_time":
                 {

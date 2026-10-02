@@ -333,6 +333,11 @@ public sealed class StationService(
                 if (!await server.TrySendAsync(Outgoing.TimeOffers(to.RequestId)))
                     shell.Broadcast(ShellProtocol.Result("time_offers", to.RequestId, false, "offline", "The venue is offline. Please ask at the counter."));
                 return;
+            case ShellRequest.QrLogin qr:
+                if (sessions.Current is not null) return; // someone is already signed in here
+                if (!await server.TrySendAsync(Outgoing.QrLogin(qr.RequestId)))
+                    shell.Broadcast(ShellProtocol.Result("qr_login_code", qr.RequestId, false, "offline", "Phone sign-in needs the venue's connection."));
+                return;
             case ShellRequest.BuyTime bt:
                 if (sessions.Current is null) { shell.Broadcast(ShellProtocol.Result("buy_time_result", bt.RequestId, false, "no_session", "Sign in first.")); return; }
                 if (!await server.TrySendAsync(Outgoing.BuyTime(bt.RequestId, bt.PackageId, bt.SavedMinutes)))

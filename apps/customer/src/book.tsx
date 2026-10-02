@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { Check, CreditCard, Loader2, Monitor, ShieldCheck, Store, Wrench, X } from "lucide-react";
 import { api, key, type Booking, type Me, type Venue } from "./api";
+import { locale, t } from "./i18n";
+import { cx, hours } from "./ui";
 
-const cx = (...c: Array<string | false | null | undefined>) => c.filter(Boolean).join(" ");
-const hours = (min: number) => (min >= 60 ? `${Math.floor(min / 60)} h${min % 60 ? ` ${min % 60} min` : ""}` : `${min} min`);
-const time = (d: Date | string) => new Date(d).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-const when = (iso: string) => new Date(iso).toLocaleString([], { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+const time = (d: Date | string) => new Date(d).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" });
+const when = (iso: string) => new Date(iso).toLocaleString(locale(), { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
 interface Station {
   id: string;
@@ -112,10 +112,10 @@ export function BookScreen({ venue, me, onBooked, toast }: { venue: Venue; me: M
         body: { branchId, zoneId, deviceIds: picked, startsAt: new Date(slot).toISOString(), minutes, payment: { method }, idempotencyKey: key() },
       });
       setPaying(false);
-      toast(method === "DEMO_CARD" ? `Paid & booked! ${b.reference}` : `Booked! ${b.reference} — pay at the venue`);
+      toast(method === "DEMO_CARD" ? t("Paid & booked! {ref}", { ref: b.reference }) : t("Booked! {ref} — pay at the venue", { ref: b.reference }));
       onBooked();
     } catch (e) {
-      toast(e instanceof Error ? e.message : "Couldn't book.", false);
+      toast(e instanceof Error ? e.message : t("Couldn't book."), false);
     } finally {
       setBusy(false);
     }
@@ -131,14 +131,14 @@ export function BookScreen({ venue, me, onBooked, toast }: { venue: Venue; me: M
     });
 
   if (bookableBranches.length === 0) {
-    return <section className="mx-auto max-w-lg px-4 pt-6"><h1 className="font-display text-2xl font-semibold">Book a station</h1><p className="card mt-5 p-6 text-dim">No stations can be booked online yet. Please call the venue.</p></section>;
+    return <section className="mx-auto max-w-lg px-4 pt-6"><h1 className="font-display text-2xl font-semibold">{t("Book a station")}</h1><p className="card mt-5 p-6 text-dim">{t("No stations can be booked online yet. Please call the venue.")}</p></section>;
   }
 
   return (
     <section className="mx-auto w-full max-w-lg px-4 pb-28 pt-6">
-      <h1 className="mb-6 font-display text-2xl font-semibold">Book a station</h1>
+      <h1 className="mb-6 font-display text-2xl font-semibold">{t("Book a station")}</h1>
 
-      <Step n={1} title="Where" done={!!zoneId}>
+      <Step n={1} title={t("Where")} done={!!zoneId}>
         {bookableBranches.length > 1 && (
           <select className="field mb-3" value={branchId} onChange={(e) => setBranch(e.target.value)}>
             {bookableBranches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
@@ -153,20 +153,20 @@ export function BookScreen({ venue, me, onBooked, toast }: { venue: Venue; me: M
         </div>
       </Step>
 
-      <Step n={2} title="Which day" done>
+      <Step n={2} title={t("Which day")} done>
         <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
           {days.map((d, i) => (
             <button key={i} className="chip flex flex-col items-center px-4 py-2" aria-pressed={day === i} onClick={() => setDay(i)}>
-              <span className="text-[11px] uppercase">{i === 0 ? "Today" : d.toLocaleDateString([], { weekday: "short" })}</span>
+              <span className="text-[11px] uppercase">{i === 0 ? t("Today") : d.toLocaleDateString(locale(), { weekday: "short" })}</span>
               <span className="font-display text-lg">{d.getDate()}</span>
             </button>
           ))}
         </div>
       </Step>
 
-      <Step n={3} title={picked.length ? `Stations (${picked.length} selected — one per player)` : "Pick your station(s)"} done={picked.length > 0}>
+      <Step n={3} title={picked.length ? t("Stations ({n} selected — one per player)", { n: picked.length }) : t("Pick your station(s)")} done={picked.length > 0}>
         {!stations ? (
-          <p className="flex items-center gap-2 text-dim"><Loader2 className="size-4 animate-spin" /> Loading stations…</p>
+          <p className="flex items-center gap-2 text-dim"><Loader2 className="size-4 animate-spin" /> {t("Loading stations…")}</p>
         ) : (
           <>
             <div className="grid grid-cols-3 gap-2">
@@ -177,7 +177,7 @@ export function BookScreen({ venue, me, onBooked, toast }: { venue: Venue; me: M
                     key={s.id}
                     disabled={s.maintenance}
                     onClick={() => setPicked((p) => (on ? p.filter((x) => x !== s.id) : p.length >= 10 ? p : [...p, s.id]))}
-                    className={cx("rounded-2xl border p-3 text-left transition", on ? "border-glow bg-glow/10" : "border-rim bg-deck", s.maintenance && "opacity-40")}
+                    className={cx("rounded-2xl border p-3 text-start transition", on ? "border-glow bg-glow/10" : "border-rim bg-deck", s.maintenance && "opacity-40")}
                     aria-pressed={on}
                   >
                     <span className="flex items-center justify-between">
@@ -191,22 +191,22 @@ export function BookScreen({ venue, me, onBooked, toast }: { venue: Venue; me: M
                 );
               })}
             </div>
-            <p className="mt-2 text-xs text-mute"><span className="mr-1 inline-block h-1.5 w-4 rounded-full bg-good/40 align-middle" /> free · <span className="mx-1 inline-block h-1.5 w-4 rounded-full bg-alarm/70 align-middle" /> taken (10:00 → 04:00)</p>
+            <p className="mt-2 text-xs text-mute"><span className="me-1 inline-block h-1.5 w-4 rounded-full bg-good/40 align-middle" /> {t("free")} · <span className="mx-1 inline-block h-1.5 w-4 rounded-full bg-alarm/70 align-middle" /> {t("taken (10:00 → 04:00)")}</p>
           </>
         )}
       </Step>
 
-      <Step n={4} title="How long" done>
+      <Step n={4} title={t("How long")} done>
         <div className="flex flex-wrap gap-2">
           {[60, 120, 180, 240, 300].map((m) => <button key={m} className="chip" aria-pressed={minutes === m} onClick={() => setMinutes(m)}>{hours(m)}</button>)}
         </div>
       </Step>
 
-      <Step n={5} title="What time" done={slot !== null}>
+      <Step n={5} title={t("What time")} done={slot !== null}>
         {picked.length === 0 ? (
-          <p className="text-sm text-mute">Pick a station first — then you'll see when it's free.</p>
+          <p className="text-sm text-mute">{t("Pick a station first — then you'll see when it's free.")}</p>
         ) : slots.length === 0 ? (
-          <p className="text-sm text-dim">No more times this day — pick another day.</p>
+          <p className="text-sm text-dim">{t("No more times this day — pick another day.")}</p>
         ) : (
           <div className="grid grid-cols-4 gap-2">
             {slots.map((s) => (
@@ -223,18 +223,18 @@ export function BookScreen({ venue, me, onBooked, toast }: { venue: Venue; me: M
           <p className="font-display text-lg font-semibold">{when(new Date(slot).toISOString())} – {time(new Date(slot + minutes * 60_000))}</p>
           <p className="mt-1 text-sm text-dim">{zones.find((z) => z.id === zoneId)?.name} · {chosen.map((s) => s.name).join(", ")} · {hours(minutes)}</p>
           <div className="mt-4 flex items-baseline justify-between border-t border-rim pt-4">
-            <span className="text-dim">Total{chosen.length > 1 ? ` (${chosen.length} stations)` : ""}</span>
+            <span className="text-dim">{t("Total")}{chosen.length > 1 ? ` (${t("{n} stations", { n: chosen.length })})` : ""}</span>
             <span className="tabular font-display text-2xl font-semibold">{total ? `${price!.currency} ${total}` : <Loader2 className="size-5 animate-spin" />}</span>
           </div>
           {venue.demoPayments && (
             <button className="btn btn-primary mt-4 w-full py-4" disabled={busy || !total} onClick={() => setPaying(true)}>
-              <CreditCard className="size-5" /> Pay now {total ? `· ${price!.currency} ${total}` : ""}
+              <CreditCard className="size-5" /> {t("Pay now")} {total ? `· ${price!.currency} ${total}` : ""}
             </button>
           )}
           <button className={cx("btn mt-3 w-full", venue.demoPayments ? "btn-ghost" : "btn-primary py-4")} disabled={busy} onClick={() => void book("VENUE")}>
-            {busy && !paying ? <Loader2 className="size-5 animate-spin" /> : <Store className="size-5" />} Book · pay at the venue
+            {busy && !paying ? <Loader2 className="size-5 animate-spin" /> : <Store className="size-5" />} {t("Book · pay at the venue")}
           </button>
-          <p className="mt-3 text-xs text-mute">Arrive up to 15 min early. After 15 min late the stations are released. You can cancel in the app up to 1 hour before.</p>
+          <p className="mt-3 text-xs text-mute">{t("Arrive up to 15 min early. After 15 min late the stations are released. You can cancel in the app up to 1 hour before.")}</p>
         </div>
       )}
 
@@ -242,20 +242,20 @@ export function BookScreen({ venue, me, onBooked, toast }: { venue: Venue; me: M
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-void/80 backdrop-blur-sm sm:items-center" onClick={() => !busy && setPaying(false)}>
           <div className="w-full max-w-lg rounded-t-3xl border border-rim bg-deck p-6 pb-10 sm:rounded-3xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
-              <p className="font-display text-xl font-semibold">Pay {price!.currency} {total}</p>
-              <button onClick={() => setPaying(false)} aria-label="Close" className="text-dim"><X className="size-6" /></button>
+              <p className="font-display text-xl font-semibold">{t("Pay {amount}", { amount: `${price!.currency} ${total}` })}</p>
+              <button onClick={() => setPaying(false)} aria-label={t("Close")} className="text-dim"><X className="size-6" /></button>
             </div>
             <div className="mt-5 rounded-2xl p-5 text-void" style={{ background: "linear-gradient(135deg, var(--color-glow), var(--color-glow-2))" }}>
-              <p className="text-xs font-semibold uppercase tracking-widest opacity-70">Demo card</p>
-              <p className="tabular mt-4 font-mono text-xl tracking-widest">4242 4242 4242 4242</p>
+              <p className="text-xs font-semibold uppercase tracking-widest opacity-70">{t("Demo card")}</p>
+              <p className="tabular mt-4 font-mono text-xl tracking-widest" dir="ltr">4242 4242 4242 4242</p>
               <div className="mt-3 flex justify-between text-sm font-semibold"><span>{me.displayName.toUpperCase()}</span><span>12/30</span></div>
             </div>
             <p className="mt-4 flex items-start gap-2 text-sm text-dim">
               <ShieldCheck className="mt-0.5 size-4 shrink-0 text-good" />
-              Demo mode — no real card is charged. The amount is added to your wallet for this booking and taken when you check in; if plans change, it stays in your wallet.
+              {t("Demo mode — no real card is charged. The amount is added to your wallet for this booking and taken when you check in; if plans change, it stays in your wallet.")}
             </p>
             <button className="btn btn-primary mt-5 w-full py-4 text-lg" disabled={busy} onClick={() => void book("DEMO_CARD")}>
-              {busy ? <Loader2 className="size-5 animate-spin" /> : <CreditCard className="size-5" />} Pay {price!.currency} {total}
+              {busy ? <Loader2 className="size-5 animate-spin" /> : <CreditCard className="size-5" />} {t("Pay {amount}", { amount: `${price!.currency} ${total}` })}
             </button>
           </div>
         </div>

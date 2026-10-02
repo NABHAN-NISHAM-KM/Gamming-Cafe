@@ -1,5 +1,5 @@
 import { ConflictException, Inject, Injectable, type OnModuleInit } from "@nestjs/common";
-import type { Db } from "@arena/db";
+import type { Db, TenantTx } from "@arena/db";
 import { DB } from "../common/db.module.js";
 import { requestStore } from "../common/request-state.js";
 import { DeviceGateway } from "../devices/device-gateway.js";
@@ -31,9 +31,14 @@ export class ShellTimeService implements OnModuleInit {
     this.gateway.handleStation("buy_time", (c, m) => this.buy(c, m.requestId, m.packageId ?? null, m.savedMinutes ?? null));
   }
 
-  async offers(c: Connection) {
-    return this.db.withTenant({ organizationId: c.organizationId, actorType: "DEVICE", actorId: c.deviceId }, async (t) => {
-      const s = await t.gamingSession.findFirst({ where: { deviceId: c.deviceId, status: { in: ["ACTIVE", "ENDING"] } }, select: { customerId: true, expiresAt: true, currency: true, rateSnapshot: true } });
+  offers(c: Connection) {
+    return this.db.withTenant({ organizationId: c.organizationId, actorType: "DEVICE", actorId: c.deviceId }, (t) => this.offersFor(t, { deviceId: c.deviceId }));
+  }
+
+  /** What the running session (found by its PC, or by its customer from the app) can be extended with. */
+  async offersFor(t: TenantTx, where: { deviceId: string } | { customerId: string }) {
+    {
+      const s = await t.gamingSession.findFirst({ where: { ...where, status: { in: ["ACTIVE", "ENDING"] } }, select: { customerId: true, expiresAt: true, currency: true, rateSnapshot: true } });
       if (!s?.expiresAt) return { ok: false, error: "not_extendable", message: "This session can't be extended here." };
       if (!s.customerId) return { ok: false, error: "guest", message: "Guest sessions are extended at the counter." };
       const plan = (s.rateSnapshot as { plan: PlanDef | null; minorUnit?: number }).plan;
@@ -49,26 +54,32 @@ export class ShellTimeService implements OnModuleInit {
           .filter((p) => p.isActive)
           .map((p) => ({ id: p.id, name: p.name, minutes: p.durationMinutes + p.bonusMinutes, bonusMinutes: p.bonusMinutes, price: (p.priceMinor / 10 ** unit).toFixed(unit) })),
       };
-    });
+    }
   }
 
   async buy(c: Connection, requestId: string, packageId: string | null, savedMinutes: number | null) {
     const afterCommit: Array<() => void | Promise<void>> = [];
     const result = await this.db.withTenant({ organizationId: c.organizationId, actorType: "DEVICE", actorId: c.deviceId }, (t) =>
-      requestStore.run({ tx: t, afterCommit, principal: null as never, decision: null, requestId, ip: null, userAgent: null, reason: null }, async () => {
-        const s = await t.gamingSession.findFirst({ where: { deviceId: c.deviceId, status: { in: ["ACTIVE", "ENDING"] } }, select: { id: true, customerId: true } });
-        if (!s) throw new ConflictException({ error: "no_session", message: "There's no session to add time to." });
-        if (!s.customerId) throw new ConflictException({ error: "guest", message: "Guest sessions are extended at the counter." });
-        const actor = { type: "CUSTOMER" as const, id: s.customerId };
-        const idempotencyKey = `shell:${c.deviceId}:${requestId}`;
-        const v = savedMinutes !== null
-          ? await this.sessions.extend(t, s.id, { minutes: savedMinutes, payment: { method: "TIME_BALANCE" }, idempotencyKey }, actor)
-          : await this.sessions.extend(t, s.id, { packageId: packageId!, payment: { method: "WALLET" }, idempotencyKey }, actor);
-        return { ok: true, expiresAt: v.expiresAt };
-      }),
+      requestStore.run({ tx: t, afterCommit, principal: null as never, decision: null, requestId, ip: null, userAgent: null, reason: null }, () =>
+        this.buyFor(t, { deviceId: c.deviceId }, packageId, savedMinutes, `shell:${c.deviceId}:${requestId}`),
+      ),
     );
     for (const fn of afterCommit) await Promise.resolve(fn()).catch(() => undefined);
     return result;
+  }
+
+  /** Extends the running session with a package (paid from the wallet) or saved minutes. Must run inside a request store. */
+  async buyFor(t: TenantTx, where: { deviceId: string } | { customerId: string }, packageId: string | null, savedMinutes: number | null, idempotencyKey: string) {
+    const s = await t.gamingSession.findFirst({ where: { ...where, status: { in: ["ACTIVE", "ENDING"] } }, select: { id: true, customerId: true } });
+    if (!s) throw new ConflictException({ error: "no_session", message: "There's no session to add time to." });
+    if (!s.customerId) throw new ConflictException({ error: "guest", message: "Guest sessions are extended at the counter." });
+    if (savedMinutes !== null && !(SAVED_TIME_STEPS as readonly number[]).includes(savedMinutes)) throw new ConflictException({ error: "bad_minutes" });
+    if (savedMinutes === null && !packageId) throw new ConflictException({ error: "package_required" });
+    const actor = { type: "CUSTOMER" as const, id: s.customerId };
+    const v = savedMinutes !== null
+      ? await this.sessions.extend(t, s.id, { minutes: savedMinutes, payment: { method: "TIME_BALANCE" }, idempotencyKey }, actor)
+      : await this.sessions.extend(t, s.id, { packageId: packageId!, payment: { method: "WALLET" }, idempotencyKey }, actor);
+    return { ok: true, expiresAt: v.expiresAt };
   }
 }
 

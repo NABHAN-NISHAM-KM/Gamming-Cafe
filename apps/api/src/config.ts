@@ -32,6 +32,12 @@ const Env = z.object({
   LOGIN_LOCK_MINUTES: z.coerce.number().int().default(15),
   /** Simulated card payments in the customer app ("Pay now" with no real card). Never on in production. */
   DEMO_PAYMENTS: z.enum(["on", "off"]).optional(),
+  /** Web push for the customer app (`npm run keys` makes a pair). Without them, push is simply off. */
+  VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  VAPID_SUBJECT: z.string().default("mailto:support@arenaos.app"),
+  /** The customer app's address, for the "sign in with your phone" QR code on the PCs. */
+  CUSTOMER_APP_URL: z.url().default("http://localhost:5175"),
   /** Where to read Steam's latest public build per appid ("off" to disable; default api.steamcmd.net, off in tests). */
   STEAM_BUILDS_URL: z.union([z.literal("off"), z.url()]).optional(),
 }).transform((c) => ({ ...c, demoPayments: c.NODE_ENV !== "production" && c.DEMO_PAYMENTS !== "off" }));

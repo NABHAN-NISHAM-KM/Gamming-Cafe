@@ -46,6 +46,8 @@ import { CommerceService } from "./customers/commerce.service.js";
 import { MembershipExpiryService } from "./customers/membership-expiry.service.js";
 import { TiersController } from "./customers/tiers.controller.js";
 import { CustomerAppController } from "./customer-app/customer-app.controller.js";
+import { CustomerAuth } from "./customer-app/customer-auth.js";
+import { SelfServiceController } from "./customer-app/self-service.controller.js";
 import { InventoryController } from "./inventory/inventory.controller.js";
 import { StockService } from "./inventory/stock.service.js";
 import { PurchasingController } from "./inventory/purchasing.controller.js";
@@ -53,6 +55,7 @@ import { PurchasingService } from "./inventory/purchasing.service.js";
 import { KitchenService } from "./pos/kitchen.service.js";
 import { CrmController } from "./crm/crm.controller.js";
 import { CrmService } from "./crm/crm.service.js";
+import { PushService } from "./push/push.service.js";
 import { LoyaltyController } from "./loyalty/loyalty.controller.js";
 import { LoyaltyService } from "./loyalty/loyalty.service.js";
 import { PromotionsController } from "./promotions/promotions.controller.js";
@@ -128,6 +131,7 @@ export class AppModule {
         TiersController,
         BookingsController,
         CustomerAppController,
+        SelfServiceController,
         PosController,
         PromotionsController,
         LoyaltyController,
@@ -178,6 +182,8 @@ export class AppModule {
         LoyaltyService,
         TournamentsService,
         CrmService,
+        PushService,
+        CustomerAuth,
         StationControlService,
         PrintService,
         StockService,

@@ -15,23 +15,7 @@ import { CommerceService } from "../customers/commerce.service.js";
 import { balances, walletView } from "../wallet/wallet.js";
 import { LoyaltyService } from "../loyalty/loyalty.service.js";
 import { TournamentsService } from "../tournaments/tournaments.service.js";
-
-/** Sliding-window attempt counter (per IP, per account). */
-class Throttle {
-  private readonly hits = new Map<string, number[]>();
-  constructor(private readonly max: number, private readonly windowMs: number) {}
-  take(key: string): boolean {
-    const now = Date.now();
-    const recent = (this.hits.get(key) ?? []).filter((t) => now - t < this.windowMs);
-    if (recent.length >= this.max) return false;
-    recent.push(now);
-    this.hits.set(key, recent);
-    return true;
-  }
-  clear(key: string) {
-    this.hits.delete(key);
-  }
-}
+import { CustomerAuth, Throttle, type Me } from "./customer-auth.js";
 
 const Register = z
   .object({
@@ -65,12 +49,6 @@ const BookingBody = z
 const BuyTime = z.object({ branchId: z.uuid(), planId: z.uuid(), packageId: z.uuid(), idempotencyKey: z.string().min(8).max(100) }).strict();
 const BuyMembership = z.object({ branchId: z.uuid(), tierId: z.uuid(), idempotencyKey: z.string().min(8).max(100) }).strict();
 
-interface Me {
-  customerId: string;
-  organizationId: string;
-  sid: string;
-}
-
 /**
  * The customer app (PWA) API: sign up, sign in, see balance and history, book
  * a station, and buy time or a membership with wallet credit. Customers never
@@ -93,6 +71,7 @@ export class CustomerAppController {
     @Inject(CONFIG) private readonly cfg: AppConfig,
     @Inject(LoyaltyService) private readonly loyalty: LoyaltyService,
     @Inject(TournamentsService) private readonly tournaments: TournamentsService,
+    @Inject(CustomerAuth) private readonly auth: CustomerAuth,
   ) {}
 
   // ── venue & auth (public) ────────────────────────────────────────────────
@@ -173,17 +152,8 @@ export class CustomerAppController {
 
   // ── signed-in customer ───────────────────────────────────────────────────
 
-  private async as<T>(req: Request, fn: (t: TenantTx, me: Me) => Promise<T>): Promise<T> {
-    const [scheme, token] = (req.headers.authorization ?? "").split(" ");
-    if (scheme !== "Bearer" || !token) throw new UnauthorizedException({ error: "missing_token" });
-    const claims = await this.tokens.verifyCustomer(token);
-    const me: Me = { customerId: claims.customerId, organizationId: claims.org, sid: claims.sid };
-    return this.db.withTenant({ organizationId: me.organizationId, actorType: "CUSTOMER", actorId: me.customerId }, async (t) => {
-      const s = await t.customerSession.findFirst({ where: { id: me.sid, customerId: me.customerId, endedAt: null }, select: { lastActiveAt: true, customer: { select: { status: true } } } });
-      if (!s || s.customer.status === "BANNED" || s.customer.status === "DELETED") throw new UnauthorizedException({ error: "session_ended" });
-      if (Date.now() - s.lastActiveAt.getTime() > 5 * 60_000) await t.customerSession.update({ where: { id: me.sid }, data: { lastActiveAt: new Date() } });
-      return fn(t, me);
-    });
+  private as<T>(req: Request, fn: (t: TenantTx, me: Me) => Promise<T>): Promise<T> {
+    return this.auth.as(req, fn);
   }
 
   @Post("logout")
@@ -199,6 +169,7 @@ export class CustomerAppController {
         where: { id: me.customerId },
         select: {
           id: true, username: true, displayName: true, email: true, phone: true, dateOfBirth: true, referralCode: true, createdAt: true,
+          locale: true, marketingConsent: true, showOnLeaderboard: true, pinHash: true,
           membershipTier: { select: { id: true, name: true, code: true, color: true, gamingDiscountPct: true, bookingWindowDays: true, priorityBooking: true } },
           memberships: { where: { status: "ACTIVE" }, select: { id: true, expiresAt: true, tier: { select: { name: true } } }, orderBy: { expiresAt: "desc" }, take: 1 },
         },
@@ -206,9 +177,11 @@ export class CustomerAppController {
       const b = await balances(t, me.customerId);
       const f = (m: number) => (m / 10 ** b.unit).toFixed(b.unit);
       const live = await t.gamingSession.findFirst({ where: { customerId: me.customerId, status: { in: ["ACTIVE", "ENDING", "PAUSED"] } }, select: { id: true, expiresAt: true, device: { select: { name: true } } } });
-      const { memberships, ...rest } = c;
+      const { memberships, pinHash, ...rest } = c;
       return {
         ...rest,
+        dateOfBirth: c.dateOfBirth?.toISOString().slice(0, 10) ?? null,
+        hasPin: !!pinHash,
         membership: memberships[0] ?? null,
         wallet: { currency: b.currency, cash: f(b.cashMinor), bonus: f(b.bonusMinor), total: f(b.cashMinor + b.bonusMinor), timeMinutes: b.timeMinutes, frozen: b.frozen },
         playingNow: live ? { sessionId: live.id, station: live.device.name, expiresAt: live.expiresAt } : null,

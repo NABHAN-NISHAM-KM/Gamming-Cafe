@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AppWindow, Gamepad2, Languages, Loader2, Monitor, Wifi, WifiOff } from "lucide-react";
-import { bridge, type HostMessage, type ShellState } from "./bridge";
+import QRCode from "qrcode";
+import { AppWindow, Gamepad2, Languages, Loader2, Monitor, Smartphone, Wifi, WifiOff } from "lucide-react";
+import { bridge, request, type HostMessage, type ShellState } from "./bridge";
 import { strings, type Lang, type Strings } from "./i18n";
 import { FeaturedRow, type Notify } from "./screens";
 import { useStation } from "./station";
@@ -175,10 +176,47 @@ function LockScreen({ state, t, lang, setLang }: { state: ShellState; t: Strings
             )}
           </button>
           <p className="mt-6 text-center text-sm leading-relaxed text-mute">{t.noAccount}</p>
+          {state.connected && <PhoneSignIn t={t} />}
         </form>
       </section>
       {!state.connected && <ConnectionBanner t={t} />}
     </main>
+  );
+}
+
+/**
+ * "Sign in with your phone": a QR of a one-time link for this PC. The player
+ * scans it, confirms in the app, and the PC unlocks with their saved time.
+ * A fresh code is fetched before the old one runs out.
+ */
+function PhoneSignIn({ t }: { t: Strings }) {
+  const [qr, setQr] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    let timer: ReturnType<typeof setTimeout>;
+    const load = async () => {
+      const r = await request({ type: "qr_login", requestId: crypto.randomUUID() }, "qr_login_code");
+      if (!live) return;
+      if (r.ok && r.url) setQr(await QRCode.toDataURL(r.url, { margin: 1, width: 360, color: { dark: "#0b0e14", light: "#ffffff" } }));
+      else setQr(null);
+      const left = r.expiresAt ? new Date(r.expiresAt).getTime() - Date.now() : 0;
+      timer = setTimeout(() => void load(), r.ok ? Math.max(20_000, left - 20_000) : 30_000);
+    };
+    void load();
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, []);
+  if (!qr) return null;
+  return (
+    <div className="mt-8 flex items-center gap-5 border-t border-rim pt-6">
+      <img src={qr} alt="" className="size-28 shrink-0 rounded-xl bg-white p-1.5" />
+      <div>
+        <p className="flex items-center gap-2 font-display font-semibold"><Smartphone className="size-5 text-glow" /> {t.phoneSignIn}</p>
+        <p className="mt-1 text-sm leading-relaxed text-dim">{t.phoneHint}</p>
+      </div>
+    </div>
   );
 }
 

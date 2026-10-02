@@ -13,6 +13,33 @@ self.addEventListener("activate", (e) => {
   self.clients.claim();
 });
 
+// Push from the venue ("10 minutes left", "your food is ready"…). Tapping it
+// opens the app on the right screen.
+self.addEventListener("push", (e) => {
+  let m = {};
+  try {
+    m = e.data ? e.data.json() : {};
+  } catch {
+    m = { title: e.data ? e.data.text() : "" };
+  }
+  e.waitUntil(self.registration.showNotification(m.title || "Arena", { body: m.body || "", tag: m.tag, icon: "/icon.svg", badge: "/icon.svg", data: { screen: m.screen || "home" } }));
+});
+
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  const screen = (e.notification.data && e.notification.data.screen) || "home";
+  e.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+      const open = list[0];
+      if (open) {
+        open.postMessage({ screen });
+        return open.focus();
+      }
+      return self.clients.openWindow(`/?screen=${encodeURIComponent(screen)}`);
+    }),
+  );
+});
+
 self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== "GET" || url.origin !== location.origin || url.pathname.startsWith("/v1/")) return;

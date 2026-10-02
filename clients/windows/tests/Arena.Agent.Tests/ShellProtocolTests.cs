@@ -29,6 +29,13 @@ public class ShellProtocolTests
     public void Rejects_malformed_or_unknown(string line) => Assert.Null(ShellProtocol.Parse(line));
 
     [Fact]
+    public void Parses_a_phone_sign_in_code_request()
+    {
+        Assert.Equal("req-12345678", Assert.IsType<ShellRequest.QrLogin>(ShellProtocol.Parse("""{"type":"qr_login","requestId":"req-12345678"}""")).RequestId);
+        Assert.Null(ShellProtocol.Parse("""{"type":"qr_login","requestId":"x"}"""));
+    }
+
+    [Fact]
     public void Parses_a_session_rating()
     {
         var f = Assert.IsType<ShellRequest.Feedback>(ShellProtocol.Parse("""{"type":"feedback","rating":4,"comment":"  Great PC "}"""));

@@ -3,6 +3,7 @@ import { Prisma, type Db, type TenantTx } from "@arena/db";
 import { auditAs } from "../common/audit.service.js";
 import { DB } from "../common/db.module.js";
 import { CONFIG, type AppConfig } from "../config.js";
+import { PushService } from "../push/push.service.js";
 import { CommandsService } from "../devices/commands.service.js";
 import { DeviceHub } from "../devices/live.js";
 import { PromotionsService } from "../promotions/promotions.service.js";
@@ -31,6 +32,7 @@ export class CrmService implements OnModuleInit, OnModuleDestroy {
     @Inject(PromotionsService) private readonly promotions: PromotionsService,
     @Inject(CommandsService) private readonly commands: CommandsService,
     @Inject(DeviceHub) private readonly hub: DeviceHub,
+    @Inject(PushService) private readonly push: PushService,
   ) {}
 
   onModuleInit() {
@@ -184,6 +186,9 @@ export class CrmService implements OnModuleInit, OnModuleDestroy {
           error: status === "FAILED" ? (reachable ? "No provider configured for this channel" : `No ${channel === "EMAIL" ? "email" : "phone number"} on file`) : null, dedupeKey, sentAt: status === "SENT" ? new Date() : null,
         },
       });
+      if (status === "SENT" && (channel === "IN_APP" || channel === "PUSH")) {
+        await this.push.notify(t, { customerId: p.id, event: "campaign", title: c.subject ? personalize(c.subject, vars) : org.displayName, body: personalize(c.body, vars), screen: "inbox", dedupeKey: `push:${dedupeKey}` });
+      }
       if (status === "SENT") stats.sent++;
       else if (status === "QUEUED") stats.queued++;
       else stats.failed++;

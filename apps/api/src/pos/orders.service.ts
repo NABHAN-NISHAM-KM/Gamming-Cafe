@@ -16,7 +16,7 @@ export type PayInput = { method: "CASH" | "CARD" | "WALLET"; amount?: string | n
 
 export interface PlaceOrder {
   branchId: string;
-  channel: "POS" | "SHELL" | "WAITER" | "WEB";
+  channel: "POS" | "SHELL" | "WAITER" | "WEB" | "MOBILE";
   type: "COUNTER" | "TAKEAWAY" | "DINE_IN" | "GAMING_SEAT";
   lines: Array<{ productId: string; quantity: number; modifierIds?: string[]; notes?: string | null }>;
   customerId?: string | null;

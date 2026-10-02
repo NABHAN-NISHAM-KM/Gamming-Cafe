@@ -2,6 +2,8 @@
 // Android app, whose page origin is https://localhost). The venue is the first
 // path segment (arena.example.com/demo), remembered for the next visit;
 // the APK has no path, so it falls back to VITE_ARENA_VENUE.
+import { t } from "./i18n";
+
 const API = import.meta.env.VITE_ARENA_API ?? "";
 
 const TOKEN = "arena.customer.token";
@@ -87,17 +89,46 @@ const MESSAGES: Record<string, string> = {
   team_name_taken: "That team name is taken in this tournament.",
   player_not_found: "We couldn't find one of those usernames.",
   tournament_not_found: "That tournament isn't available.",
+  wrong_password: "That password isn't right.",
+  dob_locked: "Your birth date is already set — ask the staff to correct it.",
+  contact_taken: "That phone number or email is already used by another account.",
+  invalid_code: "That code isn't right or has expired. Ask the staff for a new one.",
+  not_playing: "You're not playing right now — sign in at a PC first.",
+  not_extendable: "This session can't be extended here.",
+  pc_code_expired: "That PC code has expired. Scan the new one on the screen.",
+  station_in_use: "That PC is already in use.",
+  already_playing: "You're already signed in on another PC.",
+  no_time: "You have no saved play time. Buy time first, then sign in.",
+  gift_to_self: "You can't send a gift to yourself.",
+  bad_amount: "That amount isn't allowed.",
+  booking_not_found: "That booking isn't available.",
+  booking_not_active: "That booking was cancelled or has finished.",
+  wallet_not_empty: "You still have money in your wallet — spend it or ask the staff to refund it first.",
+  customer_in_session: "You're playing right now — finish your session first.",
+  customer_has_open_bill: "You have a bill to pay at the counter first.",
+  customer_has_bookings: "Cancel your upcoming bookings first.",
+  daily_limit_reached: "You've reached today's play limit.",
+  customer_banned: "This account can't play right now. Please talk to the staff.",
+  customer_zone_blocked: "You can't play in this area. Please talk to the staff.",
+  customer_restaurant_blocked: "Food & drink orders aren't available on your account.",
+  game_not_found: "That game isn't available.",
+  venue_closed: "The venue is closed right now.",
+  sold_out: "Something in your order just sold out.",
+  guest: "Guest sessions are extended at the counter.",
+  no_session: "There's no session running.",
 };
 
 function explain(status: number, body: any) {
   const code = body?.error as string | undefined;
-  if (code === "already_registered" && body?.player) return `${body.player} is already entered in this tournament.`;
-  if (code === "player_not_found" && body?.usernames) return `We couldn't find: ${body.usernames.join(", ")}.`;
-  if (code === "too_far_ahead" && body?.maxDays) return `You can book up to ${body.maxDays} days ahead.`;
-  if (code && MESSAGES[code]) return MESSAGES[code]!;
-  if (body?.hint) return body.hint;
-  if (status === 0) return "Can't reach the venue. Check your connection.";
-  return "Something went wrong. Please try again.";
+  if (code === "already_registered" && body?.player) return t("{player} is already entered in this tournament.", { player: body.player });
+  if (code === "player_not_found" && body?.usernames) return t("We couldn't find: {names}.", { names: body.usernames.join(", ") });
+  if (code === "too_far_ahead" && body?.maxDays) return t("You can book up to {days} days ahead.", { days: body.maxDays });
+  if (code === "daily_limit_reached" && body?.minutesLeft) return t("Only {n} min of play left today.", { n: body.minutesLeft });
+  if (code && MESSAGES[code]) return t(MESSAGES[code]!);
+  if (body?.hint) return t(body.hint);
+  if (body?.message) return t(body.message);
+  if (status === 0) return t("Can't reach the venue. Check your connection.");
+  return t("Something went wrong. Please try again.");
 }
 
 export async function api<T = any>(path: string, opts: { method?: string; body?: unknown; auth?: boolean } = {}): Promise<T> {
@@ -142,6 +173,11 @@ export interface Me {
   email: string | null;
   phone: string | null;
   referralCode: string | null;
+  dateOfBirth: string | null;
+  locale: string;
+  marketingConsent: boolean;
+  showOnLeaderboard: boolean;
+  hasPin: boolean;
   membershipTier: { id: string; name: string; code: string; color: string | null; gamingDiscountPct: string; bookingWindowDays: number; priorityBooking: boolean } | null;
   membership: { id: string; expiresAt: string | null; tier: { name: string } } | null;
   wallet: { currency: string; cash: string; bonus: string; total: string; timeMinutes: number; frozen: boolean };

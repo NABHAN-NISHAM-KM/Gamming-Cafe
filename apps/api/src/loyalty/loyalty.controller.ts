@@ -6,6 +6,7 @@ import { authorizeFor } from "../common/authz.js";
 import { AnyStaff, RequirePermissionAnyScope } from "../common/decorators.js";
 import { orgId, principal, tx } from "../common/request-state.js";
 import { ZodPipe } from "../common/zod.pipe.js";
+import { Criteria } from "./challenges.js";
 import { LoyaltyService, RewardValue, type RewardKind } from "./loyalty.service.js";
 
 const Rule = z
@@ -38,6 +39,7 @@ const Reward = z
 const Adjust = z.object({ points: z.number().int().min(-1_000_000).max(1_000_000).refine((x) => x !== 0), reason: z.string().min(3).max(200), idempotencyKey: z.string().min(8).max(100) }).strict();
 const Redeem = z.object({ rewardId: z.uuid(), idempotencyKey: z.string().min(8).max(100) }).strict();
 
+const Challenge = z.object({ name: z.string().trim().min(2).max(60), description: z.string().max(200).nullish(), criteria: Criteria, rewardPoints: z.number().int().min(0).max(100_000) }).strict();
 const org = () => ({ organizationId: orgId() });
 const me = () => ({ type: "EMPLOYEE" as const, id: principal().employeeId });
 
@@ -71,6 +73,34 @@ export class LoyaltyController {
     const r = await tx().loyaltyRule.update({ where: { id }, data: body });
     await this.audit.record({ action: "loyalty.rule.update", entityType: "LoyaltyRule", entityId: id, after: body });
     return r;
+  }
+
+  // -- challenges (Achievement rows): milestones worth points once --
+
+  @RequirePermissionAnyScope("loyalty.view")
+  @Get("loyalty/challenges")
+  async challenges() {
+    const rows = await tx().achievement.findMany({ orderBy: { createdAt: "asc" }, include: { _count: { select: { customerAchievements: true } } } });
+    return rows.map(({ _count, ...a }) => ({ ...a, completed: _count.customerAchievements }));
+  }
+
+  @AnyStaff()
+  @Post("loyalty/challenges")
+  async addChallenge(@Body(new ZodPipe(Challenge)) body: z.infer<typeof Challenge>) {
+    authorizeFor("loyalty.manage", org());
+    const key = `${body.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40)}-${Date.now().toString(36)}`;
+    const a = await tx().achievement.create({ data: { organizationId: orgId(), key, name: body.name, description: body.description ?? null, criteria: body.criteria, rewardPoints: body.rewardPoints } });
+    await this.audit.record({ action: "loyalty.challenge.create", entityType: "Achievement", entityId: a.id, after: body });
+    return a;
+  }
+
+  @AnyStaff()
+  @Patch("loyalty/challenges/:id")
+  async editChallenge(@Param("id") id: string, @Body(new ZodPipe(z.object({ isActive: z.boolean(), rewardPoints: z.number().int().min(0).max(100_000), name: z.string().trim().min(2).max(60) }).partial().strict())) body: { isActive?: boolean; rewardPoints?: number; name?: string }) {
+    authorizeFor("loyalty.manage", org());
+    const a = await tx().achievement.update({ where: { id }, data: body });
+    await this.audit.record({ action: "loyalty.challenge.update", entityType: "Achievement", entityId: id, after: body });
+    return a;
   }
 
   @RequirePermissionAnyScope("loyalty.view")

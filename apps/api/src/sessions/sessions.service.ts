@@ -9,6 +9,8 @@ import { PricingError, extensionQuote, postpaidCharge, quote, selectPlans, type 
 import { StationControlService } from "../devices/station-control.service.js";
 import { earnForSession } from "../loyalty/points.js";
 import { refreshStats } from "../customers/stats.js";
+import { challengesFor } from "../loyalty/challenges.js";
+import { PushService } from "../push/push.service.js";
 import { PromotionsService, type Evaluation } from "../promotions/promotions.service.js";
 import { CrmService } from "../crm/crm.service.js";
 import { recomputeBill, recordPayment } from "../pos/bills.js";
@@ -111,6 +113,7 @@ export class SessionsService {
     @Inject(StationControlService) private readonly control: StationControlService,
     @Inject(PromotionsService) private readonly promotions: PromotionsService,
     @Inject(CrmService) private readonly crm: CrmService,
+    @Inject(PushService) private readonly push: PushService,
   ) {}
 
   private async minorUnit(t: TenantTx, currency: string) {
@@ -457,7 +460,10 @@ export class SessionsService {
       });
     }
     await earnForSession(t, s.id); // points per minute played (spend points come when the bill settles)
-    if (s.customerId) await refreshStats(t, s.customerId);
+    if (s.customerId) {
+      await refreshStats(t, s.customerId);
+      await challengesFor(t, s.customerId, this.push); // award any milestone this session reached
+    }
     await auditAs(t, actor, { action: `session.end.${reason.toLowerCase()}`, entityType: "GamingSession", entityId: s.id, branchId: s.branchId, after: { usedSeconds, device: s.device.name } });
     await this.publishDevice(t, s.deviceId);
     return this.view(t, s.id);

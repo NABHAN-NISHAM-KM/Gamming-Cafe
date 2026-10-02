@@ -30,6 +30,9 @@ model Customer {
   locale                 String                  @default("en")
   marketingConsent       Boolean                 @default(false)
   tags                   String[]                @default([]) // staff labels: VIP, regular, watch…
+  showOnLeaderboard      Boolean                 @default(false) // opted in from the app
+  resetCodeHash          String? // one-time password reset code a staff member gave them
+  resetCodeExpiresAt     DateTime?               @db.Timestamptz(3)
   referralCode           String?
   referredById           String?                 @db.Uuid
   // Denormalised counters (rebuildable from ledgers/sessions)

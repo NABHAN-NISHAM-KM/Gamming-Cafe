@@ -72,6 +72,11 @@ A pure module with no database access. It is unit-tested in `test/pricing.test.t
   `no_time`, `account_blocked`, and `duplicate_request` (a replayed requestId).
 - **On success:** a TIME_BALANCE session is started for the whole balance. Logout
   refunds the unused minutes.
+- **By phone:** the sign-in screen also shows a QR code. The Shell asks for a
+  one-time code (`qr_login` → `qr_login_code`, 3 minutes, single use); the player
+  scans it with the customer app, confirms, and the same session starts as
+  if they had typed their password. See
+  [11 · Signing in at a PC with the phone](11-customers-wallet-bookings.md#signing-in-at-a-pc-with-the-phone).
 
 ## The Gaming Shell
 

@@ -1,36 +1,12 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { Camera, ChevronLeft, Crown, Download, Gift, Inbox, Loader2, Medal, Share2, Swords, Trash2, Trophy, Users, X } from "lucide-react";
-import { api, key } from "./api";
+import { useEffect, useState } from "react";
+import { Camera, Crown, Download, Gift, HeartHandshake, Inbox, Loader2, Medal, Share2, Swords, Trash2, Trophy, Users, X } from "lucide-react";
+import { api, key, type Me } from "./api";
 import { askConfirm } from "./confirm";
+import { locale, t } from "./i18n";
+import { Challenges, Leaderboard } from "./more";
+import { cx, Loading, Screen, useLoad, type Toast } from "./ui";
 
-/* Rewards (loyalty points), tournaments and the inbox — Phase 10. */
-
-const cx = (...c: Array<string | false | null | undefined>) => c.filter(Boolean).join(" ");
-type Toast = (t: string, ok?: boolean) => void;
-
-function useLoad<T>(fn: () => Promise<T>, deps: unknown[] = []) {
-  const [data, setData] = useState<T>();
-  const [error, setError] = useState<string | null>(null);
-  const reload = useCallback(() => {
-    fn().then(setData, (e) => setError(e instanceof Error ? e.message : String(e)));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps);
-  useEffect(reload, [reload]);
-  return { data, error, reload };
-}
-
-function Screen({ title, children, back }: { title: string; children: ReactNode; back?: () => void }) {
-  return (
-    <section className="mx-auto w-full max-w-lg px-4 pb-28 pt-6">
-      <div className="mb-5 flex items-center gap-2">
-        {back && <button onClick={back} className="-ml-2 p-2 text-dim" aria-label="Back"><ChevronLeft className="size-6" /></button>}
-        <h1 className="font-display text-2xl font-semibold">{title}</h1>
-      </div>
-      {children}
-    </section>
-  );
-}
-const Loading = () => <div className="grid place-items-center py-16"><Loader2 className="size-7 animate-spin text-glow" /></div>;
+/* Rewards (loyalty points, challenges, leaderboard), tournaments, the inbox and screenshots. */
 
 // ── rewards ─────────────────────────────────────────────────────────────────
 
@@ -44,44 +20,44 @@ interface Loyalty {
   rewards: Array<{ id: string; name: string; description: string | null; costPoints: number; rewardType: string; stock: number | null; affordable: boolean }>;
 }
 
-export function RewardsScreen({ toast, onChanged }: { toast: Toast; onChanged: () => void }) {
+export function RewardsScreen({ me, toast, onChanged }: { me: Me; toast: Toast; onChanged: () => void }) {
   const l = useLoad(() => api<Loyalty>("/loyalty"));
   const [busy, setBusy] = useState<string | null>(null);
   const [code, setCode] = useState<string | null>(null);
   const redeem = async (r: Loyalty["rewards"][number]) => {
-    if (!(await askConfirm(`Use ${r.costPoints} points for “${r.name}”?`, { ok: "Redeem" }))) return;
+    if (!(await askConfirm(t("Use {n} points for “{name}”?", { n: r.costPoints, name: r.name }), { ok: t("Redeem"), cancel: t("Cancel") }))) return;
     setBusy(r.id);
     try {
       const out = await api<{ code?: string; minutes?: number; walletCredit?: string }>("/loyalty/redeem", { method: "POST", body: { rewardId: r.id, idempotencyKey: key() } });
       if (out.code) setCode(out.code);
-      toast(out.code ? "Here's your code — show it at the counter." : out.minutes ? `${out.minutes} minutes added to your play time!` : out.walletCredit ? `${out.walletCredit} added to your wallet!` : "Redeemed!");
+      toast(out.code ? t("Here's your code — show it at the counter.") : out.minutes ? t("{n} minutes added to your play time!", { n: out.minutes }) : out.walletCredit ? t("{amount} added to your wallet!", { amount: out.walletCredit }) : t("Redeemed!"));
       l.reload();
       onChanged();
     } catch (e) {
-      toast(e instanceof Error ? e.message : "Couldn't redeem that.", false);
+      toast(e instanceof Error ? e.message : t("Couldn't redeem that."), false);
     } finally {
       setBusy(null);
     }
   };
-  if (!l.data) return <Screen title="Rewards">{l.error ? <p className="text-alarm">{l.error}</p> : <Loading />}</Screen>;
+  if (!l.data) return <Screen title={t("Rewards")}>{l.error ? <p className="text-alarm">{l.error}</p> : <Loading />}</Screen>;
   const d = l.data;
   return (
-    <Screen title="Rewards">
+    <Screen title={t("Rewards")}>
       <div className="relative overflow-hidden rounded-3xl border border-rim p-6" style={{ background: "linear-gradient(135deg, color-mix(in oklab, var(--color-glow) 30%, var(--color-deck)), var(--color-deck) 70%)" }}>
-        <p className="text-sm text-dim">Your points</p>
+        <p className="text-sm text-dim">{t("Your points")}</p>
         <p className="tabular mt-1 font-display text-5xl font-semibold">{d.points}</p>
-        <p className="mt-2 text-sm text-dim">1 point per AED spent{d.multiplier > 1 ? ` · ×${d.multiplier} as ${d.tier}` : ""}</p>
-        {d.expiringSoon > 0 && <p className="mt-2 text-sm text-warn">{d.expiringSoon} points expire in the next 30 days</p>}
-        <Medal className="absolute right-5 top-5 size-8 text-glow" />
+        <p className="mt-2 text-sm text-dim">{t("1 point per AED spent")}{d.multiplier > 1 ? ` · ${t("×{n} as {tier}", { n: d.multiplier, tier: d.tier ?? "" })}` : ""}</p>
+        {d.expiringSoon > 0 && <p className="mt-2 text-sm text-warn">{t("{n} points expire in the next 30 days", { n: d.expiringSoon })}</p>}
+        <Medal className="absolute end-5 top-5 size-8 text-glow" />
       </div>
       {code && (
         <div className="card mt-4 border-glow/50 p-5 text-center">
-          <p className="text-sm text-dim">Your reward code</p>
+          <p className="text-sm text-dim">{t("Your reward code")}</p>
           <p className="mt-1 font-mono text-3xl tracking-widest text-glow">{code}</p>
-          <p className="mt-1 text-xs text-dim">Valid 90 days · one use · yours only</p>
+          <p className="mt-1 text-xs text-dim">{t("Valid 90 days · one use · yours only")}</p>
         </div>
       )}
-      <h2 className="mb-3 mt-6 font-display text-lg font-semibold">Treat yourself</h2>
+      <h2 className="mb-3 mt-6 font-display text-lg font-semibold">{t("Treat yourself")}</h2>
       <div className="grid gap-3">
         {d.rewards.map((r) => (
           <div key={r.id} className="card flex items-center gap-4 p-4">
@@ -91,34 +67,36 @@ export function RewardsScreen({ toast, onChanged }: { toast: Toast; onChanged: (
               {r.description && <p className="text-sm text-dim">{r.description}</p>}
             </div>
             <button disabled={!r.affordable || busy === r.id} onClick={() => void redeem(r)} className="btn btn-primary shrink-0 px-4 py-2 text-sm">
-              {busy === r.id ? <Loader2 className="size-4 animate-spin" /> : `${r.costPoints} pts`}
+              {busy === r.id ? <Loader2 className="size-4 animate-spin" /> : t("{n} pts", { n: r.costPoints })}
             </button>
           </div>
         ))}
-        {d.rewards.length === 0 && <p className="text-dim">No rewards yet — check back soon.</p>}
+        {d.rewards.length === 0 && <p className="text-dim">{t("No rewards yet — check back soon.")}</p>}
       </div>
+      <Challenges />
+      <Leaderboard me={me} toast={toast} />
       {d.referralCode && (
         <div className="card mt-6 p-5">
-          <p className="flex items-center gap-2 font-semibold"><Users className="size-5 text-glow-2" /> Invite a friend</p>
-          <p className="mt-1 text-sm text-dim">They sign up with your code; you get bonus points when they first play.</p>
+          <p className="flex items-center gap-2 font-semibold"><Users className="size-5 text-glow-2" /> {t("Invite a friend")}</p>
+          <p className="mt-1 text-sm text-dim">{t("They sign up with your code; you get bonus points when they first play.")}</p>
           <button
             className="mt-3 w-full rounded-xl bg-void/60 py-3 text-center font-mono text-2xl tracking-widest"
-            onClick={() => navigator.clipboard.writeText(d.referralCode!).then(() => toast("Invite code copied!"), () => toast("Couldn't copy — long-press to select it.", false))}
+            onClick={() => navigator.clipboard.writeText(d.referralCode!).then(() => toast(t("Invite code copied!")), () => toast(t("Couldn't copy — long-press to select it."), false))}
           >
             {d.referralCode}
           </button>
-          <p className="mt-1 text-center text-xs text-dim">Tap to copy</p>
+          <p className="mt-1 text-center text-xs text-dim">{t("Tap to copy")}</p>
         </div>
       )}
-      <h2 className="mb-2 mt-6 font-display text-lg font-semibold">History</h2>
+      <h2 className="mb-2 mt-6 font-display text-lg font-semibold">{t("History")}</h2>
       <ul className="card divide-y divide-rim">
         {d.history.map((h) => (
           <li key={h.id} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
-            <span className="min-w-0"><span className="block truncate">{h.reason ?? h.type.toLowerCase()}</span><span className="text-xs text-dim">{new Date(h.at).toLocaleDateString()}</span></span>
-            <span className={cx("tabular font-semibold", h.points < 0 ? "text-alarm" : "text-good")}>{h.points > 0 ? "+" : ""}{h.points}</span>
+            <span className="min-w-0"><span className="block truncate">{h.reason ?? h.type.toLowerCase()}</span><span className="text-xs text-dim">{new Date(h.at).toLocaleDateString(locale())}</span></span>
+            <span className={cx("tabular font-semibold", h.points < 0 ? "text-alarm" : "text-good")} dir="ltr">{h.points > 0 ? "+" : ""}{h.points}</span>
           </li>
         ))}
-        {d.history.length === 0 && <li className="p-4 text-sm text-dim">Play or order to start collecting points.</li>}
+        {d.history.length === 0 && <li className="p-4 text-sm text-dim">{t("Play or order to start collecting points.")}</li>}
       </ul>
     </Screen>
   );
@@ -139,32 +117,33 @@ interface TDetail extends Omit<TRow, "myTeam" | "branch"> {
 }
 const FORMAT: Record<string, string> = { SINGLE_ELIMINATION: "Knockout", DOUBLE_ELIMINATION: "Double elimination", ROUND_ROBIN: "Round robin", LEAGUE: "League", SWISS: "Swiss" };
 const STATUS: Record<string, string> = { REGISTRATION_OPEN: "Entries open", REGISTRATION_CLOSED: "Entries closed", CHECK_IN: "Check-in", IN_PROGRESS: "Live", COMPLETED: "Finished" };
+const dateTime = (iso: string, long = false) => new Date(iso).toLocaleString(locale(), { weekday: long ? "long" : "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
 export function TournamentsScreen({ toast, onChanged }: { toast: Toast; onChanged: () => void }) {
   const list = useLoad(() => api<TRow[]>("/tournaments"));
   const [open, setOpen] = useState<string | null>(null);
   if (open) return <TournamentDetail id={open} back={() => { setOpen(null); list.reload(); }} toast={toast} onChanged={onChanged} />;
   return (
-    <Screen title="Tournaments">
+    <Screen title={t("Tournaments")}>
       {!list.data ? (list.error ? <p className="text-alarm">{list.error}</p> : <Loading />) : list.data.length === 0 ? (
-        <div className="card p-8 text-center text-dim"><Trophy className="mx-auto size-10 opacity-60" /><p className="mt-3">No tournaments right now. Check back soon!</p></div>
+        <div className="card p-8 text-center text-dim"><Trophy className="mx-auto size-10 opacity-60" /><p className="mt-3">{t("No tournaments right now. Check back soon!")}</p></div>
       ) : (
         <div className="grid gap-3">
-          {list.data.map((t) => (
-            <button key={t.id} onClick={() => setOpen(t.id)} className="card w-full p-5 text-left">
+          {list.data.map((x) => (
+            <button key={x.id} onClick={() => setOpen(x.id)} className="card w-full p-5 text-start">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="font-display text-lg font-semibold">{t.name}</p>
-                  <p className="text-sm text-dim">{t.game ?? "—"} · {FORMAT[t.format]} · {t.teamSize === 1 ? "1v1" : `${t.teamSize}v${t.teamSize}`}</p>
+                  <p className="font-display text-lg font-semibold">{x.name}</p>
+                  <p className="text-sm text-dim">{x.game ?? "—"} · {t(FORMAT[x.format] ?? x.format)} · {x.teamSize === 1 ? "1v1" : `${x.teamSize}v${x.teamSize}`}</p>
                 </div>
-                <span className={cx("shrink-0 rounded-full px-3 py-1 text-xs font-semibold", t.status === "IN_PROGRESS" ? "bg-good/20 text-good" : t.status === "REGISTRATION_OPEN" ? "bg-glow/20 text-glow" : "bg-rim text-dim")}>{STATUS[t.status] ?? t.status}</span>
+                <span className={cx("shrink-0 rounded-full px-3 py-1 text-xs font-semibold", x.status === "IN_PROGRESS" ? "bg-good/20 text-good" : x.status === "REGISTRATION_OPEN" ? "bg-glow/20 text-glow" : "bg-rim text-dim")}>{t(STATUS[x.status] ?? x.status)}</span>
               </div>
               <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">
-                <span>{new Date(t.startsAt).toLocaleString([], { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
-                <span className="text-dim">{t.entered}/{t.maxTeams} in</span>
-                {Number(t.prizePool) > 0 && <span className="text-warn">{t.currency} {Number(t.prizePool)} prizes</span>}
+                <span>{dateTime(x.startsAt)}</span>
+                <span className="text-dim">{t("{n}/{max} in", { n: x.entered, max: x.maxTeams })}</span>
+                {Number(x.prizePool) > 0 && <span className="text-warn">{t("{amount} prizes", { amount: `${x.currency} ${Number(x.prizePool)}` })}</span>}
               </div>
-              {t.myTeam && <p className="mt-2 text-sm text-good">You're in{t.myTeam.finalPlacement ? ` — finished #${t.myTeam.finalPlacement}` : ""}</p>}
+              {x.myTeam && <p className="mt-2 text-sm text-good">{x.myTeam.finalPlacement ? t("You're in — finished #{n}", { n: x.myTeam.finalPlacement }) : t("You're in")}</p>}
             </button>
           ))}
         </div>
@@ -174,21 +153,21 @@ export function TournamentsScreen({ toast, onChanged }: { toast: Toast; onChange
 }
 
 function TournamentDetail({ id, back, toast, onChanged }: { id: string; back: () => void; toast: Toast; onChanged: () => void }) {
-  const t = useLoad(() => api<TDetail>(`/tournaments/${id}`), [id]);
+  const tr = useLoad(() => api<TDetail>(`/tournaments/${id}`), [id]);
   const [team, setTeam] = useState("");
   const [mates, setMates] = useState("");
   const [busy, setBusy] = useState(false);
-  if (!t.data) return <Screen title="Tournament" back={back}>{t.error ? <p className="text-alarm">{t.error}</p> : <Loading />}</Screen>;
-  const d = t.data;
+  if (!tr.data) return <Screen title={t("Tournament")} back={back}>{tr.error ? <p className="text-alarm">{tr.error}</p> : <Loading />}</Screen>;
+  const d = tr.data;
   const enter = async () => {
     setBusy(true);
     try {
       await api(`/tournaments/${id}/register`, { method: "POST", body: { teamName: team.trim(), teammates: mates.split(/[\s,]+/).map((s) => s.replace(/^@/, "")).filter(Boolean), idempotencyKey: key() } });
-      toast(Number(d.entryFee) > 0 ? `You're in! ${d.currency} ${d.entryFee} paid from your wallet.` : "You're in!");
-      t.reload();
+      toast(Number(d.entryFee) > 0 ? t("You're in! {amount} paid from your wallet.", { amount: `${d.currency} ${d.entryFee}` }) : t("You're in!"));
+      tr.reload();
       onChanged();
     } catch (e) {
-      toast(e instanceof Error ? e.message : "Couldn't enter.", false);
+      toast(e instanceof Error ? e.message : t("Couldn't enter."), false);
     } finally {
       setBusy(false);
     }
@@ -197,29 +176,29 @@ function TournamentDetail({ id, back, toast, onChanged }: { id: string; back: ()
   return (
     <Screen title={d.name} back={back}>
       <div className="card p-5 text-sm">
-        <p className="text-dim">{d.game ?? "—"} · {FORMAT[d.format]} · {new Date(d.startsAt).toLocaleString([], { weekday: "long", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</p>
+        <p className="text-dim">{d.game ?? "—"} · {t(FORMAT[d.format] ?? d.format)} · {dateTime(d.startsAt, true)}</p>
         {d.description && <p className="mt-2">{d.description}</p>}
         <div className="mt-3 flex flex-wrap gap-4">
-          <span>Entry: <strong>{Number(d.entryFee) > 0 ? `${d.currency} ${d.entryFee}` : "Free"}</strong></span>
-          {d.prizeDistribution.length > 0 && <span className="text-warn">Prizes: {d.prizeDistribution.map((p) => `#${p.place} ${d.currency} ${p.amount}`).join(" · ")}</span>}
+          <span>{t("Entry")}: <strong>{Number(d.entryFee) > 0 ? `${d.currency} ${d.entryFee}` : t("Free")}</strong></span>
+          {d.prizeDistribution.length > 0 && <span className="text-warn">{t("Prizes")}: {d.prizeDistribution.map((p) => `#${p.place} ${d.currency} ${p.amount}`).join(" · ")}</span>}
         </div>
         {d.rules && <p className="mt-3 text-xs text-dim">{d.rules}</p>}
       </div>
       {!d.myTeamId && d.status === "REGISTRATION_OPEN" && d.entered < d.maxTeams && (
         <form className="card mt-4 grid gap-3 p-5" onSubmit={(e) => { e.preventDefault(); void enter(); }}>
-          <p className="font-semibold">Enter</p>
-          <input className="field" value={team} onChange={(e) => setTeam(e.target.value)} placeholder={d.teamSize === 1 ? "Your gamer tag" : "Team name"} required maxLength={40} />
-          {d.teamSize > 1 && <input className="field" value={mates} onChange={(e) => setMates(e.target.value)} placeholder={`Teammates' usernames (${d.teamSize - 1}), separated by spaces`} required />}
-          <button className="btn btn-primary" disabled={busy}>{busy ? <Loader2 className="size-5 animate-spin" /> : <Swords className="size-5" />} {Number(d.entryFee) > 0 ? `Enter · ${d.currency} ${d.entryFee} from wallet` : "Enter for free"}</button>
+          <p className="font-semibold">{t("Enter")}</p>
+          <input className="field" value={team} onChange={(e) => setTeam(e.target.value)} placeholder={d.teamSize === 1 ? t("Your gamer tag") : t("Team name")} required maxLength={40} />
+          {d.teamSize > 1 && <input className="field" value={mates} onChange={(e) => setMates(e.target.value)} placeholder={t("Teammates' usernames ({n}), separated by spaces", { n: d.teamSize - 1 })} required />}
+          <button className="btn btn-primary" disabled={busy}>{busy ? <Loader2 className="size-5 animate-spin" /> : <Swords className="size-5" />} {Number(d.entryFee) > 0 ? t("Enter · {amount} from wallet", { amount: `${d.currency} ${d.entryFee}` }) : t("Enter for free")}</button>
         </form>
       )}
-      {d.myTeamId && <p className="mt-4 rounded-2xl bg-good/15 px-4 py-3 text-good">You're in this tournament. Arrive 15 minutes early to check in.</p>}
+      {d.myTeamId && <p className="mt-4 rounded-2xl bg-good/15 px-4 py-3 text-good">{t("You're in this tournament. Arrive 15 minutes early to check in.")}</p>}
 
       {d.standings && d.matches.length > 0 && (
         <div className="card mt-4 overflow-hidden">
           {d.standings.map((s, i) => (
             <div key={s.team} className={cx("flex items-center gap-3 px-4 py-2.5 text-sm", i > 0 && "border-t border-rim", s.team === d.myTeamId && "bg-glow/10")}>
-              <span className="w-5 text-dim">{i + 1}</span><span className="flex-1 font-medium">{s.name}</span><span className="text-dim">{s.wins}-{s.draws}-{s.losses}</span><span className="tabular w-8 text-right font-semibold">{s.points}</span>
+              <span className="w-5 text-dim">{i + 1}</span><span className="flex-1 font-medium">{s.name}</span><span className="text-dim" dir="ltr">{s.wins}-{s.draws}-{s.losses}</span><span className="tabular w-8 text-end font-semibold">{s.points}</span>
             </div>
           ))}
         </div>
@@ -232,7 +211,7 @@ function TournamentDetail({ id, back, toast, onChanged }: { id: string; back: ()
             if (!ms.length) return null;
             return (
               <div key={r}>
-                <p className="mb-2 text-xs uppercase tracking-wider text-dim">{side === "GRAND_FINAL" ? "Grand final" : `Round ${round}`}</p>
+                <p className="mb-2 text-xs uppercase tracking-wider text-dim">{side === "GRAND_FINAL" ? t("Grand final") : t("Round {n}", { n: round ?? "" })}</p>
                 <div className="grid gap-2">
                   {ms.map((m) => (
                     <div key={m.id} className="card px-4 py-2 text-sm">
@@ -265,19 +244,35 @@ function TournamentDetail({ id, back, toast, onChanged }: { id: string; back: ()
 
 // ── inbox ───────────────────────────────────────────────────────────────────
 
-interface Message { id: string; title: string | null; body: string; data: { code?: string | null } | null; readAt: string | null; createdAt: string }
+interface Message { id: string; title: string | null; body: string; data: { code?: string | null; bookingId?: string; share?: string; currency?: string; paid?: boolean } | null; readAt: string | null; createdAt: string }
 
-export function InboxScreen({ back, onRead }: { back: () => void; onRead: () => void }) {
+export function InboxScreen({ back, onRead, toast, onChanged }: { back: () => void; onRead: () => void; toast: Toast; onChanged: () => void }) {
   const list = useLoad(() => api<Message[]>("/inbox"));
+  const [busy, setBusy] = useState<string | null>(null);
   useEffect(() => {
-    const unread = (list.data ?? []).filter((m) => !m.readAt);
+    const unread = (list.data ?? []).filter((m) => !m.readAt && !(m.data?.bookingId && !m.data.paid));
     if (!unread.length) return;
     void Promise.all(unread.map((m) => api(`/inbox/${m.id}/read`, { method: "POST" }))).then(onRead);
   }, [list.data, onRead]);
+  const payShare = async (m: Message) => {
+    if (!(await askConfirm(t("Pay your share of {amount} from your wallet?", { amount: `${m.data!.currency} ${m.data!.share}` }), { ok: t("Pay"), cancel: t("Cancel") }))) return;
+    setBusy(m.id);
+    try {
+      await api(`/inbox/${m.id}/pay-share`, { method: "POST" });
+      toast(t("Paid — thanks for chipping in!"));
+      list.reload();
+      onRead();
+      onChanged();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : t("Couldn't pay that."), false);
+    } finally {
+      setBusy(null);
+    }
+  };
   return (
-    <Screen title="Inbox" back={back}>
+    <Screen title={t("Inbox")} back={back}>
       {!list.data ? <Loading /> : list.data.length === 0 ? (
-        <div className="card p-8 text-center text-dim"><Inbox className="mx-auto size-10 opacity-60" /><p className="mt-3">No messages yet.</p></div>
+        <div className="card p-8 text-center text-dim"><Inbox className="mx-auto size-10 opacity-60" /><p className="mt-3">{t("No messages yet.")}</p></div>
       ) : (
         <div className="grid gap-3">
           {list.data.map((m) => (
@@ -285,7 +280,14 @@ export function InboxScreen({ back, onRead }: { back: () => void; onRead: () => 
               {m.title && <p className="font-semibold">{m.title}</p>}
               <p className="mt-1 whitespace-pre-line text-sm">{m.body}</p>
               {m.data?.code && <p className="mt-3 rounded-xl bg-void/60 py-2 text-center font-mono text-xl tracking-widest text-glow">{m.data.code}</p>}
-              <p className="mt-2 text-xs text-dim">{new Date(m.createdAt).toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</p>
+              {m.data?.bookingId && (m.data.paid ? (
+                <p className="mt-3 text-sm text-good">{t("You paid your share.")}</p>
+              ) : (
+                <button className="btn btn-primary mt-3 w-full" disabled={busy === m.id} onClick={() => void payShare(m)}>
+                  {busy === m.id ? <Loader2 className="size-5 animate-spin" /> : <HeartHandshake className="size-5" />} {t("Pay my share · {amount}", { amount: `${m.data.currency} ${m.data.share}` })}
+                </button>
+              ))}
+              <p className="mt-2 text-xs text-dim">{new Date(m.createdAt).toLocaleString(locale(), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</p>
             </div>
           ))}
         </div>
@@ -310,7 +312,7 @@ export function ScreenshotsScreen({ back, toast }: { back: () => void; toast: To
       setOpen((o) => (o?.id === id ? { id, image: r.image } : o));
     } catch {
       setOpen(null);
-      toast("Couldn't open that screenshot.", false);
+      toast(t("Couldn't open that screenshot."), false);
     }
   };
   const save = async (image: string, id: string) => {
@@ -327,39 +329,39 @@ export function ScreenshotsScreen({ back, toast }: { back: () => void; toast: To
     URL.revokeObjectURL(a.href);
   };
   const remove = async (id: string) => {
-    if (!(await askConfirm("Delete this screenshot?", { ok: "Delete" }))) return;
+    if (!(await askConfirm(t("Delete this screenshot?"), { ok: t("Delete"), cancel: t("Cancel") }))) return;
     await api(`/screenshots/${id}`, { method: "DELETE" });
     setOpen(null);
     list.reload();
   };
 
   return (
-    <Screen title="Screenshots" back={back}>
+    <Screen title={t("Screenshots")} back={back}>
       {!list.data ? <Loading /> : list.data.length === 0 ? (
         <div className="card p-8 text-center text-dim">
           <Camera className="mx-auto size-10 opacity-60" />
-          <p className="mt-3">No screenshots yet.</p>
-          <p className="mt-1 text-sm">Press <b className="text-text">Print Screen</b> on a gaming PC while you play — they show up here for 30 days.</p>
+          <p className="mt-3">{t("No screenshots yet.")}</p>
+          <p className="mt-1 text-sm">{t("Press Print Screen on a gaming PC while you play — they show up here for 30 days.")}</p>
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-3">
           {list.data.map((s) => (
-            <button key={s.id} onClick={() => void view(s.id)} className="card press overflow-hidden p-0 text-left">
+            <button key={s.id} onClick={() => void view(s.id)} className="card press overflow-hidden p-0 text-start">
               <img src={s.thumb} alt="" className="aspect-video w-full object-cover" />
-              <p className="px-3 py-2 text-xs text-dim">{new Date(s.takenAt).toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</p>
+              <p className="px-3 py-2 text-xs text-dim">{new Date(s.takenAt).toLocaleString(locale(), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</p>
             </button>
           ))}
         </div>
       )}
       {open && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/90 p-4" onClick={() => setOpen(null)}>
-          <button onClick={() => setOpen(null)} aria-label="Close" className="absolute right-4 top-4 rounded-full bg-white/10 p-2"><X className="size-6" /></button>
+          <button onClick={() => setOpen(null)} aria-label={t("Close")} className="absolute end-4 top-4 rounded-full bg-white/10 p-2"><X className="size-6" /></button>
           {!open.image ? <Loader2 className="size-8 animate-spin text-glow" /> : (
             <div className="grid w-full max-w-3xl gap-4" onClick={(e) => e.stopPropagation()}>
-              <img src={open.image} alt="Screenshot" className="w-full rounded-xl" />
+              <img src={open.image} alt={t("Screenshot")} className="w-full rounded-xl" />
               <div className="flex justify-center gap-3">
-                <button onClick={() => void save(open.image!, open.id)} className="btn btn-primary">{typeof navigator.share === "function" ? <Share2 className="size-5" /> : <Download className="size-5" />} Save</button>
-                <button onClick={() => void remove(open.id)} className="btn btn-ghost text-alarm"><Trash2 className="size-5" /> Delete</button>
+                <button onClick={() => void save(open.image!, open.id)} className="btn btn-primary">{typeof navigator.share === "function" ? <Share2 className="size-5" /> : <Download className="size-5" />} {t("Save")}</button>
+                <button onClick={() => void remove(open.id)} className="btn btn-ghost text-alarm"><Trash2 className="size-5" /> {t("Delete")}</button>
               </div>
             </div>
           )}

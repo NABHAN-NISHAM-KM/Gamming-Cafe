@@ -700,6 +700,21 @@ Browser-only version (no PC): `http://localhost:5174` (mock agent), and
 | - [ ] 11 | **Inbox** | Campaign messages with personal code; unread badge clears |
 | - [ ] 12 | After phoneuser's first paid bill | ahmed gets **+200** referral points (once) |
 | - [ ] 13 | Log out; reuse the old tab | Token dead, sent to login |
+| - [ ] 14 | **Me → Profile & settings**: change name, set birth date, language **العربية** | Saved; the whole app switches to Arabic, right to left; birth date can't be changed again |
+| - [ ] 15 | Change password; open the app on a second phone first | Second phone is signed out |
+| - [ ] 16 | Set a PC PIN, then sign in at a PC with username + PIN | Works |
+| - [ ] 17 | Staff: Customers → phoneuser → **Password / PIN → Give a reset code**; app: **Forgot password?** with the code | New password works; the code doesn't work twice |
+| - [ ] 18 | At a free PC, scan the QR on the sign-in screen with the phone → **Sign in on PC-xx** | The PC unlocks with your saved time; the same QR can't be used again |
+| - [ ] 19 | While playing: Home → **Add time** (package) and **Order food** (pay with bill) | Countdown on the PC jumps; the order reaches the kitchen and its status shows in the app |
+| - [ ] 20 | Home: **Free right now** | Free stations per zone match the Live Floor |
+| - [ ] 21 | **Games**: star a game | It moves to the top; shows how many PCs have it |
+| - [ ] 22 | **Wallet → Send a gift** 10 to ahmed; **Wallet → Top up** 50 (demo card) | ahmed gets the money and an inbox message; your wallet +50 |
+| - [ ] 23 | **My bookings → Split with friends** (ahmed); ahmed: Inbox → **Pay my share** | ahmed's share moves into your wallet; the booking shows "paid" |
+| - [ ] 24 | Owner: Marketing → Loyalty → **Challenges** → "First visit: 1 day visited, 25 points"; play once | The challenge shows done in **Rewards** and the points arrive |
+| - [ ] 25 | **Rewards → Show my first name on the board** | You appear in "Top players this month" |
+| - [ ] 26 | **Help**: send "Charged twice" | Staff see it in the customer's Tickets tab |
+| - [ ] 27 | **Notifications → On** (browser, not the APK); start a short session for yourself | "10 minutes left" arrives on the phone; tapping it opens the app |
+| - [ ] 28 | **Delete my account** with money in the wallet; then empty it and try again | First refused; then erased and sign-in fails |
 
 ---
 
@@ -766,7 +781,7 @@ station identity).
 | **Finance** and **Reports** pages | Phase 11 (greyed out in the menu) |
 | **Super Admin impersonation, client releases** | Platform roles, organizations, plans and audit are built ([K](#k--super-admin-platform)); impersonating a venue's staff and pushing client releases aren't |
 | **Full kiosk lockdown** (Explorer replacement, key filtering, staff exit, maintenance-mode PIN unlock) | Phase 13. The Shell autostarts and is restarted if killed, but Windows keys and Ctrl+Alt+Del still work today |
-| **Real online payments** | "Pay now" is a demo card; it's off in production |
+| **Real online payments** | "Pay now" and the app's wallet top-up use a demo card; both are off in production |
 | **SMS / e-mail / WhatsApp delivery** | Goes to the dev outbox until a provider is connected. Customer phone/email verification is a staff **Mark verified** button for the same reason |
 | **Diskless providers' own APIs** | Boot mode is detected; provider integration later |
 | **Multiple API servers** | In-memory live bus; one API node per venue for now |

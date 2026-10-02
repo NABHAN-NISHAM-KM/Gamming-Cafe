@@ -4,6 +4,7 @@ import type { Db, TenantTx } from "@arena/db";
 import { auditAs } from "../common/audit.service.js";
 import { DB } from "../common/db.module.js";
 import { LiveBus } from "../devices/live.js";
+import { PushService } from "../push/push.service.js";
 import { earnEvent } from "../loyalty/points.js";
 import { quote, selectPlans } from "../sessions/pricing.js";
 import { LIVE_STATUSES, SessionsService, stationClassFor, toPlanDef, type PaymentMethodInput } from "../sessions/sessions.service.js";
@@ -62,6 +63,7 @@ export class BookingsService implements OnModuleInit, OnModuleDestroy {
     @Inject(DB) private readonly db: Db,
     @Inject(SessionsService) private readonly sessions: SessionsService,
     @Inject(LiveBus) private readonly bus: LiveBus,
+    @Inject(PushService) private readonly push: PushService,
   ) {}
 
   onModuleInit() {
@@ -336,6 +338,17 @@ export class BookingsService implements OnModuleInit, OnModuleDestroy {
             this.publishBooking(t, after);
           })
           .catch((e) => this.log.error(`booking ${row.booking_id}: ${e instanceof Error ? e.message : e}`));
+      }
+      const soon = await this.db.global.$queryRaw<Array<{ organization_id: string; booking_id: string }>>`SELECT * FROM app.booking_reminders_due()`;
+      for (const row of soon) {
+        await this.db
+          .withTenant({ organizationId: row.organization_id, actorType: "SYSTEM", actorId: null }, async (t) => {
+            const b = await t.booking.findUnique({ where: { id: row.booking_id }, select: { id: true, customerId: true, branchId: true, reference: true, startsAt: true, branch: { select: { name: true, timezone: true } } } });
+            if (!b?.customerId) return;
+            const at = b.startsAt.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: b.branch.timezone });
+            await this.push.notify(t, { customerId: b.customerId, event: "booking.reminder", title: `Your booking starts at ${at}`, body: `${b.branch.name} · ${b.reference}. See you soon!`, screen: "bookings", dedupeKey: `booking-reminder:${b.id}`, branchId: b.branchId });
+          })
+          .catch((e) => this.log.error(`reminder ${row.booking_id}: ${e instanceof Error ? e.message : e}`));
       }
     } finally {
       this.running = false;

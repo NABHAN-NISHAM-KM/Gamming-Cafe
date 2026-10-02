@@ -281,6 +281,7 @@ function Loyalty() {
           </Table>
         )}
       </Card>
+      <Challenges />
       <Modal open={addingRule} onClose={() => setAddingRule(false)} title="New points rule">
         {addingRule && <RuleForm onDone={() => { setAddingRule(false); void rules.reload(); }} />}
       </Modal>
@@ -294,6 +295,63 @@ function Loyalty() {
         {addingReward && <RewardForm onDone={() => { setAddingReward(false); void rewards.reload(); }} />}
       </Modal>
     </div>
+  );
+}
+
+const GOAL: Record<string, [string, string]> = { PLAY_MINUTES: ["Play", "minutes in total"], VISITS: ["Visit", "days"], BOOKINGS: ["Keep", "bookings"], TOURNAMENTS: ["Enter", "tournaments"] };
+
+/** Milestones worth points once ("play 10 hours", "come 5 times"); players see their progress in the app. */
+function Challenges() {
+  const canOrg = useCanOrg();
+  const list = useApi<Array<{ id: string; name: string; description: string | null; criteria: { type: string; target: number }; rewardPoints: number; isActive: boolean; completed: number }>>("/loyalty/challenges");
+  const [f, setF] = useState({ name: "", type: "PLAY_MINUTES", target: "600", rewardPoints: "100" });
+  const add = useAction(async () => {
+    await api("/loyalty/challenges", { method: "POST", body: { name: f.name.trim(), criteria: { type: f.type, target: Number(f.target) }, rewardPoints: Number(f.rewardPoints) }, done: "Challenge added." });
+    setF({ ...f, name: "" });
+    await list.reload();
+  });
+  const toggle = useAction(async (id: string, isActive: boolean) => {
+    await api(`/loyalty/challenges/${id}`, { method: "PATCH", body: { isActive } });
+    await list.reload();
+  });
+  return (
+    <Card className="lg:col-span-2">
+      <div className="px-5 pt-4">
+        <h3 className="font-semibold">Challenges</h3>
+        <p className="text-xs text-ink-3">Milestones players work towards in the app. Points are given once, the moment someone reaches the goal.</p>
+      </div>
+      <ErrorNote>{toggle.error}</ErrorNote>
+      {!list.data ? <Spinner /> : list.data.length === 0 ? <p className="px-5 py-4 text-sm text-ink-3">No challenges yet.</p> : (
+        <Table head={["Challenge", "Goal", "Points", "Done by", ""]}>
+          {list.data.map((c) => (
+            <tr key={c.id} className={cx("border-t border-line", !c.isActive && "opacity-50")}>
+              <td className="px-4 py-2 font-medium">{c.name}</td>
+              <td className="px-4 py-2 text-ink-2">{GOAL[c.criteria.type] ? `${GOAL[c.criteria.type]![0]} ${c.criteria.target} ${GOAL[c.criteria.type]![1]}` : c.criteria.type}</td>
+              <td className="px-4 py-2 tabular-nums">{c.rewardPoints}</td>
+              <td className="px-4 py-2 tabular-nums">{c.completed}</td>
+              <td className="px-4 py-2 text-right">{canOrg("loyalty.manage") && <input type="checkbox" checked={c.isActive} onChange={(e) => void toggle.run(c.id, e.target.checked)} aria-label="Active" />}</td>
+            </tr>
+          ))}
+        </Table>
+      )}
+      {canOrg("loyalty.manage") && (
+        <form className="grid gap-3 border-t border-line p-4 sm:grid-cols-[2fr_1.4fr_1fr_1fr_auto] sm:items-end" onSubmit={(e) => { e.preventDefault(); void add.run(); }}>
+          <Field label="Name"><Input required minLength={2} maxLength={60} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="Night owl: 10 hours" /></Field>
+          <Field label="Goal">
+            <Select value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })}>
+              <option value="PLAY_MINUTES">Minutes played</option>
+              <option value="VISITS">Days visited</option>
+              <option value="BOOKINGS">Bookings kept</option>
+              <option value="TOURNAMENTS">Tournaments entered</option>
+            </Select>
+          </Field>
+          <Field label="Target"><Input required inputMode="numeric" value={f.target} onChange={(e) => setF({ ...f, target: e.target.value.replace(/\D/g, "") })} /></Field>
+          <Field label="Points"><Input required inputMode="numeric" value={f.rewardPoints} onChange={(e) => setF({ ...f, rewardPoints: e.target.value.replace(/\D/g, "") })} /></Field>
+          <Button type="submit" variant="primary" pending={add.pending}><Plus className="size-4" /> Add</Button>
+          <div className="sm:col-span-5"><ErrorNote>{add.error}</ErrorNote></div>
+        </form>
+      )}
+    </Card>
   );
 }
 
