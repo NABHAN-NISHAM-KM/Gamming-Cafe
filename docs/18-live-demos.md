@@ -11,6 +11,8 @@ The website runs the **real apps** against a simulated venue that lives in the b
 - **Shared state:** saved in `localStorage` and synced with `BroadcastChannel`, so the admin, Shell and customer demos on one origin are the same venue. Start a session on PC-01 in the admin and the Shell demo unlocks.
 - **A living venue:** station metrics tick, sessions run out, walk-in players keep about 60% of PCs busy (PC-01 stays free for the Shell), and a simulated kitchen crew moves tickets along.
 
+**Guided tour:** after sign-in, each demo shows a short tour (`packages/demo/src/tour.ts`) that points at the real controls, which it finds by their visible label. It shows once per demo per device. The **Tour** tab on the right edge restarts it, and `?tour` in the URL forces it.
+
 Demo logins: staff `owner@demo.test` (and manager, cashier…) · Super Admin `super@arenaos.test` with any 6-digit code · all `ArenaDemo!2026`. Players: `ahmed` / `ahmed123` (PIN 1234), `sara` / `sara1234`.
 
 ## Building

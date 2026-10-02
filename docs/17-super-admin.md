@@ -50,6 +50,7 @@ Roles are granted in the database (`PlatformRoleAssignment`), never from the UI,
 - **Plans & features:** edit price and limits; switch modules per plan.
 - **Audit log:** every platform action is written to the hash-chained `AuditLog` (actor type `PLATFORM_ADMIN`), including sign-ins. Organization-scoped actions go into that organization's chain.
 - **Platform admins:** who has which role, whether two-step sign-in is on, last sign-in.
+- **Leads:** walkthrough requests, booked calls and free trials from the website, with type and status filters and a link to a trial's organization. Move each through New → Contacted → Won / Lost (audited). See [21 · Website](21-website.md); trials are opened by the same code as **New organization**.
 
 ## API
 
@@ -58,11 +59,14 @@ All routes are under `http://localhost:4100/v1/platform`. Authenticated routes n
 | Method | Path | Roles |
 |---|---|---|
 | POST | /auth/login · /auth/mfa/verify · /auth/refresh · /auth/logout | public |
-| GET | /auth/me · /overview · /organizations · /organizations/:id · /plans · /audit · /admins | any platform role |
+| GET | /auth/me · /overview · /organizations · /organizations/:id · /plans · /audit · /admins · /leads | any platform role |
+| PATCH | /leads/:id | SUPER_ADMIN, PLATFORM_SUPPORT, PLATFORM_BILLING |
 | POST | /organizations | SUPER_ADMIN |
 | PATCH | /organizations/:id/status | SUPER_ADMIN, PLATFORM_SUPPORT (cancel: SUPER_ADMIN) |
 | PATCH | /organizations/:id/subscription · /plans/:id | SUPER_ADMIN, PLATFORM_BILLING |
 | PUT · DELETE | /organizations/:id/features/:key | SUPER_ADMIN |
 | PUT | /plans/:id/features/:key | SUPER_ADMIN |
+
+The website's public routes (`/v1/public/leads`, `/demo-slots`, `/demo`, `/trial`, `/releases`) are in [21](21-website.md).
 
 Tests: `apps/api/test/platform.e2e.test.ts` (enrolment, code replay, token isolation both ways, read-only role, organization lifecycle and audit, refresh-token reuse, logout).

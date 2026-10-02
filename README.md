@@ -36,6 +36,7 @@ Everything syncs in real time and keeps working at the branch when the internet 
 | [18 · Live demos & downloads](docs/18-live-demos.md) | In-browser demo venue, live demos on the website, desktop EXEs, APK, station installer |
 | [19 · Accounting, reports & analytics](docs/19-accounting-reports-analytics.md) | Automatic double-entry posting, statements, reconciliation, period lock, reports, dashboard |
 | [20 · End-to-end walkthrough](docs/20-end-to-end-walkthrough.md) | Super Admin → Owner builds a venue from zero → Customer → every staff role, on the real system |
+| [21 · Website](docs/21-website.md) | Marketing site, leads and call booking, self-serve trials, public venue pages, help centre, Arabic, SEO |
 
 ## Repository
 

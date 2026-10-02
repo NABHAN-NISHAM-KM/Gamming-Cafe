@@ -44,6 +44,7 @@ Open `http://localhost:5180`.
 | - [ ] 0.7 | Phone app: sign in ahmed / ahmed123 → **Book** a VIP PC tomorrow | Admin → **Bookings** lists it |
 | - [ ] 0.8 | Open `/live/admin/login/`, pick **Super Admin**, Sign in, type any 6 digits | The platform console opens at /platform |
 | - [ ] 0.9 | Bottom-left **Live demo → Reset** | The venue starts fresh |
+| - [ ] 0.10 | Open `/live/app/?tour` and sign in | A 5-step tour highlights Book, Shop, Rewards and Me; **Tour** on the right edge replays it |
 
 Then install the downloads from the **Download** section and follow [L](#l--downloads-desktop-exes-apk-installer).
 
@@ -727,6 +728,23 @@ Browser-only version (no PC): `http://localhost:5174` (mock agent), and
 | - [ ] 26 | **Help**: send "Charged twice" | Staff see it in the customer's Tickets tab |
 | - [ ] 27 | **Notifications → On** (browser, not the APK); start a short session for yourself | "10 minutes left" arrives on the phone; tapping it opens the app |
 | - [ ] 28 | **Delete my account** with money in the wallet; then empty it and try again | First refused; then erased and sign-in fails |
+
+---
+
+### F.12 · Website (API and platform running)
+
+| # | Do | Expect |
+|---|---|---|
+| - [ ] 1 | `http://SERVER:5180/contact.html` → fill it in, leave the call slot empty → **Request a walkthrough** | "Thanks!"; Super Admin → **Leads** shows a *Walkthrough* |
+| - [ ] 2 | Again, picking a call time | "Booked!" with the time; that time is gone from the list on reload; Leads shows *Call booked* |
+| - [ ] 3 | `/signup.html` → a new venue and email | "… is ready"; sign in to the admin with it, set up two-step; Main branch, two zones and a Regular PC rate exist |
+| - [ ] 4 | Sign up again with the same email | "You already have an ArenaOS account…" |
+| - [ ] 5 | Owner → **Settings → Public venue page → Publish**, then open `/v/demo` | Hours, free stations per zone, prices, tournaments; no customer names |
+| - [ ] 6 | **Hide the page**, reload `/v/demo` | "Venue not found" |
+| - [ ] 7 | `/help.html`, search "refund" | Matching articles; clicking one opens it |
+| - [ ] 8 | `/downloads.html` | Each download with size and SHA-256 (the same as `Get-FileHash`) |
+| - [ ] 9 | **العربية** in the nav | The Arabic page, right to left; **English** goes back |
+| - [ ] 10 | `/sitemap.xml`, `/robots.txt` | Every page listed; `/v1/`, `/live/`, `/demo/` disallowed |
 
 ---
 
