@@ -9,6 +9,8 @@ import { PrintApproval } from "./print";
 import { Desktop, StartMenu, Taskbar, useHost, useWindowManager } from "./desktop";
 import { addNotice, clearNotices } from "./tray";
 import { AddTime } from "./add-time";
+import { AccountCards, AwayLock, ThanksCard, useLangPref } from "./account";
+import { setSession } from "./player";
 import { StaffExit } from "./staff-exit";
 
 const cx = (...c: Array<string | false | null | undefined>) => c.filter(Boolean).join(" ");
@@ -180,6 +182,7 @@ function LockScreen({ state, t, lang, setLang }: { state: ShellState; t: Strings
         </form>
       </section>
       {!state.connected && <ConnectionBanner t={t} />}
+      <ThanksCard />
     </main>
   );
 }
@@ -254,7 +257,7 @@ function TimeRing({ remainingMs, totalMs }: { remainingMs: number; totalMs: numb
 }
 
 /** The desktop's home widget: time left, welcome, featured games. Ticks on its own. */
-function HomeWidget({ state, t, notify, openGames, addTime }: { state: ShellState; t: Strings; notify: Notify; openGames: () => void; addTime: () => void }) {
+function HomeWidget({ state, t, notify, openGames, openAccount, addTime }: { state: ShellState; t: Strings; notify: Notify; openGames: () => void; openAccount: () => void; addTime: () => void }) {
   const s = state.session!;
   const serverNow = useNow(1000) + state.serverOffsetMs;
   const remaining = s.expiresAt ? new Date(s.expiresAt).getTime() - serverNow : null;
@@ -281,6 +284,7 @@ function HomeWidget({ state, t, notify, openGames, addTime }: { state: ShellStat
             <span className="live-dot size-2 rounded-full bg-good" /> Playing {playing.title}
           </p>
         )}
+        <AccountCards openAccount={openAccount} />
         <p className="mt-10 mb-4 text-sm uppercase tracking-[0.25em] text-dim">Featured</p>
         <FeaturedRow notify={notify} />
         <button onClick={openGames} className="mt-6 flex items-center gap-2 text-glow hover:underline">
@@ -315,6 +319,19 @@ function SessionAlerts({ state, t }: { state: ShellState; t: Strings }) {
     // re-arm when a new session starts or the session is extended
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s.id, s.expiresAt]);
+
+  // A gentle break reminder every two hours of play.
+  const playedMs = serverNow - new Date(s.startedAt).getTime();
+  const breaks = Math.floor(playedMs / (2 * 3_600_000));
+  const breaksShown = useRef(breaks);
+  useEffect(() => {
+    if (breaks <= breaksShown.current) return;
+    breaksShown.current = breaks;
+    const text = `You've been playing ${breaks * 2} hours — stretch, look away from the screen and drink some water.`;
+    addNotice("Time for a short break", text, "warn");
+    setToast(text);
+    setTimeout(() => setToast(null), 12_000);
+  }, [breaks]);
 
   const lastMinute = remaining !== null && remaining <= 60_000 && remaining > 0;
   const timesUp = remaining !== null && remaining <= 0;
@@ -379,7 +396,7 @@ function SessionScreen({ state, t }: { state: ShellState; t: Strings }) {
   const bar = mode === "bar";
   const openGames = wm.open;
   const home = useMemo(
-    () => <HomeWidget state={state} t={t} notify={notify} openGames={() => openGames("games")} addTime={() => setAddingTime(true)} />,
+    () => <HomeWidget state={state} t={t} notify={notify} openGames={() => openGames("games")} openAccount={() => openGames("account")} addTime={() => setAddingTime(true)} />,
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [state, t, notify],
   );
@@ -399,6 +416,7 @@ function SessionScreen({ state, t }: { state: ShellState; t: Strings }) {
       )}
       <PrintApproval notify={notify} />
       <SessionAlerts state={state} t={t} />
+      <AwayLock name={state.session!.customerName} />
     </main>
   );
 }
@@ -425,6 +443,9 @@ export function App() {
   const [lang, setLang] = useState<Lang>("en");
   const [msg, setMsg] = useState<{ title: string; text: string } | null>(null);
   const t = useMemo(() => strings(lang), [lang]);
+  useLangPref(setLang); // a signed-in player's saved language
+  const sessionId = state?.session?.id ?? null;
+  useEffect(() => setSession(sessionId), [sessionId]);
 
   useEffect(() => {
     const off = bridge.subscribe((m) => {

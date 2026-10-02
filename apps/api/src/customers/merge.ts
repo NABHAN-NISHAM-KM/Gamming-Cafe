@@ -34,6 +34,9 @@ export async function eraseCustomer(t: TenantTx, customerId: string) {
   await t.customerFavoriteGame.deleteMany({ where: { customerId } });
   await t.customerSegmentMember.deleteMany({ where: { customerId } });
   await t.customerNote.deleteMany({ where: { customerId } });
+  await t.customerRecentGame.deleteMany({ where: { customerId } });
+  await t.gameSave.deleteMany({ where: { customerId } });
+  await t.customer.update({ where: { id: customerId }, data: { shellPrefs: {}, showOnLeaderboard: false } });
 }
 
 /**
@@ -98,6 +101,12 @@ export async function mergeCustomers(t: TenantTx, intoId: string, fromId: string
   for (const f of await t.customerFavoriteGame.findMany({ where: { customerId: fromId } })) {
     await t.customerFavoriteGame.upsert({ where: { customerId_gameId: { customerId: intoId, gameId: f.gameId } }, create: { organizationId, customerId: intoId, gameId: f.gameId }, update: {} });
   }
+  for (const g of await t.customerRecentGame.findMany({ where: { customerId: fromId } })) {
+    await t.customerRecentGame.upsert({ where: { customerId_gameId: { customerId: intoId, gameId: g.gameId } }, create: { organizationId, customerId: intoId, gameId: g.gameId, plays: g.plays, lastPlayedAt: g.lastPlayedAt }, update: { plays: { increment: g.plays } } });
+  }
+  // Saves: the kept account's own save wins; the duplicate's fills any game it doesn't have.
+  const keptSaves = new Set((await t.gameSave.findMany({ where: { customerId: intoId }, select: { gameId: true } })).map((x) => x.gameId));
+  await t.gameSave.updateMany({ where: { customerId: fromId, gameId: { notIn: [...keptSaves] } }, data: { customerId: intoId } });
   for (const a of await t.customerAchievement.findMany({ where: { customerId: fromId } })) {
     await t.customerAchievement.upsert({ where: { customerId_achievementId: { customerId: intoId, achievementId: a.achievementId } }, create: { organizationId, customerId: intoId, achievementId: a.achievementId, earnedAt: a.earnedAt }, update: {} });
   }

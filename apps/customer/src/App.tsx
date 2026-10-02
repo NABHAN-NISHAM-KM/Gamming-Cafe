@@ -8,7 +8,7 @@ import { BookScreen } from "./book";
 import { InboxScreen, RewardsScreen, ScreenshotsScreen, TournamentsScreen } from "./engage";
 import { askConfirm } from "./confirm";
 import { dir, getLang, locale, setLang, t, useLang } from "./i18n";
-import { AddTimeSheet, FoodScreen, FriendsScreen, GamesScreen, GiftSheet, HelpScreen, LiveCard, PcLoginSheet, ProfileScreen, SplitSheet, StatsScreen, TopUpSheet } from "./more";
+import { AddTimeSheet, ClaimSheet, FoodScreen, FriendsScreen, GamesScreen, GiftSheet, HelpScreen, LiveCard, PcLoginSheet, ProfileScreen, SplitSheet, StatsScreen, TopUpSheet } from "./more";
 import { cx, ErrorText, hours, Screen, useLoad } from "./ui";
 
 const when = (iso: string) => new Date(iso).toLocaleString(locale(), { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -543,9 +543,11 @@ const TABS = new Set<string>(["home", "book", "bookings", "shop", "wallet", "me"
 // Opened from a PC's QR code (?pc=CODE) or a notification (?screen=…): remembered across signing in.
 const params = new URLSearchParams(location.search);
 const startPc = params.get("pc")?.toUpperCase().replace(/[^A-Z0-9]/g, "") || sessionStorage.getItem("arena.pc") || null;
+const startClaim = params.get("claim")?.toUpperCase().replace(/[^A-Z0-9]/g, "") || sessionStorage.getItem("arena.claim") || null;
 const startScreen = params.get("screen");
-if (params.has("pc") || params.has("screen")) history.replaceState(null, "", location.pathname);
+if (params.has("pc") || params.has("claim") || params.has("screen")) history.replaceState(null, "", location.pathname);
 if (startPc) sessionStorage.setItem("arena.pc", startPc);
+if (startClaim) sessionStorage.setItem("arena.claim", startClaim);
 
 export function App() {
   useLang(); // re-render everything when the language changes
@@ -558,6 +560,7 @@ export function App() {
   const [toast, setToastState] = useState<{ text: string; tone: "good" | "bad" } | null>(null);
   const showToast = useCallback((text: string, ok = true) => setToastState({ text, tone: ok ? "good" : "bad" }), []);
   const [pcCode, setPcCode] = useState<string | null>(startPc);
+  const [claimCode, setClaimCode] = useState<string | null>(startClaim);
   const [addingTime, setAddingTime] = useState(false);
   const [slug] = useState(venueSlug);
   // Only the app (hosted API, no venue built in) can switch; on the web the venue is the URL.
@@ -629,7 +632,7 @@ export function App() {
         {changeVenue && <button onClick={changeVenue} className="text-glow">{t("Change venue")}</button>}
       </main>
     );
-  if (!authed) return <Auth slug={slug} venue={venue.data} onIn={() => setAuthed(true)} onChangeVenue={changeVenue} pcCode={pcCode} />;
+  if (!authed) return <Auth slug={slug} venue={venue.data} onIn={() => setAuthed(true)} onChangeVenue={changeVenue} pcCode={pcCode ?? claimCode} />;
   if (!me || !venue.data) return <main className="grid min-h-dvh place-items-center"><Loader2 className="size-8 animate-spin text-glow" /></main>;
 
   const signOut = async () => {
@@ -642,6 +645,10 @@ export function App() {
   const closePc = () => {
     sessionStorage.removeItem("arena.pc");
     setPcCode(null);
+  };
+  const closeClaim = () => {
+    sessionStorage.removeItem("arena.claim");
+    setClaimCode(null);
   };
 
   return (
@@ -665,6 +672,7 @@ export function App() {
       {tab === "profile" && <ProfileScreen me={me} back={() => setTab("me")} toast={showToast} onChanged={() => void refresh()} />}
       {addingTime && me.playingNow && <AddTimeSheet station={me.playingNow.station} onClose={() => setAddingTime(false)} onDone={() => { setAddingTime(false); void refresh(); }} toast={showToast} />}
       {pcCode && <PcLoginSheet code={pcCode} onClose={closePc} onDone={() => { closePc(); void refresh(); }} toast={showToast} />}
+      {claimCode && !pcCode && <ClaimSheet code={claimCode} onClose={closeClaim} onDone={() => { closeClaim(); void refresh(); }} toast={showToast} />}
       <nav className="glass safe-bottom fixed inset-x-0 bottom-0 z-40 border-x-0 border-b-0" aria-label={t("Main")}>
         <div className="mx-auto flex max-w-lg justify-around pt-2">
           {NAV.map((n) => {

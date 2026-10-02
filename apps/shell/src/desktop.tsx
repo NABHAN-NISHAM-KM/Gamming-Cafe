@@ -1,6 +1,8 @@
 import { memo, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
-import { AppWindow, Gamepad2, Globe, Layers, LifeBuoy, LogOut, Maximize2, Minimize2, Minus, Mouse, PanelLeft, PanelRight, Plus, Signal, UtensilsCrossed, X } from "lucide-react";
-import { bridge, type OpenWindow, type ShellMode, type ShellState, type WindowAction } from "./bridge";
+import { AppWindow, Gamepad2, Globe, Layers, LifeBuoy, Lock, LogOut, Maximize2, Minimize2, Minus, Mouse, PanelLeft, PanelRight, Plus, Signal, UserRound, UtensilsCrossed, X } from "lucide-react";
+import { bridge, player, type OpenWindow, type ShellMode, type ShellState, type WindowAction } from "./bridge";
+import { AccountScreen, setAway } from "./account";
+import { rememberEnded } from "./player";
 import type { Strings } from "./i18n";
 import { AppIcon, AppsScreen, ConnectivityScreen, GamesScreen, PeripheralsScreen, SupportScreen, useLauncher, type Notify } from "./screens";
 import { useStation } from "./station";
@@ -8,11 +10,20 @@ import { NetworkTray, NotificationsTray, ScreenshotButton, ShowDesktopButton, Vo
 import { FoodScreen } from "./food";
 import { askConfirm, askRating } from "./confirm";
 
-/** Log out: confirm, then ask for a quick rating (skippable) — it reaches the venue before the session ends. */
-async function logOut(t: Strings) {
-  if (!(await askConfirm(t.logoutConfirm, { ok: t.logout }))) return;
+const hm = (min: number) => (min >= 60 ? `${Math.floor(min / 60)} h${min % 60 ? ` ${min % 60} min` : ""}` : `${min} min`);
+
+/**
+ * Log out: confirm (with what this session came to so far), then ask for a quick
+ * rating (skippable) — it reaches the venue before the session ends. The lock
+ * screen then thanks them with the final time, spend and points.
+ */
+async function logOut(t: Strings, sessionId: string) {
+  const so = await player<{ minutes: number; spent: string; currency: string }>("summary", { sessionId }).catch(() => null);
+  const sofar = so ? `\n\n${hm(so.minutes)} played · ${so.currency} ${so.spent} so far.` : "";
+  if (!(await askConfirm(t.logoutConfirm + sofar, { ok: t.logout }))) return;
   const r = await askRating({ title: t.rateTitle, comment: t.rateComment, send: t.rateSend, skip: t.rateSkip });
   if (r) bridge.send({ type: "feedback", rating: r.rating, comment: r.comment });
+  rememberEnded(sessionId);
   bridge.send({ type: "logout" });
 }
 
@@ -46,10 +57,11 @@ export const windowAction = (id: string, action: WindowAction) => bridge.send({ 
 
 // ── Sections: the Shell's own "apps", each opens as a window ────────────────
 
-export type Section = "games" | "platforms" | "apps" | "internet" | "food" | "connectivity" | "peripherals" | "support";
+export type Section = "games" | "account" | "platforms" | "apps" | "internet" | "food" | "connectivity" | "peripherals" | "support";
 type SectionDef = { id: Section; label: string; icon: typeof Gamepad2; tint: string };
 export const SECTIONS: SectionDef[] = [
   { id: "games", label: "Games", icon: Gamepad2, tint: "from-violet-500 to-fuchsia-500" },
+  { id: "account", label: "My account", icon: UserRound, tint: "from-yellow-500 to-amber-600" },
   { id: "platforms", label: "Platforms", icon: Layers, tint: "from-sky-500 to-indigo-500" },
   { id: "apps", label: "Apps", icon: AppWindow, tint: "from-emerald-500 to-teal-500" },
   { id: "internet", label: "Internet", icon: Globe, tint: "from-cyan-500 to-blue-500" },
@@ -63,6 +75,7 @@ const sectionDef = (id: Section) => SECTIONS.find((s) => s.id === id)!;
 const SectionBody = memo(function SectionBody({ id, notify, station }: { id: Section; notify: Notify; station: string }) {
   switch (id) {
     case "games": return <GamesScreen notify={notify} />;
+    case "account": return <AccountScreen notify={notify} />;
     case "platforms": return <AppsScreen kinds={["PLATFORM_LAUNCHER"]} title="Game platforms" hint="Sign in with your own account. You're signed out automatically when your session ends." notify={notify} />;
     case "apps": return <AppsScreen kinds={null} title="Apps" hint="Chat, music and tools." notify={notify} />;
     case "internet": return <AppsScreen kinds={["BROWSER"]} title="Internet" hint="Private browsing: nothing is kept after you log out." notify={notify} />;
@@ -375,7 +388,14 @@ export function Taskbar({ state, t, wm, onStart, startOpen, onAddTime, className
           <span className="hidden text-sm xl:inline">{s.customerName}</span>
         </span>
         <button
-          onClick={() => { toDesktop(); void logOut(t); }}
+          onClick={() => setAway(true)}
+          aria-label="Lock while I'm away" title="Lock while I'm away"
+          className="press grid size-9 place-items-center rounded-lg text-dim hover:bg-white/10 hover:text-text"
+        >
+          <Lock className="size-4" />
+        </button>
+        <button
+          onClick={() => { toDesktop(); void logOut(t, s.id); }}
           aria-label={t.logout} title={t.logout}
           className="press grid size-9 place-items-center rounded-lg text-dim hover:bg-alarm/15 hover:text-alarm"
         >
@@ -460,9 +480,15 @@ export function StartMenu({ state, t, notify, onOpen, onClose }: { state: ShellS
             </button>
           ))}
         </div>
-        <div className="mt-4 flex justify-end border-t border-rim pt-3">
+        <div className="mt-4 flex justify-end gap-2 border-t border-rim pt-3">
           <button
-            onClick={() => { onClose(); void logOut(t); }}
+            onClick={() => { onClose(); setAway(true); }}
+            className="press flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-dim hover:bg-white/10 hover:text-text"
+          >
+            <Lock className="size-4" /> Lock while I'm away
+          </button>
+          <button
+            onClick={() => { onClose(); void logOut(t, s.id); }}
             className="press flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-dim hover:bg-alarm/15 hover:text-alarm"
           >
             <LogOut className="size-4" /> {t.logout}

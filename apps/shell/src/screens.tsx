@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  AppWindow, Cable, Check, Gamepad2, Globe, Headphones, Keyboard, Loader2, Lock, Mic, Monitor, Mouse, Play, RefreshCcw, Search, Signal,
-  Sparkles, Volume2, Webcam, Wifi, Wrench,
+  AppWindow, Cable, Check, CloudUpload, Gamepad2, Globe, Headphones, Keyboard, Loader2, Lock, Mic, Monitor, Mouse, Play, RefreshCcw, Search, Signal,
+  Sparkles, Star, Volume2, Webcam, Wifi, Wrench,
 } from "lucide-react";
 import { bridge, request, type HelpTopic, type SelfRepair, type ShellAppItem, type ShellGame } from "./bridge";
 import { CATEGORY_LABEL, tileColors, useStation } from "./station";
+import { RequestGame } from "./account";
+import { savePref, toggleFavorite, useOverview } from "./player";
 
 const cx = (...c: Array<string | false | null | undefined>) => c.filter(Boolean).join(" ");
 const rid = () => crypto.randomUUID();
@@ -12,6 +14,22 @@ const rid = () => crypto.randomUUID();
 export type Notify = (text: string, tone?: "good" | "warn" | "alarm") => void;
 
 // ── Games ──────────────────────────────────────────────────────────────────
+
+/** A game tile with a favourite star for signed-in players (the star sits beside the tile's button, not inside it). */
+function GameCard(props: { game: ShellGame; playing: boolean; onPlay: () => void; busy: boolean }) {
+  const o = useOverview();
+  const fav = o?.customer?.favorites.includes(props.game.id) ?? false;
+  return (
+    <div className="relative">
+      <GameTile {...props} />
+      {o?.customer && (
+        <button onClick={() => void toggleFavorite(props.game.id)} aria-pressed={fav} aria-label={fav ? "Remove from favourites" : "Add to favourites"} className="press absolute right-2 top-2 z-10 grid size-9 place-items-center rounded-full bg-void/70 hover:bg-void">
+          <Star className={cx("size-4", fav ? "fill-warn text-warn" : "text-text")} />
+        </button>
+      )}
+    </div>
+  );
+}
 
 function GameTile({ game, playing, onPlay, busy }: { game: ShellGame; playing: boolean; onPlay: () => void; busy: boolean }) {
   const [a, b] = tileColors(game.title);
@@ -23,9 +41,9 @@ function GameTile({ game, playing, onPlay, busy }: { game: ShellGame; playing: b
     <button
       onClick={onPlay}
       disabled={disabled || busy}
-      className={cx("sheen press group relative aspect-[3/4] overflow-hidden rounded-2xl border text-left duration-300", disabled ? "border-rim opacity-50" : "border-rim hover:-translate-y-1.5 hover:border-glow/70 hover:shadow-glow", playing && "border-good ring-2 ring-good/50")}
+      className={cx("sheen press group relative aspect-[3/4] w-full overflow-hidden rounded-2xl border text-left duration-300", disabled ? "border-rim opacity-50" : "border-rim hover:-translate-y-1.5 hover:border-glow/70 hover:shadow-glow", playing && "border-good ring-2 ring-good/50")}
       style={{ background: cover ? `center/cover url("${cover}")` : `linear-gradient(155deg, ${a}, ${b})` }}
-      title={game.locked ? `Rated ${game.minAge}+` : !game.installed ? "Not installed on this PC" : `Play ${game.title}`}
+      title={game.locked ? (game.lockReason === "blocked" ? "Not available on your account — ask staff" : `Rated ${game.minAge}+`) : !game.installed ? "Not installed on this PC" : `Play ${game.title}`}
     >
       <div className="absolute inset-0 bg-gradient-to-t from-void/95 via-void/20 to-transparent" />
       {icon ? (
@@ -37,13 +55,14 @@ function GameTile({ game, playing, onPlay, busy }: { game: ShellGame; playing: b
         {game.featured && <span className="rounded-full bg-glow/90 px-2 py-0.5 text-[0.6875rem] font-semibold text-void">Featured</span>}
         {game.updateRequired && game.installed && <span className="rounded-full bg-warn/90 px-2 py-0.5 text-[0.6875rem] font-semibold text-void">Update pending</span>}
         {playing && <span className="rounded-full bg-good px-2 py-0.5 text-[0.6875rem] font-semibold text-void">Playing</span>}
+        {game.saves && <span className="flex items-center gap-1 rounded-full bg-void/80 px-2 py-0.5 text-[0.6875rem]" title="Your saves follow you to any PC"><CloudUpload className="size-3" /> Saves</span>}
       </div>
       <div className="absolute inset-x-0 bottom-0 p-4">
         <p className="font-display text-lg font-semibold leading-tight">{game.title}</p>
         <p className="mt-1 text-xs text-dim">{game.categories.slice(0, 2).map((c) => CATEGORY_LABEL[c] ?? c).join(" · ")}{game.minAge ? ` · ${game.minAge}+` : ""}</p>
       </div>
       {game.locked ? (
-        <div className="absolute inset-0 grid place-items-center"><div className="flex items-center gap-2 rounded-full bg-void/80 px-4 py-2 text-sm"><Lock className="size-4" /> {game.minAge}+ only</div></div>
+        <div className="absolute inset-0 grid place-items-center p-3 text-center"><div className="flex items-center gap-2 rounded-full bg-void/80 px-4 py-2 text-sm"><Lock className="size-4 shrink-0" /> {game.lockReason === "blocked" ? "Not on your account" : `${game.minAge}+ only`}</div></div>
       ) : !game.installed ? (
         <div className="absolute inset-0 grid place-items-center"><div className="rounded-full bg-void/80 px-4 py-2 text-sm text-dim">Not on this PC</div></div>
       ) : (
@@ -75,6 +94,19 @@ export function GamesScreen({ notify }: { notify: Notify }) {
   const [installedOnly, setInstalledOnly] = useState(true);
   const cats = useMemo(() => [...new Set(games.flatMap((g) => g.categories))].filter((c) => CATEGORY_LABEL[c]).sort(), [games]);
   const shown = games.filter((g) => (!installedOnly || g.installed) && (!cat || g.categories.includes(cat)) && (!q || g.title.toLowerCase().includes(q.toLowerCase())));
+  const me = useOverview()?.customer;
+  const pick = (ids: string[] | undefined) => (ids ?? []).map((id) => games.find((g) => g.id === id)).filter((g): g is ShellGame => !!g).slice(0, 6);
+  const favourites = pick(me?.favorites);
+  const recent = pick(me?.recent).filter((g) => !favourites.includes(g));
+  const row = (title: string, list: ShellGame[]) =>
+    list.length > 0 && (
+      <section className="mb-8">
+        <p className="mb-3 text-sm uppercase tracking-[0.2em] text-dim">{title}</p>
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(11.25rem,1fr))] gap-5">
+          {list.map((g) => <GameCard key={g.id} game={g} playing={playing?.gameId === g.id} busy={busy === g.id} onPlay={() => launch("game", g.id, g.title)} />)}
+        </div>
+      </section>
+    );
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -94,15 +126,18 @@ export function GamesScreen({ notify }: { notify: Notify }) {
           </button>
         ))}
       </div>
+      {!q && !cat && row("Your favourites", favourites)}
+      {!q && !cat && row("Played recently", recent)}
       {shown.length === 0 ? (
         <p className="py-24 text-center text-lg text-dim">{games.length === 0 ? "Loading the game library…" : "No games match."}</p>
       ) : (
         <div className="animate-enter grid grid-cols-[repeat(auto-fill,minmax(11.25rem,1fr))] gap-5">
           {shown.map((g) => (
-            <GameTile key={g.id} game={g} playing={playing?.gameId === g.id} busy={busy === g.id} onPlay={() => launch("game", g.id, g.title)} />
+            <GameCard key={g.id} game={g} playing={playing?.gameId === g.id} busy={busy === g.id} onPlay={() => launch("game", g.id, g.title)} />
           ))}
         </div>
       )}
+      {games.length > 0 && <RequestGame notify={notify} initial={shown.length === 0 ? q : ""} />}
     </div>
   );
 }
@@ -221,7 +256,10 @@ export function PeripheralsScreen({ notify }: { notify: Notify }) {
   const [speed, setSpeed] = useState<number | null>(null);
   useEffect(() => bridge.send({ type: "pointer_get" }), []);
   useEffect(() => setSpeed(pointer?.mouseSpeed ?? null), [pointer?.mouseSpeed]);
-  const apply = (s: { mouseSpeed?: number; enhancePointerPrecision?: boolean }) => bridge.send({ type: "pointer_apply", ...s });
+  const apply = (s: { mouseSpeed?: number; enhancePointerPrecision?: boolean }) => {
+    bridge.send({ type: "pointer_apply", ...s });
+    savePref(s); // comes back on any PC they sign in to
+  };
 
   return (
     <div className="mx-auto grid max-w-6xl gap-8 @3xl:grid-cols-2">

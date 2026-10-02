@@ -46,6 +46,8 @@ const SettingsBody = z
     sortOrder: z.number().int().min(0).max(10_000).optional(),
     minAgeOverride: z.number().int().min(0).max(21).nullish(),
     allowedZoneIds: z.array(z.uuid()).max(50).optional(),
+    /** Save folders that follow the player between PCs, inside their Windows profile: "%APPDATA%\\Game\\Saves". */
+    savePaths: z.array(z.string().max(200).regex(/^%(APPDATA|LOCALAPPDATA|USERPROFILE|DOCUMENTS|SAVEDGAMES)%(\\[^\\/:*?"<>|]+)+$/, "Start with %APPDATA%, %LOCALAPPDATA%, %USERPROFILE%, %DOCUMENTS% or %SAVEDGAMES%, then folder names").refine((p) => !p.split("\\").includes(".."), "No .. in save folders")).max(5).optional(),
   })
   .strict();
 
@@ -144,7 +146,7 @@ export class GamesController {
         return {
           ...g,
           custom: g.organizationId !== null,
-          setting: s ? { isEnabled: s.isEnabled, isFeatured: s.isFeatured, sortOrder: s.sortOrder, minAgeOverride: s.minAgeOverride, allowedZoneIds: s.allowedZoneIds } : null,
+          setting: s ? { isEnabled: s.isEnabled, isFeatured: s.isFeatured, sortOrder: s.sortOrder, minAgeOverride: s.minAgeOverride, allowedZoneIds: s.allowedZoneIds, savePaths: s.savePaths } : null,
           installs: branchId
             ? { installed: n(["INSTALLED", ...UPDATING]), updateRequired: n(UPDATING), updating: n(["UPDATING"]), progressPct: counts.find((c) => c.status === "UPDATING")?._avg.progressPct ?? null }
             : undefined,
@@ -214,7 +216,7 @@ export class GamesController {
     const before = await tx().orgGameSetting.findFirst({ where: { gameId } });
     const after = before
       ? await tx().orgGameSetting.update({ where: { id: before.id }, data: body })
-      : await tx().orgGameSetting.create({ data: { organizationId: orgId(), gameId, isEnabled: body.isEnabled ?? true, isFeatured: body.isFeatured ?? false, sortOrder: body.sortOrder ?? 100, minAgeOverride: body.minAgeOverride ?? null, allowedZoneIds: body.allowedZoneIds ?? [] } });
+      : await tx().orgGameSetting.create({ data: { organizationId: orgId(), gameId, isEnabled: body.isEnabled ?? true, isFeatured: body.isFeatured ?? false, sortOrder: body.sortOrder ?? 100, minAgeOverride: body.minAgeOverride ?? null, allowedZoneIds: body.allowedZoneIds ?? [], savePaths: body.savePaths ?? [] } });
     await this.audit.record({ action: "game.settings", entityType: "Game", entityId: gameId, before, after });
     this.config.pushAll(orgId());
     return after;

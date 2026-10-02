@@ -251,6 +251,7 @@ Retrying is safe: every transfer has its own idempotency key.
 | Top up | The demo card only (`demoPayments`), 5–2000 per top-up, into the home branch. Off in production until a payment gateway is connected. |
 | Leaderboard | Hours played this month. Only players who opted in are listed (first names); everyone sees their own place. |
 | Challenges | Milestones set by the owner (see [15](15-loyalty-promotions-tournaments-crm.md)), with progress bars. |
+| Keep a guest session | A guest on a PC taps **Join with my phone** on the Shell and scans the QR (`…?claim=CODE`). After signing up or in, **Move it to my account** (`POST /app/claim`) makes the running session, its bill and orders theirs. |
 | Split a booking | The booker invites friends by username; each gets an inbox message with **Pay my share** (the booking's estimate divided by everyone), paid from their wallet into the booker's. The booker sees who paid. |
 
 ### Signing in at a PC with the phone

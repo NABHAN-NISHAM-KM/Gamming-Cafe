@@ -30,7 +30,8 @@ model Customer {
   locale                 String                  @default("en")
   marketingConsent       Boolean                 @default(false)
   tags                   String[]                @default([]) // staff labels: VIP, regular, watch…
-  showOnLeaderboard      Boolean                 @default(false) // opted in from the app
+  showOnLeaderboard      Boolean                 @default(false) // opted in: leaderboard and "who's playing"
+  shellPrefs             Json                    @default("{}") // mouse, volume, language — restored on any PC
   resetCodeHash          String? // one-time password reset code a staff member gave them
   resetCodeExpiresAt     DateTime?               @db.Timestamptz(3)
   referralCode           String?
@@ -73,6 +74,8 @@ model Customer {
   supportTickets         SupportTicket[]
   screenshots            Screenshot[]
   notes                  CustomerNote[]
+  recentGames            CustomerRecentGame[]
+  gameSaves              GameSave[]
 
   @@unique([id, organizationId])
   @@unique([organizationId, username])
@@ -423,6 +426,35 @@ model LoyaltyTransaction {
 }
 
 /// A screenshot the customer took on a gaming PC (Print Screen on the Shell), kept on their account for 30 days.
+/// Games a customer started on the PCs, newest first in the Shell.
+model CustomerRecentGame {
+  organizationId String   @db.Uuid
+  customerId     String   @db.Uuid
+  gameId         String   @db.Uuid
+  plays          Int      @default(1)
+  lastPlayedAt   DateTime @default(now()) @db.Timestamptz(3)
+  customer       Customer @relation(fields: [customerId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  game           Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@id([customerId, gameId])
+  @@index([organizationId, customerId, lastPlayedAt])
+}
+
+/// A customer's save folders for one game (zip, at most 20 MB), restored on any PC before the game starts.
+model GameSave {
+  organizationId String   @db.Uuid
+  customerId     String   @db.Uuid
+  gameId         String   @db.Uuid
+  data           Bytes
+  sizeBytes      Int
+  updatedAt      DateTime @default(now()) @db.Timestamptz(3)
+  customer       Customer @relation(fields: [customerId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  game           Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@id([customerId, gameId])
+  @@index([organizationId])
+}
+
 model Screenshot {
   id             String   @id @default(uuid(7)) @db.Uuid
   organizationId String   @db.Uuid

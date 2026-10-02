@@ -434,4 +434,9 @@ export const AR: Record<string, string> = {
   "Guest sessions are extended at the counter.": "تُمدَّد جلسات الضيوف في الكاونتر.",
   "There's no session running.": "لا توجد جلسة جارية.",
   "There's no session to add time to.": "لا توجد جلسة لإضافة وقت إليها.",
+  "The session on {station} is yours now — points included!": "الجلسة على {station} أصبحت لك الآن — مع النقاط!",
+  "Couldn't move the session.": "تعذّر نقل الجلسة.",
+  "Keep this session": "احتفظ بهذه الجلسة",
+  "The guest session on the PC you scanned becomes yours: its time counts for points, rewards and your stats.": "تصبح جلسة الضيف على الجهاز الذي مسحت رمزه لك: يُحتسب وقتها في النقاط والمكافآت وإحصائياتك.",
+  "Move it to my account": "انقلها إلى حسابي",
 };

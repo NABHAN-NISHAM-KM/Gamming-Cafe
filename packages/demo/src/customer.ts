@@ -282,6 +282,7 @@ export function customerBackend(e: Engine, staff: StaffBackend) {
   });
   r.get("/pc-login/:code", () => fail(404, "pc_code_expired"));
   r.post("/pc-login", () => fail(404, "pc_code_expired"));
+  r.post("/claim", () => fail(404, "pc_code_expired"));
   r.post("/gift", (q) => {
     const to = staff.customers().find((c: any) => c.username === String(q.body?.to ?? "").toLowerCase()) ?? fail(404, "player_not_found", { usernames: [q.body?.to] });
     if (to.id === me().id) fail(409, "gift_to_self");

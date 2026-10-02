@@ -20,7 +20,7 @@ interface Game {
   launcherGameId: string | null;
   executablePath: string | null;
   launcher: { key: string; name: string } | null;
-  setting: { isEnabled: boolean; isFeatured: boolean; sortOrder: number; minAgeOverride: number | null; allowedZoneIds: string[] } | null;
+  setting: { isEnabled: boolean; isFeatured: boolean; sortOrder: number; minAgeOverride: number | null; allowedZoneIds: string[]; savePaths?: string[] } | null;
   installs?: { installed: number; updateRequired: number; updating: number; progressPct: number | null };
 }
 interface Job {
@@ -130,6 +130,7 @@ export default function GamesPage() {
   const [adding, setAdding] = useState(false);
   const [editingGame, setEditingGame] = useState<Game | null>(null);
   const [zonesFor, setZonesFor] = useState<Game | null>(null);
+  const [savesFor, setSavesFor] = useState<Game | null>(null);
   const [q, setQ] = useState("");
   const [note, setNote] = useState<string | null>(null);
 
@@ -251,6 +252,9 @@ export default function GamesPage() {
                       <button disabled={!manage} onClick={() => setZonesFor(g)} className="text-ink-2 hover:text-accent disabled:hover:text-ink-2">
                         {s?.allowedZoneIds.length ? `${s.allowedZoneIds.length} zone(s)` : "All zones"}
                       </button>
+                      <button disabled={!manage || !s} onClick={() => setSavesFor(g)} className="block text-xs text-ink-3 hover:text-accent disabled:hover:text-ink-3">
+                        {s?.savePaths?.length ? "Saves follow players" : "Saves stay on the PC"}
+                      </button>
                     </td>
                     <td className="px-4 py-3 text-right">{g.custom && <RecordActions kind="game" id={g.id} name={g.title} onEdit={() => setEditingGame(g)} onDone={() => void lib.reload()} />}</td>
                   </tr>
@@ -302,9 +306,34 @@ export default function GamesPage() {
       <Modal open={!!editingGame} onClose={() => setEditingGame(null)} title={editingGame ? `Edit ${editingGame.title}` : ""} wide>
         {editingGame && <AddGame game={editingGame} onDone={() => { setEditingGame(null); void lib.reload(); }} />}
       </Modal>
+      <Modal open={!!savesFor} onClose={() => setSavesFor(null)} title={`${savesFor?.title ?? ""}: saves that follow players`}>
+        {savesFor && <SavePaths game={savesFor} onDone={() => { setSavesFor(null); void lib.reload(); }} />}
+      </Modal>
       <Modal open={!!zonesFor} onClose={() => setZonesFor(null)} title={`Where can ${zonesFor?.title ?? ""} be played?`}>
         {zonesFor && <ZonePicker game={zonesFor} zones={zones.data ?? []} onDone={() => { setZonesFor(null); void lib.reload(); }} />}
       </Modal>
+    </div>
+  );
+}
+
+/** Folders copied to the player's account when the game closes, and back onto any PC before it starts. */
+function SavePaths({ game, onDone }: { game: Game; onDone: () => void }) {
+  const [text, setText] = useState((game.setting?.savePaths ?? []).join("\n"));
+  const save = useAction(async () => {
+    const savePaths = text.split("\n").map((l) => l.trim()).filter(Boolean);
+    await api(`/games/${game.id}/settings`, { method: "PUT", action: "Update game saves", body: { savePaths } });
+    onDone();
+  });
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-ink-2">
+        For games without their own cloud saves. One folder per line, inside the player's Windows profile, starting with
+        <code className="mx-1">%APPDATA%</code>, <code className="mx-1">%LOCALAPPDATA%</code>, <code className="mx-1">%DOCUMENTS%</code>, <code className="mx-1">%SAVEDGAMES%</code> or <code className="mx-1">%USERPROFILE%</code>.
+        Up to 5 folders and 20 MB per player. Leave empty to keep saves on each PC.
+      </p>
+      <textarea value={text} onChange={(e) => setText(e.target.value)} rows={4} placeholder={"%APPDATA%\\Game\\Saves"} className="w-full rounded-lg border border-line bg-panel-2 p-3 font-mono text-sm" />
+      <ErrorNote>{save.error}</ErrorNote>
+      <div className="flex justify-end"><Button variant="primary" onClick={() => void save.run()} pending={save.pending}>Save</Button></div>
     </div>
   );
 }

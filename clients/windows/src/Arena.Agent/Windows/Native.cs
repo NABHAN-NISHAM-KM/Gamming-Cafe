@@ -99,6 +99,13 @@ internal static partial class Native
     /// nobody is signed in at the console. Sid is the user's, for their HKEY_USERS hive.
     /// Requires the SYSTEM account.
     /// </summary>
+    /// <summary>A Windows user's profile folder (C:\Users\name), from the registry's profile list.</summary>
+    public static string? ProfileDirectory(string sid)
+    {
+        using var k = Microsoft.Win32.Registry.LocalMachine.OpenSubKey($@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\{sid}");
+        return k?.GetValue("ProfileImagePath") is string p ? Environment.ExpandEnvironmentVariables(p) : null;
+    }
+
     public static (uint SessionId, bool IsAdmin, string Sid)? ConsoleUser()
     {
         var session = WTSGetActiveConsoleSessionId();

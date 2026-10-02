@@ -11,6 +11,7 @@ import { ZodPipe } from "../common/zod.pipe.js";
 import { CONFIG, type AppConfig } from "../config.js";
 import { CommerceService } from "../customers/commerce.service.js";
 import { eraseCustomer } from "../customers/merge.js";
+import { leaderboard } from "../customers/leaderboard.js";
 import { challengesFor } from "../loyalty/challenges.js";
 import { OrdersService } from "../pos/orders.service.js";
 import { PushService } from "../push/push.service.js";
@@ -342,6 +343,13 @@ export class SelfServiceController {
     return this.as(req, (t, me) => this.shellAuth.loginWithCode(t, me.organizationId, me.customerId, body.code));
   }
 
+  /** Guest → member: the guest on a PC signed up here and scanned its code; the running session becomes theirs. */
+  @Post("claim")
+  @HttpCode(200)
+  claim(@Req() req: Request, @Body(new ZodPipe(z.object({ code: z.string().regex(/^[A-Za-z0-9]{6,16}$/) }).strict())) body: { code: string }) {
+    return this.as(req, (t, me) => this.shellAuth.claimGuest(t, me.organizationId, me.customerId, body.code));
+  }
+
   // ── gifts ─────────────────────────────────────────────────────────────────
 
   /** Wallet money or saved minutes to a friend, by username. Bonus credit can't be given. */
@@ -398,20 +406,7 @@ export class SelfServiceController {
   /** Most hours played this month among players who opted in; my own place is shown either way. */
   @Get("leaderboard")
   leaderboard(@Req() req: Request) {
-    return this.as(req, async (t, me) => {
-      const rows = await t.$queryRaw<Array<{ id: string; name: string; minutes: number; opted: boolean }>>`
-        SELECT c."id", c."displayName" AS name, (SUM(s."billedSeconds") / 60)::int AS minutes, c."showOnLeaderboard" AS opted
-          FROM "GamingSession" s JOIN "Customer" c ON c."id" = s."customerId"
-         WHERE s."status" = 'ENDED' AND s."startedAt" >= date_trunc('month', now()) AND c."status" <> 'DELETED'
-         GROUP BY c."id" HAVING SUM(s."billedSeconds") >= 60
-         ORDER BY minutes DESC`;
-      const rank = rows.findIndex((r) => r.id === me.customerId);
-      const opted = (await t.customer.findUniqueOrThrow({ where: { id: me.customerId }, select: { showOnLeaderboard: true } })).showOnLeaderboard;
-      return {
-        top: rows.filter((r) => r.opted).slice(0, 20).map((r, i) => ({ place: i + 1, name: firstName(r.name), minutes: r.minutes, me: r.id === me.customerId })),
-        me: { minutes: rank >= 0 ? rows[rank]!.minutes : 0, place: rank >= 0 ? rank + 1 : null, of: rows.length, shown: opted },
-      };
-    });
+    return this.as(req, (t, me) => leaderboard(t, me.customerId));
   }
 
   @Get("challenges")

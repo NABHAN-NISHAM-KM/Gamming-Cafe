@@ -56,6 +56,7 @@ import { KitchenService } from "./pos/kitchen.service.js";
 import { CrmController } from "./crm/crm.controller.js";
 import { CrmService } from "./crm/crm.service.js";
 import { PushService } from "./push/push.service.js";
+import { PlayerService } from "./sessions/player.service.js";
 import { LoyaltyController } from "./loyalty/loyalty.controller.js";
 import { LoyaltyService } from "./loyalty/loyalty.service.js";
 import { PromotionsController } from "./promotions/promotions.controller.js";
@@ -183,6 +184,7 @@ export class AppModule {
         TournamentsService,
         CrmService,
         PushService,
+        PlayerService,
         CustomerAuth,
         StationControlService,
         PrintService,

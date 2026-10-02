@@ -135,6 +135,15 @@ export class InventoryService implements OnModuleInit {
       const game = await this.asDevice(c, async (t) => {
         const g = await t.game.findUnique({ where: { id: gameId }, select: { id: true, title: true } });
         if (g) await t.gameInstallation.updateMany({ where: { deviceId: c.deviceId, gameId }, data: { lastPlayedAt: new Date() } });
+        // "Recently played" for the player at this PC (their own list, on any PC).
+        const s = g ? await t.gamingSession.findFirst({ where: { deviceId: c.deviceId, status: { in: ["PENDING", "ACTIVE", "PAUSED", "ENDING"] } }, select: { customerId: true } }) : null;
+        if (s?.customerId) {
+          await t.customerRecentGame.upsert({
+            where: { customerId_gameId: { customerId: s.customerId, gameId } },
+            create: { organizationId: c.organizationId, customerId: s.customerId, gameId },
+            update: { plays: { increment: 1 }, lastPlayedAt: new Date() },
+          });
+        }
         return g;
       });
       if (!game) return;

@@ -15,21 +15,27 @@ public static class Kiosk
     private const string ExplorerPolicies = @"Software\Microsoft\Windows\CurrentVersion\Policies\Explorer";
     private const string Winlogon = @"Software\Microsoft\Windows NT\CurrentVersion\Winlogon";
 
-    private static readonly (string Key, string Name)[] Locks =
+    private const string CmdPolicies = @"Software\Policies\Microsoft\Windows\System";
+
+    private static readonly (string Key, string Name, int Value)[] Locks =
     [
-        (SystemPolicies, "DisableTaskMgr"),
-        (SystemPolicies, "DisableLockWorkstation"),
-        (SystemPolicies, "DisableChangePassword"),
-        (ExplorerPolicies, "NoLogoff"),
-        (ExplorerPolicies, "NoClose"),
+        (SystemPolicies, "DisableTaskMgr", 1),
+        (SystemPolicies, "DisableLockWorkstation", 1),
+        (SystemPolicies, "DisableChangePassword", 1),
+        (SystemPolicies, "DisableRegistryTools", 1), // no regedit, even from a file dialog
+        (ExplorerPolicies, "NoLogoff", 1),
+        (ExplorerPolicies, "NoClose", 1),
+        (ExplorerPolicies, "NoRun", 1),              // no Win+R / Run dialog
+        (ExplorerPolicies, "NoWinKeys", 1),          // no Windows-key shortcuts outside the Shell's own hook
+        (CmdPolicies, "DisableCMD", 2),              // no command prompt; game launchers' batch files still run
     ];
 
     public static void SetLockdown(string sid, bool on)
     {
-        foreach (var (key, name) in Locks)
+        foreach (var (key, name, value) in Locks)
         {
             using var k = Registry.Users.CreateSubKey($@"{sid}\{key}");
-            if (on) k.SetValue(name, 1, RegistryValueKind.DWord);
+            if (on) k.SetValue(name, value, RegistryValueKind.DWord);
             else k.DeleteValue(name, throwOnMissingValue: false);
         }
     }

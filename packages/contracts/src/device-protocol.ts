@@ -140,6 +140,8 @@ export interface LibraryGame {
   /** from this PC's last scan */
   installed: boolean;
   updateRequired: boolean;
+  /** save folders that follow the player (placeholders like %APPDATA%); empty = off */
+  savePaths?: string[];
 }
 
 export interface LibraryApp {
@@ -231,6 +233,13 @@ export interface BootReport {
   imageName?: string | null;
 }
 
+/** What the Shell (and the agent, for game saves) may ask about the player at the PC. */
+export const PLAYER_ACTIONS = [
+  "overview", "rewards", "redeem", "inbox", "inbox_read", "leaderboard", "favorite", "prefs_set", "verify", "summary",
+  "claim_code", "request_game", "players", "invite", "save_get", "save_put_begin", "save_put_chunk", "save_put_end",
+] as const;
+export type PlayerAction = (typeof PLAYER_ACTIONS)[number];
+
 export interface SeatOrderLine {
   productId: string;
   quantity: number;
@@ -306,6 +315,8 @@ export type DeviceToServer =
   | { type: "menu_request"; requestId: string }
   | { type: "place_order"; requestId: string; lines: SeatOrderLine[]; notes?: string | null; payWith: "BILL" | "WALLET" }
   | { type: "qr_login"; requestId: string }
+  // The player at this PC (Shell) or their saves (agent): one request, one player_result.
+  | { type: "player_request"; requestId: string; action: PlayerAction; args?: Record<string, unknown> }
   // Phase 9 — internet-café printing: the agent pauses every new job and asks
   | { type: "print_job"; job: PrintJobReport }
   | { type: "print_confirm"; jobKey: string; payWith: "BILL" | "WALLET" }
@@ -350,6 +361,7 @@ export type ServerToDevice =
   | { type: "order_result"; requestId: string; ok: boolean; orderId?: string; number?: string; total?: string; currency?: string; error?: string; message?: string }
   // "Sign in with your phone": a one-time code for this PC, shown as a QR of `url`.
   | { type: "qr_login_code"; requestId: string; ok: boolean; code?: string; url?: string; expiresAt?: string; error?: string }
+  | { type: "player_result"; requestId: string; ok: boolean; data?: unknown; error?: string; message?: string }
   | { type: "order_status"; orderId: string; number: string; status: "PREPARING" | "READY" | "SERVED"; message: string }
   | { type: "print_quote"; quote: PrintQuote }
   | { type: "print_status"; jobKey: string; status: "WAITING_STAFF" | "PRINTING" | "COMPLETED" | "CANCELLED" | "FAILED"; message: string }

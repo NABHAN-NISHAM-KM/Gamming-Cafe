@@ -10,7 +10,8 @@ public sealed record LaunchSpec(string Kind, string? ExecutablePath, string? Arg
 
 public sealed record LibraryGame(
     string Id, string Title, string[] Categories, string? CoverUrl, int? MinAge, bool Featured, int SortOrder,
-    string? LauncherKey, LaunchSpec? Launch, string[] ProcessNames, bool Installed, bool UpdateRequired);
+    string? LauncherKey, LaunchSpec? Launch, string[] ProcessNames, bool Installed, bool UpdateRequired,
+    string[]? SavePaths = null); // save folders that follow the player (see GameSaves)
 
 public sealed record LibraryApp(string Id, string Name, string Kind, string ExecutablePath, string? Arguments);
 

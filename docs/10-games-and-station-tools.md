@@ -37,6 +37,27 @@ The agent adds local rules on top (`LaunchPolicy`):
   through its launcher URI. **Ids are re-validated; the server never sends a
   raw command line or URI.**
 
+### Save folders that follow the player
+
+For games without their own cloud saves, the venue lists up to 5 save folders
+per game (admin → Games → **Saves**), e.g. `%APPDATA%\Game\Saves`. Each must
+start with `%APPDATA%`, `%LOCALAPPDATA%`, `%DOCUMENTS%`, `%SAVEDGAMES%` or
+`%USERPROFILE%`, and resolves inside the signed-in player's Windows profile
+(`..` is refused on the server and again on the PC).
+
+- **Before the game starts:** the agent downloads the player's save
+  (`save_get`, in 150 KB pieces) and writes it back into those folders.
+- **When the game closes** (or the session ends and the game is closed for
+  them): it zips the folders and uploads them (`save_put_begin` / `_chunk` /
+  `_end`). Over 20 MB → not saved.
+- **Safety:** a zip entry is `<folder index>/<relative path>`, and anything that
+  would land outside its folder is skipped; links are never followed; the
+  server stores only real zips (`GameSave`, one per player and game).
+- **Who:** the player of the current session, or the one whose session ended on
+  this PC in the last 10 minutes. Guests have none. Off in safe mode.
+- Erasing a customer deletes their saves; merging keeps the kept account's save
+  and fills in games it doesn't have.
+
 The Shell only ever sees titles, categories and flags. It never sees paths or
 arguments.
 

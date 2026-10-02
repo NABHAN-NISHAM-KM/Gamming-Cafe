@@ -4,7 +4,7 @@
 import { generateKeyPairSync, randomBytes, randomUUID, createPrivateKey, type KeyObject } from "node:crypto";
 import { SignJWT } from "jose";
 import WebSocket from "ws";
-import { DEVICE_ASSERTION_AUDIENCE, verifyCommand, type CommandAck, type DetectedApp, type DetectedGame, type DeviceMetrics, type HardwareSnapshot, type PrintQuote, type ServerToDevice, type StationConfig, type UpdateGamePayload } from "@arena/contracts";
+import { DEVICE_ASSERTION_AUDIENCE, verifyCommand, type CommandAck, type DetectedApp, type DetectedGame, type DeviceMetrics, type HardwareSnapshot, type PlayerAction, type PrintQuote, type ServerToDevice, type StationConfig, type UpdateGamePayload } from "@arena/contracts";
 
 export interface Identity {
   deviceId: string;
@@ -186,6 +186,11 @@ export class SimAgent {
     return this.seat({ type: "qr_login" });
   }
 
+  /** The Shell (or the agent, for saves) asking about the player at this PC. */
+  player(action: PlayerAction, args: Record<string, unknown> = {}): Promise<any> {
+    return this.seat({ type: "player_request", action, args });
+  }
+
   /** The spooler caught a new job: the agent paused it and reports it. */
   print(job: { jobKey?: string; printerName?: string; document?: string | null; pages: number; copies?: number; color?: boolean }) {
     const jobKey = job.jobKey ?? `${Math.floor(Math.random() * 1e6)}:${Date.now()}`;
@@ -236,7 +241,7 @@ export class SimAgent {
       this.pendingShell.delete(msg.requestId);
       return;
     }
-    if (msg.type === "menu" || msg.type === "order_result" || msg.type === "qr_login_code") {
+    if (msg.type === "menu" || msg.type === "order_result" || msg.type === "qr_login_code" || msg.type === "player_result") {
       this.pendingSeat.get(msg.requestId)?.(msg);
       this.pendingSeat.delete(msg.requestId);
       return;

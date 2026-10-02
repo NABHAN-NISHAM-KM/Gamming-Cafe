@@ -119,6 +119,12 @@ public static class Outgoing
 
     public static string QrLogin(string requestId) => JsonSerializer.Serialize(new { type = "qr_login", requestId }, Json.Options);
 
+    public static string Player(string requestId, string action, string argsJson)
+    {
+        using var args = JsonDocument.Parse(argsJson);
+        return JsonSerializer.Serialize(new { type = "player_request", requestId, action, args = args.RootElement }, Json.Options);
+    }
+
     public static string BuyTime(string requestId, string? packageId, int? savedMinutes) =>
         JsonSerializer.Serialize(new { type = "buy_time", requestId, packageId, savedMinutes }, Json.Options);
 

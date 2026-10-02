@@ -64,6 +64,7 @@ export class StationConfigService implements OnModuleInit {
           categories: g.categories,
           coverUrl: g.coverUrl,
           minAge: s.minAgeOverride ?? g.minAge,
+          savePaths: s.savePaths,
           featured: s.isFeatured,
           sortOrder: s.sortOrder,
           launcherKey: g.launcher?.key ?? null,

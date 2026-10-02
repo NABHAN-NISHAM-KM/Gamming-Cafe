@@ -18,7 +18,7 @@ Everything syncs in real time and keeps working at the branch when the internet 
 |---|---|
 | [01 · Architecture](docs/01-architecture.md) | Hybrid cloud + branch edge, stack, modules, command protocol, session-expiry flow, security |
 | [02 · Requirements](docs/02-requirements.md) | Actors, capability → entity → phase traceability, NFRs |
-| [03 · ERD](docs/03-erd.md) | 129 tables by domain, database-enforced invariants |
+| [03 · ERD](docs/03-erd.md) | 131 tables by domain, database-enforced invariants |
 | [04 · RBAC](docs/04-rbac.md) | Permission model, decision order, role × module matrix |
 | [05 · Multi-tenancy](docs/05-multi-tenancy.md) | Three isolation layers, database roles, impersonation, tests |
 | [06 · Roadmap](docs/06-roadmap.md) | Phases, progress, decisions |

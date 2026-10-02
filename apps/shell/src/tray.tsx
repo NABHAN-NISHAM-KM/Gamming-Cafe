@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Bell, BellOff, Cable, Camera, Signal, Volume1, Volume2, VolumeX, Wifi, WifiOff, X } from "lucide-react";
 import { bridge } from "./bridge";
+import { savePref } from "./player";
 import { useStation } from "./station";
 
 const cx = (...c: Array<string | false | null | undefined>) => c.filter(Boolean).join(" ");
@@ -127,7 +128,10 @@ export function VolumeTray({ bringForward }: { bringForward: () => void }) {
   const level = local ?? v?.level ?? 50;
   const muted = v?.muted ?? false;
   const Icon = muted || level === 0 ? VolumeX : level < 50 ? Volume1 : Volume2;
-  const set = (patch: { level?: number; muted?: boolean }) => bridge.send({ type: "volume_set", ...patch });
+  const set = (patch: { level?: number; muted?: boolean }) => {
+    bridge.send({ type: "volume_set", ...patch });
+    if (patch.level !== undefined) savePref({ volume: patch.level });
+  };
   return (
     <TrayButton label="Volume" icon={<Icon className="size-4" />} onOpen={() => bridge.send({ type: "volume_get" })} bringForward={bringForward}>
       <p className="font-display text-base font-semibold">Volume</p>

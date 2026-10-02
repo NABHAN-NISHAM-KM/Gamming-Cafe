@@ -32,6 +32,8 @@ public abstract record ShellRequest
     public sealed record TimeOffers(string RequestId) : ShellRequest;
     /// <summary>"Sign in with your phone": a one-time code for this PC, shown as a QR.</summary>
     public sealed record QrLogin(string RequestId) : ShellRequest;
+    /// <summary>About the player at this PC (wallet, rewards, inbox, settings…). The server works out who that is.</summary>
+    public sealed record Player(string RequestId, string Action, string ArgsJson) : ShellRequest;
     /// <summary>"Add time": a package paid from the wallet, or saved (prepaid) minutes. The server checks and charges.</summary>
     public sealed record BuyTime(string RequestId, string? PackageId, int? SavedMinutes) : ShellRequest;
     /// <summary>The Shell's host saved a screenshot (Print Screen): upload it to the customer's account.</summary>
@@ -47,6 +49,13 @@ public static partial class ShellProtocol
 {
     public const string PipeName = "ArenaOS.Shell";
     public const int MaxLineBytes = 8 * 1024;
+
+    /// <summary>What the Shell may ask about its player. Save transfers are the agent's own business.</summary>
+    public static readonly HashSet<string> ShellPlayerActions =
+    [
+        "overview", "rewards", "redeem", "inbox", "inbox_read", "leaderboard", "favorite", "prefs_set", "verify", "summary",
+        "claim_code", "request_game", "players", "invite",
+    ];
 
     [GeneratedRegex("^[A-Za-z0-9-]{8,64}$")]
     private static partial Regex RequestIdPattern();
@@ -160,6 +169,16 @@ public static partial class ShellProtocol
                     var rid = Str(root, "requestId");
                     return rid is not null && RequestIdPattern().IsMatch(rid) ? new ShellRequest.TimeOffers(rid) : null;
                 }
+                case "player_request":
+                {
+                    var rid = Str(root, "requestId");
+                    var action = Str(root, "action");
+                    if (rid is null || !RequestIdPattern().IsMatch(rid) || action is null || !ShellPlayerActions.Contains(action)) return null;
+                    var args = root.TryGetProperty("args", out var a) ? a : default;
+                    if (args.ValueKind is not (JsonValueKind.Object or JsonValueKind.Undefined)) return null;
+                    var json = args.ValueKind == JsonValueKind.Object ? args.GetRawText() : "{}";
+                    return json.Length <= 4096 ? new ShellRequest.Player(rid, action, json) : null;
+                }
                 case "qr_login":
                 {
                     var rid = Str(root, "requestId");
@@ -236,7 +255,7 @@ public static partial class ShellProtocol
 
     /// <summary>
     /// The library as the Shell may see it: no executable paths or arguments.
-    /// "locked" marks games above the signed-in customer's age or blocked for them by staff.
+    /// "locked" marks games above the signed-in customer's age or blocked for them by staff; "lockReason" says which.
     /// </summary>
     public static string Library(Games.StationConfig? config, SessionState? session)
     {
@@ -249,6 +268,8 @@ public static partial class ShellProtocol
                 id = g.Id, title = g.Title, categories = g.Categories, coverUrl = g.CoverUrl, minAge = g.MinAge, featured = g.Featured,
                 launcher = g.LauncherKey, installed = g.Installed, updateRequired = g.UpdateRequired,
                 locked = (g.MinAge is { } min && age is { } a && a < min) || session?.BlockedGameIds?.Contains(g.Id) == true,
+                lockReason = session?.BlockedGameIds?.Contains(g.Id) == true ? "blocked" : g.MinAge is { } m2 && age is { } a2 && a2 < m2 ? "age" : null,
+                saves = g.SavePaths is { Length: > 0 },
             }),
             apps = (config?.Apps ?? []).Select(a => new { id = a.Id, name = a.Name, kind = a.Kind }),
             presets = (config?.PeripheralPresets ?? []).Select(p => new { id = p.Id, name = p.Name, mouseSpeed = p.Settings.MouseSpeed, enhancePointerPrecision = p.Settings.EnhancePointerPrecision }),

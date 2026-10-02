@@ -145,7 +145,7 @@ See [11-customers-wallet-bookings](11-customers-wallet-bookings.md). Money payme
 - **Self-service** (see [11](11-customers-wallet-bookings.md#self-service-customer-appself-servicecontrollerts)):
   - Public: `POST /:slug/reset` (staff reset code + new password).
   - Profile: `PATCH /me`, `POST /me/password`, `POST /me/pin`, `POST /me/delete`, `GET /me/stats`.
-  - Playing: `GET /menu`, `GET · POST /orders`, `GET /session/offers`, `POST /session/extend`, `GET /pc-login/:code`, `POST /pc-login`.
+  - Playing: `POST /claim` (guest session → my account), `GET /menu`, `GET · POST /orders`, `GET /session/offers`, `POST /session/extend`, `GET /pc-login/:code`, `POST /pc-login`.
   - Venue: `GET /live`, `GET /games`, `POST · DELETE /games/:gameId/favorite`.
   - Friends & money: `GET /referrals`, `POST /gift`, `POST /wallet/topup` (demo card), `POST /bookings/:id/invite`, `GET /bookings/:id/shares`, `POST /inbox/:id/pay-share`.
   - Other: `GET · POST /tickets`, `GET /leaderboard`, `GET /challenges`, `GET /push/key`, `POST /push/subscribe`, `POST /push/unsubscribe`.
@@ -290,7 +290,7 @@ See [10-games-and-station-tools](10-games-and-station-tools.md).
 |---|---|---|
 | GET | /games?branchId= | game.view (install counts per branch) |
 | POST · PATCH | /games · /games/:gameId | game.manage (org). Custom games only; the platform catalog is read-only |
-| PUT | /games/:gameId/settings | game.manage: enabled, featured, sort order, min-age override, allowed zones |
+| PUT | /games/:gameId/settings | game.manage: enabled, featured, sort order, min-age override, allowed zones, save folders (`savePaths`) |
 | GET | /games/:gameId/installations?branchId= | game.view |
 | GET | /launchers · /shell-apps · /peripheral-presets | game.view |
 | POST · PATCH | /shell-apps · /shell-apps/:appId | game.manage |

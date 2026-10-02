@@ -159,9 +159,42 @@ The agent service keeps the Shell running on the customer's desktop. Every
   - A "Time's up" overlay and staff messages.
   - Menus for Games, Platforms, Internet, Food and Support. They are placeholders
     until Phases 5 and 7.
+- **The player's own things** (one channel, below): wallet, saved time and
+  points on the home screen; what's coming up; a **My account** window;
+  favourites and recently played in Games; the away lock; settings that follow
+  them; the session summary; guest → member; asking staff for a game.
 - **Browser preview:** `npm run dev -w @arena/shell` → http://localhost:5174.
   - A mock agent is used (`ahmed` / `ahmed123` or PIN `1234`).
   - `?session=90` starts logged in with 90 s left.
+
+## The player at the PC (`sessions/player.service.ts`)
+
+Everything the Shell shows about the signed-in player travels one way:
+Shell → `player_request { action, args }` → agent → server → `player_result`.
+The server always answers for the customer of **this PC's** session (looked up
+from the device's own socket), never for an id in the message. The agent only
+lets the Shell use the player actions below; the save actions are its own.
+
+| Action | What it does |
+|---|---|
+| `overview` | Wallet, saved time, points, tier, minutes left today (daily limit), saved settings, favourites, recently played, next booking, tournaments in the next 24 h, the two closest challenges, unread inbox, the help request's status, and whether **this PC** is booked by someone else within 3 h. The home widget refreshes it every 30 s. |
+| `rewards` · `redeem` | The rewards list and redeeming one (same rules as the app). |
+| `inbox` · `inbox_read` | Messages kept for 60 days, with promo codes. |
+| `leaderboard` | Top 10 opted-in players this month and the player's own place. |
+| `favorite` | Star a game; shared with the app's favourites. |
+| `prefs_set` | Mouse speed, pointer precision, volume, language — stored on the account (`Customer.shellPrefs`) and applied when they sign in on any PC. |
+| `verify` | The away lock: checks the password or PIN (5 tries a minute per PC). |
+| `summary` | Time, spend and points of a session on this PC (live, or ended in the last 15 min): shown in the log-out confirmation and on the sign-in screen afterwards. |
+| `claim_code` | Guest → member: a one-time QR (`…?claim=CODE`). The guest signs up or in on their phone and the app calls `POST /app/claim`: the session, its bill and orders become theirs and the PC shows their name (a fresh `START_SESSION`). |
+| `request_game` | A `GAME_REQUESTED` alert on the Live Floor (3 per 10 min per PC). |
+| `players` · `invite` | Opted-in players playing at this branch now (first name, PC, game); an invite to a username arrives as an app message and a push (5 per 10 min per PC, one per hour per pair). |
+| `save_*` | The agent's save folders (see [10](10-games-and-station-tools.md#save-folders-that-follow-the-player)). |
+
+**Also on the PC:** a break reminder every 2 hours of play, and the reason a
+game is locked (`lockReason`: age rating or blocked by staff).
+
+**Away lock:** the screen locks (and comes in front of the game) while the
+player steps away; their time keeps running.
 
 ## Try it on a Windows PC
 

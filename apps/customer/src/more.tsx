@@ -659,6 +659,34 @@ export function PcLoginSheet({ code, onClose, onDone, toast }: { code: string; o
   );
 }
 
+/** Opened from a guest PC's QR (…?claim=CODE): the running session moves onto this account. */
+export function ClaimSheet({ code, onClose, onDone, toast }: { code: string; onClose: () => void; onDone: () => void; toast: Toast }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const go = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await api<{ station: string }>("/claim", { method: "POST", body: { code } });
+      toast(t("The session on {station} is yours now — points included!", { station: r.station }));
+      onDone();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("Couldn't move the session."));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Sheet title={t("Keep this session")} onClose={onClose}>
+      <div className="grid gap-4">
+        <p className="text-dim">{t("The guest session on the PC you scanned becomes yours: its time counts for points, rewards and your stats.")}</p>
+        <ErrorText>{error}</ErrorText>
+        <button className="btn btn-primary py-4 text-lg" disabled={busy} onClick={() => void go()}>{busy ? <Loader2 className="size-5 animate-spin" /> : <LogIn className="size-5" />} {t("Move it to my account")}</button>
+      </div>
+    </Sheet>
+  );
+}
+
 // ── split a booking with friends ────────────────────────────────────────────
 
 export function SplitSheet({ booking, onClose, toast }: { booking: Booking; onClose: () => void; toast: Toast }) {

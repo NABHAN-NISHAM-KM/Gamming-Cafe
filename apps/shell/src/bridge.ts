@@ -38,8 +38,11 @@ export interface ShellGame {
   launcher: string | null;
   installed: boolean;
   updateRequired: boolean;
-  /** above the signed-in customer's age */
+  /** above the signed-in customer's age, or blocked for them by staff */
   locked: boolean;
+  lockReason?: "age" | "blocked" | null;
+  /** the venue keeps this game's saves on the player's account */
+  saves?: boolean;
 }
 export interface ShellAppItem {
   id: string;
@@ -133,6 +136,7 @@ export type HostMessage =
   | ({ type: "time_offers" } & TimeOffers)
   | ({ type: "buy_time_result" } & RequestResult)
   | ({ type: "qr_login_code"; code?: string; url?: string; expiresAt?: string } & RequestResult)
+  | ({ type: "player_result"; data?: any } & RequestResult)
   | { type: "screenshot_taken" }
   | { type: "screenshot_result"; id?: string; ok: boolean; message?: string }
   | { type: "shell_mode"; mode: ShellMode }
@@ -181,6 +185,7 @@ export type ShellMessage =
   | { type: "volume_set"; level?: number; muted?: boolean }
   | { type: "time_offers"; requestId: string }
   | { type: "qr_login"; requestId: string }
+  | { type: "player_request"; requestId: string; action: string; args?: Record<string, unknown> }
   | { type: "screenshot" }
   | { type: "buy_time"; requestId: string; packageId?: string; savedMinutes?: 30 | 60 | 120 };
 
@@ -487,6 +492,9 @@ function mockBridge(): Bridge {
             ],
           }), 300);
           break;
+        case "player_request":
+          setTimeout(() => emit({ type: "player_result", requestId: m.requestId, ...mockPlayer(m.action, m.args ?? {}, state.session) }), 250);
+          break;
         case "qr_login":
           setTimeout(() => emit({ type: "qr_login_code", requestId: m.requestId, ok: true, code: "DEMO7K2Q9P", url: "https://arena.example/demo?pc=DEMO7K2Q9P", expiresAt: new Date(Date.now() + 180_000).toISOString() }), 200);
           break;
@@ -558,8 +566,64 @@ function mockBridge(): Bridge {
 
 export const bridge: Bridge = window.chrome?.webview ? webviewBridge() : mockBridge();
 
+/** Preview data for the player channel (the real answers come from the venue's server). */
+const mockPrefs: Record<string, unknown> = {};
+const mockFavs = new Set<string>();
+function mockPlayer(action: string, args: Record<string, unknown>, session: ShellSession | null): { ok: boolean; data?: unknown; error?: string; message?: string } {
+  const soon = (min: number) => new Date(Date.now() + min * 60_000).toISOString();
+  const member = !!session && session.customerName !== "Guest";
+  if (!member && !["overview", "claim_code", "request_game", "summary"].includes(action)) return { ok: false, error: "sign_in_first", message: "Sign in with an account for that." };
+  switch (action) {
+    case "overview":
+      return {
+        ok: true,
+        data: {
+          pcBookedAt: soon(150), help: null,
+          customer: member ? {
+            name: session!.customerName, tier: session!.tier, points: 340, wallet: { currency: "AED", total: "85.00", bonus: "10.00", frozen: false }, savedMinutes: 75, minutesLeftToday: null,
+            prefs: mockPrefs, visible: true, unread: 2, favorites: [...mockFavs], recent: [], booking: { reference: "BK-7F3K2", startsAt: soon(24 * 60 - 60) },
+            tournaments: [{ id: "t1", name: "FIFA Friday", status: "REGISTRATION_OPEN", startsAt: soon(300) }],
+            challenges: [{ id: "c1", name: "Night owl: 10 hours", rewardPoints: 100, type: "PLAY_MINUTES", target: 600, progress: 420, earnedAt: null }],
+          } : null,
+        },
+      };
+    case "rewards":
+      return { ok: true, data: { points: 340, rewards: [{ id: "r1", name: "Free cola", description: "One can on us.", costPoints: 60, affordable: true }, { id: "r2", name: "1 hour of gaming", description: "Added to your time.", costPoints: 400, affordable: false }] } };
+    case "redeem":
+      return { ok: true, data: { code: "COLA-7KQ2" } };
+    case "inbox":
+      return { ok: true, data: [{ id: "n1", title: "Weekend double points", body: "Play Friday to Sunday and earn double points.", data: { code: "WKND2X" }, readAt: null, createdAt: new Date().toISOString() }] };
+    case "leaderboard":
+      return { ok: true, data: { top: [{ place: 1, name: "Omar", minutes: 1840, me: false }, { place: 2, name: session!.customerName, minutes: 1420, me: true }], me: { minutes: 1420, place: 2, of: 41, shown: true } } };
+    case "players":
+      return { ok: true, data: [{ name: "Omar", username: "omar", station: "PC-03", game: "Counter-Strike 2" }] };
+    case "favorite":
+      if (args["on"]) mockFavs.add(String(args["gameId"]));
+      else mockFavs.delete(String(args["gameId"]));
+      return { ok: true, data: { favorite: args["on"] } };
+    case "prefs_set":
+      Object.assign(mockPrefs, args);
+      return { ok: true, data: mockPrefs };
+    case "verify":
+      return { ok: true, data: { ok: args["secret"] === "1234" || args["secret"] === "ahmed123" } };
+    case "summary":
+      return { ok: true, data: { minutes: 84, spent: "25.00", currency: "AED", points: member ? 25 : null } };
+    case "claim_code":
+      return { ok: true, data: { code: "JOIN7K2Q9P", url: "https://arena.example/demo?claim=JOIN7K2Q9P" } };
+    default:
+      return { ok: true, data: { sent: true } };
+  }
+}
+
+/** Asks about the player at this PC; resolves with the answer, or throws its message. */
+export async function player<T = any>(action: string, args: Record<string, unknown> = {}): Promise<T> {
+  const r = await request({ type: "player_request", requestId: crypto.randomUUID(), action, args }, "player_result");
+  if (!r.ok) throw new Error(r.message ?? (r.error === "timeout" ? "No answer from the venue." : "Something went wrong."));
+  return r.data as T;
+}
+
 /** Sends a request and resolves with the matching *_result (or a timeout failure). */
-export function request(m: Extract<ShellMessage, { requestId: string }>, resultType: "launch_result" | "help_result" | "repair_result" | "login_result" | "order_result" | "time_offers" | "buy_time_result" | "qr_login_code", timeoutMs = 15_000): Promise<RequestResult & Record<string, any>> {
+export function request(m: Extract<ShellMessage, { requestId: string }>, resultType: "launch_result" | "help_result" | "repair_result" | "login_result" | "order_result" | "time_offers" | "buy_time_result" | "qr_login_code" | "player_result", timeoutMs = 15_000): Promise<RequestResult & Record<string, any>> {
   return new Promise((resolve) => {
     const t = setTimeout(() => {
       off();

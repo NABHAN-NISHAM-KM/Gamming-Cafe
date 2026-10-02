@@ -678,7 +678,19 @@ On a real PC signed in as the Windows `Player` account:
 | - [ ] 12 | Support self-fixes: Flush DNS, Restart audio, Restart shell | Each works; audited |
 | - [ ] 13 | **Food** → order a burger, pay "on my bill" and then "from wallet" | Ticket in Kitchen; status toasts on the PC |
 | - [ ] 14 | Switch language to **العربية** | Right-to-left Arabic UI |
-| - [ ] 15 | **Log out** | Unused minutes go back to his balance; games and launchers closed; PC locks |
+| - [ ] 15 | **Log out** | The confirmation shows time and spend so far; unused minutes go back to his balance; games and launchers closed; PC locks; the sign-in screen says "Thanks for playing" with time, spend and points |
+| - [ ] 16 | Home screen after signing in | Wallet, saved time, points; his next booking; challenge progress |
+| - [ ] 17 | Staff: book this PC for someone else in 2 hours | Home shows "This PC is booked at …" |
+| - [ ] 18 | **My account**: Rewards → redeem; Inbox; Top players; Friends here → invite `sara` | Code/minutes shown; sara gets an app message and a push |
+| - [ ] 19 | **Games**: star two games; play one | "Your favourites" and "Played recently" rows; the star also shows in the app |
+| - [ ] 20 | Change mouse speed and volume, set language العربية; log out; sign in on another PC | The same mouse speed, volume and language come back |
+| - [ ] 21 | Taskbar **lock** → wrong PIN, then right PIN | Locked over the game, time keeps running; only his password/PIN opens it |
+| - [ ] 22 | Staff: block a game for ahmed; sign in again | The tile says "Not on your account" |
+| - [ ] 23 | Games → "Missing a game?" → `Hollow Knight` | Live Floor alert "would like Hollow Knight" |
+| - [ ] 24 | Support → call staff; staff acknowledge, then resolve the alert | Home shows "on their way", then "sorted" |
+| - [ ] 25 | Start a **guest** session; on the PC → **Join with my phone**; scan, sign up in the app, **Move it to my account** | The PC shows the new name; the session counts for their points |
+| - [ ] 26 | Admin → Games → a game → **Saves** `%APPDATA%\TestGame`; create a file there, play the game, close it; sign in on another PC and launch it | The file is there on the second PC |
+| - [ ] 27 | As the Windows `Player` account: Win+R, regedit, cmd | Run dialog, registry editor and command prompt are blocked |
 
 Browser-only version (no PC): `http://localhost:5174` (mock agent), and
 `http://localhost:5174/?session=90` to start with 90 s left.
@@ -780,7 +792,7 @@ station identity).
 |---|---|
 | **Finance** and **Reports** pages | Phase 11 (greyed out in the menu) |
 | **Super Admin impersonation, client releases** | Platform roles, organizations, plans and audit are built ([K](#k--super-admin-platform)); impersonating a venue's staff and pushing client releases aren't |
-| **Full kiosk lockdown** (Explorer replacement, key filtering, staff exit, maintenance-mode PIN unlock) | Phase 13. The Shell autostarts and is restarted if killed, but Windows keys and Ctrl+Alt+Del still work today |
+| **Pausing a session from the PC** | The away lock keeps the time running; there's no pause yet |
 | **Real online payments** | "Pay now" and the app's wallet top-up use a demo card; both are off in production |
 | **SMS / e-mail / WhatsApp delivery** | Goes to the dev outbox until a provider is connected. Customer phone/email verification is a staff **Mark verified** button for the same reason |
 | **Diskless providers' own APIs** | Boot mode is detected; provider integration later |

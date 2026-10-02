@@ -55,6 +55,7 @@ public sealed class StationService(
     private (string Id, string Title)? _playing;
     private CancellationTokenSource? _watch;
     private readonly ConcurrentDictionary<string, bool> _pendingHelp = new();
+    private readonly ConcurrentDictionary<string, TaskCompletionSource<JsonElement>> _pendingPlayer = new();
     private readonly SemaphoreSlim _scanGate = new(1, 1);
     private readonly List<FileSystemWatcher> _watchers = [];
     private int _rescanQueued;
@@ -279,10 +280,13 @@ public sealed class StationService(
         shell.Broadcast(ShellProtocol.Library(_config, sessions.Current)); // age locks follow the customer
         if (e is SessionEvent.Ended or SessionEvent.ExpiredLocally)
         {
+            var played = _playing is { } p ? _config?.Games.FirstOrDefault(g => g.Id == p.Id) : null;
             _watch?.Cancel();
             SetPlaying(null, s?.SessionId);
             var closed = CloseGames();
             log.LogInformation("Session ended: {Closed} game/launcher process(es) closed{Safe}", closed, _safeMode ? " (simulated, safe mode)" : "");
+            // The game was closed for them: give it a moment to finish writing, then keep their saves.
+            if (played is not null) _ = Task.Run(async () => { await Task.Delay(TimeSpan.FromSeconds(5)); await UploadSavesAsync(played); });
         }
     }
 
@@ -297,6 +301,7 @@ public sealed class StationService(
                 var (denial, plan) = LaunchPolicy.ForGame(_config, sessions.Current, l.GameId, games.SteamExe());
                 if (denial != LaunchDenial.None) { shell.Broadcast(ShellProtocol.Result("launch_result", l.RequestId, false, denial.ToString(), LaunchPolicy.Message(denial))); return; }
                 var game = _config!.Games.First(g => g.Id == l.GameId);
+                await RestoreSavesAsync(game); // the player's own saves, before the game reads them
                 var ok = Start(plan!, out var error);
                 shell.Broadcast(ShellProtocol.Result("launch_result", l.RequestId, ok, ok ? null : "START_FAILED", ok ? null : error));
                 if (ok) Watch(game);
@@ -333,6 +338,10 @@ public sealed class StationService(
                 if (!await server.TrySendAsync(Outgoing.TimeOffers(to.RequestId)))
                     shell.Broadcast(ShellProtocol.Result("time_offers", to.RequestId, false, "offline", "The venue is offline. Please ask at the counter."));
                 return;
+            case ShellRequest.Player p:
+                if (!await server.TrySendAsync(Outgoing.Player(p.RequestId, p.Action, p.ArgsJson)))
+                    shell.Broadcast(ShellProtocol.Result("player_result", p.RequestId, false, "offline", "The venue is offline right now."));
+                return;
             case ShellRequest.QrLogin qr:
                 if (sessions.Current is not null) return; // someone is already signed in here
                 if (!await server.TrySendAsync(Outgoing.QrLogin(qr.RequestId)))
@@ -367,6 +376,84 @@ public sealed class StationService(
 
     /// <summary>Menu, order results and order progress from the server go straight to the Shell (display data only).</summary>
     public void ForwardToShell(JsonElement message) => shell.Broadcast(message.GetRawText().ReplaceLineEndings(""));
+
+    /// <summary>A player_result: the agent's own (saves) waits for it; anything else is the Shell's.</summary>
+    public void OnPlayerResult(JsonElement r)
+    {
+        var id = r.TryGetProperty("requestId", out var v) ? v.GetString() : null;
+        if (id is not null && _pendingPlayer.TryRemove(id, out var tcs)) tcs.TrySetResult(r.Clone());
+        else ForwardToShell(r);
+    }
+
+    private async Task<JsonElement?> AskPlayerAsync(string action, object args)
+    {
+        var id = $"agent-{Guid.NewGuid():N}"[..40];
+        var tcs = new TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _pendingPlayer[id] = tcs;
+        try
+        {
+            if (!await server.TrySendAsync(Outgoing.Player(id, action, JsonSerializer.Serialize(args, Json.Options)))) return null;
+            var done = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(20)));
+            if (done != tcs.Task) return null;
+            var r = tcs.Task.Result;
+            return r.TryGetProperty("ok", out var ok) && ok.ValueKind == JsonValueKind.True && r.TryGetProperty("data", out var d) ? d : null;
+        }
+        finally
+        {
+            _pendingPlayer.TryRemove(id, out _);
+        }
+    }
+
+    // ── save folders that follow the player ─────────────────────────────────
+
+    /// <summary>The signed-in Windows user's save folders for a game (none in safe mode or without a user).</summary>
+    private List<string>? SaveFolders(LibraryGame game)
+    {
+        if (_safeMode || game.SavePaths is not { Length: > 0 } || Native.ConsoleUser() is not { } user) return null;
+        var profile = Native.ProfileDirectory(user.Sid);
+        if (profile is null) return null;
+        var folders = game.SavePaths.Select(p => GameSaves.Resolve(p, profile)).ToList();
+        return folders.All(f => f is not null) ? folders!.Cast<string>().ToList() : null;
+    }
+
+    private async Task RestoreSavesAsync(LibraryGame game)
+    {
+        if (SaveFolders(game) is not { } folders) return;
+        try
+        {
+            using var ms = new MemoryStream();
+            long size = 0;
+            do
+            {
+                if (await AskPlayerAsync("save_get", new { gameId = game.Id, offset = (int)ms.Length }) is not { } d || !d.GetProperty("exists").GetBoolean()) return;
+                size = d.GetProperty("size").GetInt64();
+                var part = Convert.FromBase64String(d.GetProperty("data").GetString() ?? "");
+                if (part.Length == 0) return;
+                ms.Write(part);
+            } while (ms.Length < size);
+            var n = GameSaves.Unpack(ms.ToArray(), folders);
+            log.LogInformation("Restored {Files} save file(s) for {Game}", n, game.Title);
+        }
+        catch (Exception e) { log.LogWarning(e, "Couldn't restore saves for {Game}", game.Title); }
+    }
+
+    private async Task UploadSavesAsync(LibraryGame game)
+    {
+        if (SaveFolders(game) is not { } folders) return;
+        try
+        {
+            var zip = GameSaves.Pack(folders);
+            if (zip is null) return; // nothing to save, or over the limit
+            if (await AskPlayerAsync("save_put_begin", new { gameId = game.Id, size = zip.Length }) is not { } b) return;
+            var uploadId = b.GetProperty("uploadId").GetString();
+            var chunk = b.GetProperty("chunk").GetInt32();
+            for (var o = 0; o < zip.Length; o += chunk)
+                if (await AskPlayerAsync("save_put_chunk", new { uploadId, data = Convert.ToBase64String(zip, o, Math.Min(chunk, zip.Length - o)) }) is null) return;
+            await AskPlayerAsync("save_put_end", new { uploadId });
+            log.LogInformation("Saved {Bytes} bytes of saves for {Game}", zip.Length, game.Title);
+        }
+        catch (Exception e) { log.LogWarning(e, "Couldn't upload saves for {Game}", game.Title); }
+    }
 
     /// <summary>Server answered a help request.</summary>
     public void OnHelpResult(JsonElement r)
@@ -451,6 +538,7 @@ public sealed class StationService(
                 SetPlaying(game, sessions.Current?.SessionId);
                 while (Running(names)) await Task.Delay(5000, cts.Token);
                 SetPlaying(null, sessions.Current?.SessionId);
+                await UploadSavesAsync(game);
             }
             catch (OperationCanceledException) { }
         });
