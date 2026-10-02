@@ -40,7 +40,12 @@ const upstreams = [
 
 function proxy(req, res, target) {
   const u = new URL(req.url, target);
-  const up = request(u, { method: req.method, headers: { ...req.headers, host: u.host, "x-forwarded-for": req.socket.remoteAddress ?? "" } }, (r) => {
+  // Behind a local reverse proxy (Caddy, Nginx) keep the visitor's address it sent; otherwise the
+  // socket's. The services throttle per IP, so every visitor must not look like 127.0.0.1.
+  const peer = req.socket.remoteAddress ?? "";
+  const local = /^(::1|127\.|::ffff:127\.)/.test(peer);
+  const client = (local && String(req.headers["x-forwarded-for"] ?? "").split(",").pop()?.trim()) || peer;
+  const up = request(u, { method: req.method, headers: { ...req.headers, host: u.host, "x-forwarded-for": client } }, (r) => {
     res.writeHead(r.statusCode ?? 502, r.headers);
     r.pipe(res);
   });
