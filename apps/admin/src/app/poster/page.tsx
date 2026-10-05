@@ -5,10 +5,10 @@ import { useSearchParams } from "next/navigation";
 import QRCode from "qrcode";
 import { api } from "@/lib/client/api";
 
-interface Links { slug: string; name: string; venuePage: string; app: string; referral: string }
+interface Links { slug: string; name: string; venuePage: string; app: string; referral: string; apk: string }
 
 const KINDS = {
-  app: { title: "Get our app", titleAr: "حمّل تطبيقنا", line: "See free PCs, book, top up and order food to your seat.", lineAr: "شاهد الأجهزة المتاحة، احجز، اشحن رصيدك واطلب الطعام إلى مقعدك.", url: (l: Links) => l.app },
+  app: { title: "Get our app", titleAr: "حمّل تطبيقنا", line: "See free PCs, book, top up and order food to your seat.", lineAr: "شاهد الأجهزة المتاحة، احجز، اشحن رصيدك واطلب الطعام إلى مقعدك.", url: (l: Links) => l.apk },
   page: { title: "Book a station", titleAr: "احجز جهازك", line: "Prices, free stations right now and tournaments — book in a minute.", lineAr: "الأسعار والأجهزة المتاحة الآن والبطولات — احجز خلال دقيقة.", url: (l: Links) => l.venuePage },
 } as const;
 
@@ -42,7 +42,8 @@ function Poster() {
         <img src={data.qr} alt={`QR code to ${k.url(data.links)}`} className="mt-10 w-[110mm]" />
         <p className="mt-8 max-w-xl text-2xl">{k.line}</p>
         <p className="mt-2 max-w-xl text-2xl" dir="rtl" lang="ar">{k.lineAr}</p>
-        <p className="mt-8 font-mono text-lg">{k.url(data.links).replace(/^https?:\/\//, "")}</p>
+        {kind === "app" && <p className="mt-8 text-2xl">Android app · venue code <b className="font-mono">{data.links.slug}</b> · <span dir="rtl" lang="ar">رمز المكان</span></p>}
+        <p className="mt-4 font-mono text-lg">{k.url(data.links).replace(/^https?:\/\//, "")}</p>
       </section>
     </main>
   );

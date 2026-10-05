@@ -60,7 +60,7 @@ export class AccountController {
   async links() {
     const { slug, displayName: name } = await tx().organization.findFirstOrThrow({ select: { slug: true, displayName: true } });
     const site = this.cfg.WEBSITE_URL.replace(/\/+$/, "");
-    return { slug, name, venuePage: `${site}/v/${slug}`, app: `${this.cfg.CUSTOMER_APP_URL.replace(/\/+$/, "")}/${slug}`, referral: `${site}/signup.html?ref=${slug}` };
+    return { slug, name, venuePage: `${site}/v/${slug}`, app: `${this.cfg.CUSTOMER_APP_URL.replace(/\/+$/, "")}/${slug}`, referral: `${site}/signup.html?ref=${slug}`, apk: `${site}/downloads/ArenaOS-Customer.apk` };
   }
 
   /** Venues that signed up through this venue's referral link, and how many earned it a free month. */

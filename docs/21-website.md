@@ -102,7 +102,7 @@ Every venue has a referral link, `<WEBSITE_URL>/signup.html?ref=<venue code>`, s
 
 ## Printable posters
 
-`/poster?kind=app` and `/poster?kind=page` in the admin console print an A4 poster with a large QR code to the venue's app or its public page, in English and Arabic. They're linked from **Settings → Public venue page**.
+`/poster?kind=app` and `/poster?kind=page` in the admin console print an A4 poster with a large QR code, in English and Arabic: the app poster links to the Android app download on the website (`/downloads/ArenaOS-Customer.apk`) and shows the venue code to enter in it; the page poster links to the venue's public page. They're linked from **Settings → Public venue page**.
 
 ## Site analytics
 
