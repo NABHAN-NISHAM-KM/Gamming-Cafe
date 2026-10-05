@@ -8,6 +8,7 @@ import { PlatformModule } from "./platform.module.js";
 
 export async function createPlatformApp(config: PlatformConfig = loadPlatformConfig()) {
   const app = await NestFactory.create<NestExpressApplication>(PlatformModule.forRoot(config), {
+    rawBody: true, // the billing webhook is verified against the exact bytes received
     logger: config.NODE_ENV === "test" ? (process.env["TEST_LOGS"] ? ["error"] : false) : undefined,
   });
   app.set("trust proxy", 1);

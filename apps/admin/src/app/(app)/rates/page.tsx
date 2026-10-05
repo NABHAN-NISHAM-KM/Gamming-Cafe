@@ -164,9 +164,31 @@ function EditPlan({ plan, onDone }: { plan: Plan; onDone: () => void }) {
       <Field label="Name" className="sm:col-span-2"><Input required value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} maxLength={80} /></Field>
       <Field label={`Rate (${plan.currency} ${MODE[plan.billingMode]})`}><Input required inputMode="decimal" value={f.rate} onChange={(e) => setF({ ...f, rate: e.target.value })} /></Field>
       <Field label="Priority" hint="Higher wins when rates overlap"><Input type="number" min={-100} max={100} value={f.priority} onChange={(e) => setF({ ...f, priority: e.target.value })} /></Field>
+      <PricePreview plan={plan} rate={f.rate} />
       <div className="sm:col-span-2"><ErrorNote>{save.error}</ErrorNote></div>
       <div className="flex justify-end sm:col-span-2"><Button type="submit" variant="primary" pending={save.pending}>Save</Button></div>
     </form>
+  );
+}
+
+/** "What would last week have earned at this price?" — before saving a new rate. */
+function PricePreview({ plan, rate }: { plan: Plan; rate: string }) {
+  const [r, setR] = useState<{ sessions: number; hours: number; actual: string; wouldHaveBeen: string; change: string; currency: string; note: string } | null>(null);
+  const run = useAction(async () => setR(await api(`/pricing-plans/${plan.id}/preview`, { method: "POST", body: { rate, days: 7 } })));
+  if (Number(rate) === Number(plan.rate)) return null;
+  return (
+    <div className="rounded-lg border border-line bg-panel-2 p-3 text-sm sm:col-span-2">
+      {!r ? (
+        <Button type="button" size="sm" variant="secondary" pending={run.pending} onClick={() => void run.run()}>What would last week have earned at {rate}?</Button>
+      ) : (
+        <p>
+          Last week: <b>{r.sessions}</b> sessions, {r.hours} h on this rate → <b>{r.actual} {r.currency}</b>. At {rate} it would have been <b>{r.wouldHaveBeen} {r.currency}</b>{" "}
+          <span className={Number(r.change) >= 0 ? "text-ok" : "text-danger"}>({Number(r.change) >= 0 ? "+" : ""}{r.change})</span>.
+          <span className="block text-xs text-ink-3">{r.note}</span>
+        </p>
+      )}
+      <ErrorNote>{run.error}</ErrorNote>
+    </div>
   );
 }
 

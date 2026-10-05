@@ -6,7 +6,8 @@ import {
 import { bridge, request, type HelpTopic, type SelfRepair, type ShellAppItem, type ShellGame } from "./bridge";
 import { CATEGORY_LABEL, tileColors, useStation } from "./station";
 import { RequestGame } from "./account";
-import { savePref, toggleFavorite, useOverview } from "./player";
+import { refreshOverview, savePref, toggleFavorite, useOverview } from "./player";
+import { useGameNews } from "./extras";
 
 const cx = (...c: Array<string | false | null | undefined>) => c.filter(Boolean).join(" ");
 const rid = () => crypto.randomUUID();
@@ -35,6 +36,7 @@ function GameTile({ game, playing, onPlay, busy }: { game: ShellGame; playing: b
   const [a, b] = tileColors(game.title);
   const disabled = game.locked || !game.installed;
   const art = useStation().art[game.id];
+  const news = useGameNews()?.get(game.id);
   const cover = game.coverUrl ?? art?.cover ?? null;
   const icon = !cover ? art?.icon : null;
   return (
@@ -60,6 +62,7 @@ function GameTile({ game, playing, onPlay, busy }: { game: ShellGame; playing: b
       <div className="absolute inset-x-0 bottom-0 p-4">
         <p className="font-display text-lg font-semibold leading-tight">{game.title}</p>
         <p className="mt-1 text-xs text-dim">{game.categories.slice(0, 2).map((c) => CATEGORY_LABEL[c] ?? c).join(" · ")}{game.minAge ? ` · ${game.minAge}+` : ""}</p>
+        {news && <p className="mt-1.5 line-clamp-2 rounded-md bg-glow/90 px-2 py-1 text-[0.6875rem] font-semibold text-void">{news}</p>}
       </div>
       {game.locked ? (
         <div className="absolute inset-0 grid place-items-center p-3 text-center"><div className="flex items-center gap-2 rounded-full bg-void/80 px-4 py-2 text-sm"><Lock className="size-4 shrink-0" /> {game.lockReason === "blocked" ? "Not on your account" : `${game.minAge}+ only`}</div></div>
@@ -337,12 +340,16 @@ const TOPICS: Array<{ id: HelpTopic; label: string; icon: typeof Mouse }> = [
 export function SupportScreen({ station, notify }: { station: string; notify: Notify }) {
   const [sending, setSending] = useState<HelpTopic | null>(null);
   const [sent, setSent] = useState(false);
+  const [note, setNote] = useState("");
+  const help = useOverview()?.help;
   const ask = async (topic: HelpTopic) => {
     setSending(topic);
-    const r = await request({ type: "help", requestId: rid(), topic }, "help_result");
+    const r = await request({ type: "help", requestId: rid(), topic, ...(note.trim() ? { note: note.trim().slice(0, 300) } : {}) }, "help_result");
     setSending(null);
     setSent(r.ok);
+    if (r.ok) setNote("");
     notify(r.message ?? (r.ok ? "Staff have been notified." : "Couldn't reach staff."), r.ok ? "good" : "warn");
+    void refreshOverview();
   };
   return (
     <div className="mx-auto grid max-w-6xl gap-8 @3xl:grid-cols-[1.3fr_1fr]">
@@ -357,7 +364,19 @@ export function SupportScreen({ station, notify }: { station: string; notify: No
             </button>
           ))}
         </div>
-        {sent && <p className="mt-6 flex items-center gap-2 rounded-xl border border-good/40 bg-good/10 px-4 py-3 text-good"><Check className="size-5" /> Help is on the way.</p>}
+        <textarea
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          maxLength={300}
+          rows={2}
+          placeholder="Anything to add? e.g. the left mouse button sticks"
+          className="mt-4 w-full rounded-2xl border border-rim bg-deck/60 px-4 py-3 text-sm outline-none focus:border-glow"
+        />
+        {(sent || help) && (
+          <p className="mt-4 flex items-center gap-2 rounded-xl border border-good/40 bg-good/10 px-4 py-3 text-good">
+            <Check className="size-5" /> {help?.status === "ACKNOWLEDGED" ? "Staff saw it — someone is on the way." : help?.status === "RESOLVED" ? "Sorted — thanks for waiting." : "Staff have your request."}
+          </p>
+        )}
       </section>
       <section>
         <h2 className="font-display text-3xl font-semibold">Quick fixes</h2>

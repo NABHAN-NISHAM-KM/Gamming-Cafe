@@ -48,6 +48,8 @@ const SettingsBody = z
     allowedZoneIds: z.array(z.uuid()).max(50).optional(),
     /** Save folders that follow the player between PCs, inside their Windows profile: "%APPDATA%\\Game\\Saves". */
     savePaths: z.array(z.string().max(200).regex(/^%(APPDATA|LOCALAPPDATA|USERPROFILE|DOCUMENTS|SAVEDGAMES)%(\\[^\\/:*?"<>|]+)+$/, "Start with %APPDATA%, %LOCALAPPDATA%, %USERPROFILE%, %DOCUMENTS% or %SAVEDGAMES%, then folder names").refine((p) => !p.split("\\").includes(".."), "No .. in save folders")).max(5).optional(),
+    /** A line on the game's tile in the Shell, e.g. "New season out now" (null clears it). */
+    news: z.string().trim().max(140).nullish(),
   })
   .strict();
 
@@ -146,7 +148,7 @@ export class GamesController {
         return {
           ...g,
           custom: g.organizationId !== null,
-          setting: s ? { isEnabled: s.isEnabled, isFeatured: s.isFeatured, sortOrder: s.sortOrder, minAgeOverride: s.minAgeOverride, allowedZoneIds: s.allowedZoneIds, savePaths: s.savePaths } : null,
+          setting: s ? { isEnabled: s.isEnabled, isFeatured: s.isFeatured, sortOrder: s.sortOrder, minAgeOverride: s.minAgeOverride, allowedZoneIds: s.allowedZoneIds, savePaths: s.savePaths, news: s.news } : null,
           installs: branchId
             ? { installed: n(["INSTALLED", ...UPDATING]), updateRequired: n(UPDATING), updating: n(["UPDATING"]), progressPct: counts.find((c) => c.status === "UPDATING")?._avg.progressPct ?? null }
             : undefined,
@@ -214,9 +216,11 @@ export class GamesController {
     if (!(await tx().game.findUnique({ where: { id: gameId }, select: { id: true } }))) throw new NotFoundException({ error: "not_found" });
     await assertZones(body.allowedZoneIds);
     const before = await tx().orgGameSetting.findFirst({ where: { gameId } });
+    // Changing the news line stamps when it was posted (newest news shows first on the PC).
+    const news = body.news === undefined ? {} : { news: body.news || null, newsAt: body.news ? new Date() : null };
     const after = before
-      ? await tx().orgGameSetting.update({ where: { id: before.id }, data: body })
-      : await tx().orgGameSetting.create({ data: { organizationId: orgId(), gameId, isEnabled: body.isEnabled ?? true, isFeatured: body.isFeatured ?? false, sortOrder: body.sortOrder ?? 100, minAgeOverride: body.minAgeOverride ?? null, allowedZoneIds: body.allowedZoneIds ?? [], savePaths: body.savePaths ?? [] } });
+      ? await tx().orgGameSetting.update({ where: { id: before.id }, data: { ...body, ...news } })
+      : await tx().orgGameSetting.create({ data: { organizationId: orgId(), gameId, isEnabled: body.isEnabled ?? true, isFeatured: body.isFeatured ?? false, sortOrder: body.sortOrder ?? 100, minAgeOverride: body.minAgeOverride ?? null, allowedZoneIds: body.allowedZoneIds ?? [], savePaths: body.savePaths ?? [], ...news } });
     await this.audit.record({ action: "game.settings", entityType: "Game", entityId: gameId, before, after });
     this.config.pushAll(orgId());
     return after;

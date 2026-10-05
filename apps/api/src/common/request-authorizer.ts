@@ -1,4 +1,4 @@
-import { type ExecutionContext, Inject, Injectable, InternalServerErrorException } from "@nestjs/common";
+import { type ExecutionContext, Inject, Injectable, InternalServerErrorException, UnauthorizedException } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { randomUUID } from "node:crypto";
 import type { Db, TenantTx } from "@arena/db";
@@ -53,6 +53,12 @@ export class RequestAuthorizer {
     const reason = typeof reasonHeader === "string" ? decodeURIComponent(reasonHeader).slice(0, 500) : null;
 
     const principal = await this.principals.load(tx, claims);
+    // Support signed in as this venue: only while the session is open, and read-only unless granted changes.
+    if (claims.imp) {
+      const imp = await tx.impersonationSession.findFirst({ where: { id: claims.sid, platformUserId: claims.imp, endedAt: null, expiresAt: { gt: new Date() } }, select: { canWrite: true } });
+      if (!imp) throw new UnauthorizedException({ error: "impersonation_ended" });
+      if (!imp.canWrite && !["GET", "HEAD", "OPTIONS"].includes(req.method)) throw new ForbiddenError(permission ?? ("org.view" as PermissionKey), "IMPERSONATION_BLOCKED");
+    }
     let decision = null;
     if (permission && anyScope) {
       const d = authorizeAnywhere(principal, permission, { reason });

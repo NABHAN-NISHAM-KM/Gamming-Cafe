@@ -9,6 +9,8 @@ export interface Me {
   features: string[];
   limits: Partial<Record<"MAX_BRANCHES" | "MAX_DEVICES" | "MAX_EMPLOYEES", number>>;
   grants: Array<{ role: string; scope: "ORGANIZATION" | "BRAND" | "BRANCH"; brandId: string | null; branchId: string | null; permissions: string[] }>;
+  /** Set when ArenaOS support is signed in as this venue. */
+  impersonatedBy?: string | null;
 }
 
 const Ctx = createContext<Me | null>(null);

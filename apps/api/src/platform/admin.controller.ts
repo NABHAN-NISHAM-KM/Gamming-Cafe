@@ -57,6 +57,10 @@ const PlanBody = z
   .partial()
   .strict();
 const PlanFeatureBody = z.object({ enabled: z.boolean() });
+const LeadChange = z
+  .object({ status: z.enum(["NEW", "CONTACTED", "WON", "LOST"]), staffNotes: z.string().max(4000).nullable(), nextActionAt: z.iso.datetime({ offset: true }).nullable() })
+  .partial()
+  .strict();
 
 @Controller("platform")
 export class PlatformAdminController {
@@ -283,25 +287,34 @@ export class PlatformAdminController {
 
   @PlatformRoles(...READ_ROLES)
   @Get("leads")
-  leads(@Query("status") status?: string, @Query("kind") kind?: string) {
+  leads(@Query("status") status?: string, @Query("kind") kind?: string, @Query("due") due?: string) {
     return this.db.lead.findMany({
       where: {
         ...(status && ["NEW", "CONTACTED", "WON", "LOST"].includes(status) ? { status: status as "NEW" } : {}),
-        ...(kind && ["CONTACT", "DEMO", "TRIAL"].includes(kind) ? { kind: kind as "DEMO" } : {}),
+        ...(kind && ["CONTACT", "DEMO", "TRIAL", "UPGRADE"].includes(kind) ? { kind: kind as "DEMO" } : {}),
+        // Follow-ups due now, and calls in the next 24 hours: what the sales team should do today.
+        ...(due ? { status: { in: ["NEW", "CONTACTED"] }, OR: [{ nextActionAt: { lte: new Date() } }, { kind: "DEMO", demoAt: { gte: new Date(Date.now() - 3_600_000), lte: new Date(Date.now() + 86_400_000) } }] } : {}),
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: due ? [{ nextActionAt: { sort: "asc", nulls: "last" } }, { demoAt: { sort: "asc", nulls: "last" } }] : { createdAt: "desc" },
       take: 200,
     });
   }
 
   @PlatformRoles("SUPER_ADMIN", "PLATFORM_SUPPORT", "PLATFORM_BILLING")
   @Patch("leads/:leadId")
-  async updateLead(@Param("leadId") leadId: string, @Body(new ZodPipe(z.object({ status: z.enum(["NEW", "CONTACTED", "WON", "LOST"]) }).strict())) body: { status: "NEW" | "CONTACTED" | "WON" | "LOST" }, @Req() req: PlatformRequest) {
+  async updateLead(@Param("leadId") leadId: string, @Body(new ZodPipe(LeadChange)) body: z.infer<typeof LeadChange>, @Req() req: PlatformRequest) {
     const before = await this.db.lead.findUnique({ where: { id: id(leadId) } });
     if (!before) throw new NotFoundException({ error: "not_found" });
-    const after = await this.db.lead.update({ where: { id: before.id }, data: { status: body.status } });
+    const after = await this.db.lead.update({
+      where: { id: before.id },
+      data: {
+        ...(body.status ? { status: body.status } : {}),
+        ...(body.staffNotes !== undefined ? { staffNotes: body.staffNotes || null } : {}),
+        ...(body.nextActionAt !== undefined ? { nextActionAt: body.nextActionAt ? new Date(body.nextActionAt) : null } : {}),
+      },
+    });
     const p = req.platform!;
-    await this.auth.audit(p.userId, p.viaRole, clientMeta(req), { action: "platform.lead.status", entityType: "Lead", entityId: before.id, before: { status: before.status }, after: { status: after.status } });
+    await this.auth.audit(p.userId, p.viaRole, clientMeta(req), { action: "platform.lead.update", entityType: "Lead", entityId: before.id, before: { status: before.status, nextActionAt: before.nextActionAt }, after: { status: after.status, nextActionAt: after.nextActionAt, notes: body.staffNotes !== undefined } });
     return after;
   }
 

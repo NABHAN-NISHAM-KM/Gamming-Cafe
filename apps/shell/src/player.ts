@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { bridge, player } from "./bridge";
+import { applyA11y } from "./extras";
 
 /** What the venue knows about the player at this PC (see PlayerService on the server). */
 export interface Challenge { id: string; name: string; rewardPoints: number; type: string; target: number; progress: number; earnedAt: string | null }
@@ -23,7 +24,7 @@ export interface Overview {
     challenges: Challenge[];
   } | null;
 }
-export interface Prefs { mouseSpeed?: number; enhancePointerPrecision?: boolean; volume?: number; lang?: "en" | "ar" }
+export interface Prefs { mouseSpeed?: number; enhancePointerPrecision?: boolean; volume?: number; lang?: "en" | "ar"; textScale?: 100 | 115 | 130; contrast?: boolean }
 
 let current: Overview | null = null;
 let sessionId: string | null = null;
@@ -37,6 +38,7 @@ function applyPrefs(p: Prefs) {
   if (p.mouseSpeed !== undefined || p.enhancePointerPrecision !== undefined) bridge.send({ type: "pointer_apply", mouseSpeed: p.mouseSpeed, enhancePointerPrecision: p.enhancePointerPrecision });
   if (p.volume !== undefined) bridge.send({ type: "volume_set", level: p.volume });
   if (p.lang) chooseLang(p.lang);
+  applyA11y(p);
 }
 
 export async function refreshOverview() {
@@ -62,6 +64,7 @@ export function setSession(id: string | null) {
   if (id === sessionId) return;
   sessionId = id;
   current = null;
+  if (!id) applyA11y({}); // the next player starts with normal text
   publish();
   clearInterval(timer);
   if (id) {

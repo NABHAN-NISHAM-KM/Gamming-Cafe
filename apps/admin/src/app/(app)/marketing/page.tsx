@@ -282,6 +282,7 @@ function Loyalty() {
         )}
       </Card>
       <Challenges />
+      <Seasons />
       <Modal open={addingRule} onClose={() => setAddingRule(false)} title="New points rule">
         {addingRule && <RuleForm onDone={() => { setAddingRule(false); void rules.reload(); }} />}
       </Modal>
@@ -569,6 +570,84 @@ function CampaignForm({ onDone }: { onDone: () => void }) {
       <Field label="Send at (optional)"><Input type="datetime-local" value={f.scheduledAt} onChange={set("scheduledAt")} /></Field>
       <div className="sm:col-span-2"><ErrorNote>{save.error ?? check.error}</ErrorNote></div>
       <div className="flex justify-end sm:col-span-2"><Button type="submit" variant="primary" pending={save.pending}>Save as draft</Button></div>
+    </form>
+  );
+}
+
+interface SeasonRow { id: string; name: string; startsAt: string; endsAt: string; price: string; currency: string; isActive: boolean; players: number; tiers: Array<{ xp: number; reward: { type: "BONUS" | "MINUTES" | "POINTS"; amount: number } }> }
+const REWARD: Record<string, string> = { BONUS: "bonus money", MINUTES: "free minutes", POINTS: "points" };
+
+/** Season passes: a time-boxed ladder of rewards (1 XP per minute played, 100 XP per challenge finished). */
+function Seasons() {
+  const canOrg = useCanOrg();
+  const list = useApi<SeasonRow[]>("/seasons");
+  const [adding, setAdding] = useState(false);
+  const off = useAction(async (s: SeasonRow) => {
+    await api(`/seasons/${s.id}`, { method: "DELETE", done: s.players ? "Season switched off." : "Season deleted." });
+    await list.reload();
+  });
+  return (
+    <Card className="lg:col-span-2">
+      <div className="flex items-center justify-between px-5 pt-4"><h3 className="font-semibold">Season passes</h3>{canOrg("loyalty.manage") && <Button size="sm" onClick={() => setAdding(true)}><Plus className="size-4" /> Season</Button>}</div>
+      <p className="px-5 pt-1 text-xs text-ink-3">Players join in the app (free or paid from the wallet), earn 1 XP per minute played and 100 XP per challenge finished during the season, and claim each level's reward.</p>
+      <ErrorNote>{off.error}</ErrorNote>
+      {!list.data ? <Spinner /> : list.data.length === 0 ? <p className="px-5 py-4 text-sm text-ink-3">No seasons yet.</p> : (
+        <Table head={["Season", "Dates", "Price", "Levels", "Players", ""]}>
+          {list.data.map((x) => (
+            <tr key={x.id} className={cx("border-t border-line", !x.isActive && "opacity-50")}>
+              <td className="px-4 py-2 font-medium">{x.name}</td>
+              <td className="px-4 py-2 text-ink-2">{new Date(x.startsAt).toLocaleDateString()} – {new Date(x.endsAt).toLocaleDateString()}</td>
+              <td className="px-4 py-2 tabular-nums">{Number(x.price) ? `${x.price} ${x.currency}` : "Free"}</td>
+              <td className="px-4 py-2 text-xs text-ink-2">{x.tiers.map((t) => `${t.xp} XP → ${t.reward.amount} ${REWARD[t.reward.type]}`).join(" · ")}</td>
+              <td className="px-4 py-2 tabular-nums">{x.players}</td>
+              <td className="px-4 py-2 text-right">{canOrg("loyalty.manage") && x.isActive && <Button size="sm" variant="ghost" pending={off.pending} onClick={() => void off.run(x)}>{x.players ? "Switch off" : "Delete"}</Button>}</td>
+            </tr>
+          ))}
+        </Table>
+      )}
+      <Modal open={adding} onClose={() => setAdding(false)} title="New season" wide>
+        {adding && <SeasonForm onDone={() => { setAdding(false); void list.reload(); }} />}
+      </Modal>
+    </Card>
+  );
+}
+
+function SeasonForm({ onDone }: { onDone: () => void }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const month = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
+  const [f, setF] = useState({ name: "", startsAt: today, endsAt: month, price: "0" });
+  const [tiers, setTiers] = useState([{ xp: "300", type: "POINTS", amount: "100" }, { xp: "900", type: "MINUTES", amount: "60" }, { xp: "1800", type: "BONUS", amount: "20" }]);
+  const save = useAction(async () => {
+    await api("/seasons", {
+      method: "POST",
+      done: "Season created.",
+      body: { name: f.name.trim(), startsAt: new Date(`${f.startsAt}T00:00`).toISOString(), endsAt: new Date(`${f.endsAt}T23:59`).toISOString(), price: f.price || "0", tiers: tiers.map((t) => ({ xp: Number(t.xp), reward: { type: t.type, amount: Number(t.amount) } })) },
+    });
+    onDone();
+  });
+  return (
+    <form className="grid gap-4" onSubmit={(e) => { e.preventDefault(); void save.run(); }}>
+      <div className="grid gap-3 sm:grid-cols-4">
+        <Field label="Name" className="sm:col-span-2"><Input required value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="October Season" maxLength={80} /></Field>
+        <Field label="Starts"><Input type="date" value={f.startsAt} onChange={(e) => setF({ ...f, startsAt: e.target.value })} /></Field>
+        <Field label="Ends"><Input type="date" value={f.endsAt} onChange={(e) => setF({ ...f, endsAt: e.target.value })} /></Field>
+        <Field label="Price (0 = free)"><Input inputMode="decimal" value={f.price} onChange={(e) => setF({ ...f, price: e.target.value })} /></Field>
+      </div>
+      <div className="grid gap-2">
+        <p className="text-sm font-medium">Levels</p>
+        {tiers.map((t, i) => (
+          <div key={i} className="grid grid-cols-[1fr_1.2fr_1fr_auto] gap-2">
+            <Input aria-label="XP" type="number" min={1} value={t.xp} onChange={(e) => setTiers(tiers.map((x, j) => (j === i ? { ...x, xp: e.target.value } : x)))} />
+            <Select aria-label="Reward" value={t.type} onChange={(e) => setTiers(tiers.map((x, j) => (j === i ? { ...x, type: e.target.value } : x)))}><option value="POINTS">Points</option><option value="MINUTES">Free minutes</option><option value="BONUS">Bonus money</option></Select>
+            <Input aria-label="Amount" inputMode="decimal" value={t.amount} onChange={(e) => setTiers(tiers.map((x, j) => (j === i ? { ...x, amount: e.target.value } : x)))} />
+            <Button type="button" variant="ghost" size="sm" onClick={() => setTiers(tiers.filter((_, j) => j !== i))} disabled={tiers.length === 1}>Remove</Button>
+          </div>
+        ))}
+        <Button type="button" size="sm" variant="secondary" className="justify-self-start" onClick={() => setTiers([...tiers, { xp: String(Number(tiers.at(-1)?.xp ?? 0) + 600), type: "POINTS", amount: "100" }])}><Plus className="size-4" /> Level</Button>
+        <p className="text-xs text-ink-3">XP: 1 per minute played, 100 per challenge finished in the season. Each level needs more XP than the one before.</p>
+      </div>
+      <ErrorNote>{save.error}</ErrorNote>
+      <div className="flex justify-end"><Button type="submit" variant="primary" pending={save.pending}>Create season</Button></div>
     </form>
   );
 }

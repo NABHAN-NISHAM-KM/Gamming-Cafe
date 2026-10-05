@@ -128,13 +128,13 @@ export class SessionsService {
     });
     if (!device || !device.isEnabled) throw new NotFoundException({ error: "not_found" });
     const unit = await this.minorUnit(t, device.branch.currency);
-    let customer: { id: string; displayName: string; status: string; membershipTierId: string | null; tierName: string | null; discountPct: number; age: number | null; blockedGameIds: string[]; minutesLeftToday: number | null } | null = null;
+    let customer: { id: string; displayName: string; status: string; membershipTierId: string | null; tierName: string | null; discountPct: number; age: number | null; blockedGameIds: string[]; minutesLeftToday: number | null; limitReason: "daily" | "curfew" } | null = null;
     if (customerId) {
       const c = await t.customer.findUnique({ where: { id: customerId }, select: { id: true, displayName: true, status: true, dateOfBirth: true, membershipTierId: true, membershipTier: { select: { name: true, gamingDiscountPct: true } } } });
       if (!c) throw new NotFoundException({ error: "customer_not_found" });
       if (c.status === "BANNED" || c.status === "DELETED") throw new ForbiddenException({ error: "customer_banned" });
-      const { active, minutesLeftToday } = await assertMayPlay(t, customerId, { zoneId: device.zoneId, timezone: device.branch.timezone });
-      customer = { id: c.id, displayName: c.displayName, status: c.status, membershipTierId: c.membershipTierId, tierName: c.membershipTier?.name ?? null, discountPct: Number(c.membershipTier?.gamingDiscountPct ?? 0), ...playerLimits(active, ageOn(c.dateOfBirth)), minutesLeftToday };
+      const { active, minutesLeftToday, limitReason } = await assertMayPlay(t, customerId, { zoneId: device.zoneId, timezone: device.branch.timezone });
+      customer = { id: c.id, displayName: c.displayName, status: c.status, membershipTierId: c.membershipTierId, tierName: c.membershipTier?.name ?? null, discountPct: Number(c.membershipTier?.gamingDiscountPct ?? 0), ...playerLimits(active, ageOn(c.dateOfBirth)), minutesLeftToday, limitReason };
     }
     const plans = await t.pricingPlan.findMany({ where: { isActive: true, currency: device.branch.currency }, include: { pricingPackages: { orderBy: { sortOrder: "asc" } } } });
     const ctx = {
@@ -241,7 +241,7 @@ export class SessionsService {
       if (q.paymentTiming === "POSTPAID" && input.payment.method !== "PAY_LATER") throw new ConflictException({ error: "open_session_is_pay_later" });
       ({ q, ev: promo } = await this.withPromotions(t, q, { branchId: ctx.branchId, zoneId: ctx.zoneId, stationClass: ctx.stationClass, customerId: customer?.id ?? null }, input.promoCode));
       // ponytail: the daily limit is checked when time is sold; an open (pay-later) session isn't cut off mid-game.
-      if (customer?.minutesLeftToday != null && q.minutes !== null && q.minutes > customer.minutesLeftToday) throw new ForbiddenException({ error: "daily_limit_reached", minutesLeft: customer.minutesLeftToday });
+      if (customer?.minutesLeftToday != null && q.minutes !== null && q.minutes > customer.minutesLeftToday) throw new ForbiddenException({ error: customer.limitReason === "curfew" ? "curfew_soon" : "daily_limit_reached", minutesLeft: customer.minutesLeftToday, message: customer.limitReason === "curfew" ? `Only ${customer.minutesLeftToday} min until the under-age curfew.` : `Only ${customer.minutesLeftToday} min of play left today.` });
     }
 
     // ── someone else's booking on this PC? Don't sell time that runs into it ──

@@ -63,6 +63,7 @@ model Employee {
   supportTickets          SupportTicket[]
   timeClockEntries        TimeClockEntry[]
   handoverNotes           HandoverNote[]           @relation("HandoverNoteAuthor")
+  shiftPlans              ShiftPlan[]
 
   @@unique([id, organizationId])
   @@unique([organizationId, userId])

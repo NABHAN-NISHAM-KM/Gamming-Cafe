@@ -103,6 +103,7 @@ export async function spendMoney(
   }
   const b = await balances(t, s.customerId);
   if (b.frozen) throw new ConflictException({ error: "wallet_frozen" });
+  await assertWithinSpendCap(t, s.customerId, s.amountMinor, b.unit);
   if (b.cashMinor + b.bonusMinor < s.amountMinor) {
     throw new ConflictException({ error: "insufficient_funds", balance: fromMinor(b.cashMinor + b.bonusMinor, unit).toFixed(unit), needed: fromMinor(s.amountMinor, unit).toFixed(unit) });
   }
@@ -112,6 +113,23 @@ export async function spendMoney(
   if (fromBonusMinor) await moveMoney(t, { ...common, bucket: "BONUS", deltaMinor: -fromBonusMinor, idempotencyKey: `${s.idempotencyKey}:bonus` });
   if (fromCashMinor) await moveMoney(t, { ...common, bucket: "CASH", deltaMinor: -fromCashMinor, idempotencyKey: `${s.idempotencyKey}:cash` });
   return { fromBonusMinor, fromCashMinor };
+}
+
+/** Wallet money spent in the last 7 days, in minor units. */
+export async function spentThisWeek(t: TenantTx, customerId: string, unit: number) {
+  const r = await t.walletTransaction.aggregate({ where: { wallet: { customerId }, type: "SPEND", bucket: { in: ["CASH", "BONUS"] }, createdAt: { gte: new Date(Date.now() - 7 * 86_400_000) } }, _sum: { amount: true } });
+  return -toMinor(r._sum.amount ?? 0, unit);
+}
+
+/** A weekly spending limit (set by the customer or their guardian) caps wallet spending over any 7 days. */
+async function assertWithinSpendCap(t: TenantTx, customerId: string, amountMinor: number, unit: number) {
+  const c = await t.customer.findUnique({ where: { id: customerId }, select: { weeklySpendCap: true } });
+  if (!c?.weeklySpendCap) return;
+  const capMinor = toMinor(c.weeklySpendCap, unit);
+  const spent = await spentThisWeek(t, customerId, unit);
+  if (spent + amountMinor > capMinor) {
+    throw new ConflictException({ error: "spend_limit_reached", limit: fromMinor(capMinor, unit).toFixed(unit), left: fromMinor(Math.max(0, capMinor - spent), unit).toFixed(unit) });
+  }
 }
 
 /**

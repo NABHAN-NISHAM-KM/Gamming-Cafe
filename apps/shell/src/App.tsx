@@ -12,6 +12,7 @@ import { AddTime } from "./add-time";
 import { AccountCards, AwayLock, ThanksCard, useLangPref } from "./account";
 import { setSession } from "./player";
 import { StaffExit } from "./staff-exit";
+import { LowTimeNudge } from "./extras";
 
 const cx = (...c: Array<string | false | null | undefined>) => c.filter(Boolean).join(" ");
 
@@ -284,7 +285,7 @@ function HomeWidget({ state, t, notify, openGames, openAccount, addTime }: { sta
             <span className="live-dot size-2 rounded-full bg-good" /> Playing {playing.title}
           </p>
         )}
-        <AccountCards openAccount={openAccount} />
+        <AccountCards openAccount={openAccount} notify={notify} />
         <p className="mt-10 mb-4 text-sm uppercase tracking-[0.25em] text-dim">Featured</p>
         <FeaturedRow notify={notify} />
         <button onClick={openGames} className="mt-6 flex items-center gap-2 text-glow hover:underline">
@@ -416,6 +417,7 @@ function SessionScreen({ state, t }: { state: ShellState; t: Strings }) {
       )}
       <PrintApproval notify={notify} />
       <SessionAlerts state={state} t={t} />
+      <LowTimeNudge state={state} onAddTime={() => setAddingTime(true)} />
       <AwayLock name={state.session!.customerName} />
     </main>
   );

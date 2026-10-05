@@ -4,6 +4,7 @@ import { BellRing, CalendarClock, Coins, Crown, Gift, Hourglass, Inbox, Language
 import { bridge, player } from "./bridge";
 import { chooseLang, currentLang, lastEnded, onLangPref, refreshOverview, savePref, useOverview, type Overview } from "./player";
 import type { Notify } from "./screens";
+import { A11ySettings, CheckInButton } from "./extras";
 
 const cx = (...c: Array<string | false | null | undefined>) => c.filter(Boolean).join(" ");
 const hm = (min: number) => (min >= 60 ? `${Math.floor(min / 60)} h${min % 60 ? ` ${min % 60} min` : ""}` : `${min} min`);
@@ -14,7 +15,7 @@ const HELP: Record<string, string> = { OPEN: "Staff have your request", ACKNOWLE
 // ── on the home widget ──────────────────────────────────────────────────────
 
 /** Wallet, saved time and points, plus anything the player should know right now. */
-export function AccountCards({ openAccount }: { openAccount: () => void }) {
+export function AccountCards({ openAccount, notify }: { openAccount: () => void; notify?: Notify }) {
   const o = useOverview();
   if (!o) return null;
   const c = o.customer;
@@ -23,7 +24,7 @@ export function AccountCards({ openAccount }: { openAccount: () => void }) {
   if (c?.minutesLeftToday != null) notes.push({ icon: Hourglass, text: `${hm(c.minutesLeftToday)} of play left today.`, tone: "warn" });
   if (o.help) notes.push({ icon: LifeBuoy, text: HELP[o.help.status] ?? "Staff have your request", tone: o.help.status === "RESOLVED" ? "good" : "glow" });
   if (c?.booking) notes.push({ icon: CalendarClock, text: `Your booking ${c.booking.reference}: ${dayTime(c.booking.startsAt)}`, tone: "glow" });
-  for (const t of c?.tournaments ?? []) notes.push({ icon: Trophy, text: `${t.name}: ${t.status === "CHECK_IN" ? "check in now!" : t.status === "IN_PROGRESS" ? "live now" : dayTime(t.startsAt)}`, tone: t.status === "CHECK_IN" ? "warn" : "glow" });
+  for (const t of (c?.tournaments ?? []).filter((x) => x.status !== "CHECK_IN")) notes.push({ icon: Trophy, text: `${t.name}: ${t.status === "CHECK_IN" ? "check in now!" : t.status === "IN_PROGRESS" ? "live now" : dayTime(t.startsAt)}`, tone: t.status === "CHECK_IN" ? "warn" : "glow" });
   return (
     <div className="mt-8 grid max-w-2xl gap-3">
       {c ? (
@@ -49,6 +50,11 @@ export function AccountCards({ openAccount }: { openAccount: () => void }) {
         <p key={i} className={cx("flex items-center gap-2 rounded-xl border px-4 py-2 text-sm", n.tone === "warn" ? "border-warn/40 bg-warn/10 text-warn" : n.tone === "good" ? "border-good/40 bg-good/10 text-good" : "border-glow/40 bg-glow/10")}>
           <n.icon className="size-4 shrink-0" /> {n.text}
         </p>
+      ))}
+      {notify && c?.tournaments.filter((x) => x.status === "CHECK_IN").map((x) => (
+        <div key={x.id} className="flex items-center gap-3 rounded-xl border border-warn/40 bg-warn/10 px-4 py-2 text-sm">
+          <Trophy className="size-4 shrink-0 text-warn" /><span className="flex-1">{x.name}: check-in is open</span><CheckInButton tournamentId={x.id} name={x.name} notify={notify} />
+        </div>
       ))}
       {c?.challenges.map((ch) => (
         <div key={ch.id} className="glass rounded-xl px-4 py-2.5">
@@ -129,7 +135,8 @@ export function AccountScreen({ notify }: { notify: Notify }) {
               <button key={l} onClick={() => { setLang(l); savePref({ lang: l }); }} className={cx("press rounded-xl border px-5 py-2", lang === l ? "border-glow bg-glow/10 text-glow" : "border-rim text-dim")}>{l === "en" ? "English" : "العربية"}</button>
             ))}
           </div>
-          <p className="text-sm text-dim">Your mouse settings, volume and language are saved on your account and come back on any PC you sign in to.</p>
+          <A11ySettings prefs={o.customer.prefs ?? {}} save={savePref} />
+          <p className="text-sm text-dim">Your mouse settings, volume, language and text size are saved on your account and come back on any PC you sign in to.</p>
         </div>
       )}
     </div>
@@ -340,7 +347,7 @@ export function AwayLock({ name }: { name: string }) {
 
 /** On the lock screen right after someone logs out: what they played, spent and earned. */
 export function ThanksCard() {
-  const [s, setS] = useState<{ minutes: number; spent: string; currency: string; points: number | null } | null>(null);
+  const [s, setS] = useState<{ minutes: number; spent: string; currency: string; points: number | null; games?: string[]; nextReward?: { name: string; pointsNeeded: number } | null } | null>(null);
   useEffect(() => {
     if (!lastEnded || Date.now() - lastEnded.at > 60_000) return;
     const id = lastEnded.id;
@@ -358,7 +365,11 @@ export function ThanksCard() {
   return (
     <div className="glass animate-pop fixed left-1/2 top-8 z-30 flex -translate-x-1/2 items-center gap-6 rounded-2xl px-8 py-4 shadow-2xl">
       <p className="font-display text-lg">Thanks for playing!</p>
-      <p className="text-dim">{hm(s.minutes)} · {s.currency} {s.spent}{s.points ? <span className="text-good"> · +{s.points} points</span> : null}</p>
+      <div>
+        <p className="text-dim">{hm(s.minutes)} · {s.currency} {s.spent}{s.points ? <span className="text-good"> · +{s.points} points</span> : null}</p>
+        {!!s.games?.length && <p className="text-sm text-dim">Played {s.games.join(", ")}</p>}
+        {s.nextReward && <p className="text-sm text-glow">{s.nextReward.pointsNeeded} points to {s.nextReward.name} · book your next visit in the app</p>}
+      </div>
     </div>
   );
 }

@@ -20,7 +20,7 @@ interface Game {
   launcherGameId: string | null;
   executablePath: string | null;
   launcher: { key: string; name: string } | null;
-  setting: { isEnabled: boolean; isFeatured: boolean; sortOrder: number; minAgeOverride: number | null; allowedZoneIds: string[]; savePaths?: string[] } | null;
+  setting: { isEnabled: boolean; isFeatured: boolean; sortOrder: number; minAgeOverride: number | null; allowedZoneIds: string[]; savePaths?: string[]; news?: string | null } | null;
   installs?: { installed: number; updateRequired: number; updating: number; progressPct: number | null };
 }
 interface Job {
@@ -255,6 +255,16 @@ export default function GamesPage() {
                       <button disabled={!manage || !s} onClick={() => setSavesFor(g)} className="block text-xs text-ink-3 hover:text-accent disabled:hover:text-ink-3">
                         {s?.savePaths?.length ? "Saves follow players" : "Saves stay on the PC"}
                       </button>
+                      {manage && s?.isEnabled ? (
+                        <input
+                          defaultValue={s.news ?? ""}
+                          maxLength={140}
+                          placeholder="News on the PC tile, e.g. New season out"
+                          aria-label={`News line for ${g.title}`}
+                          onBlur={(e) => e.target.value.trim() !== (s.news ?? "") && void setSetting.run(g, { news: e.target.value.trim() || null })}
+                          className="mt-1 block w-56 rounded-md border border-line bg-panel px-2 py-1 text-xs"
+                        />
+                      ) : s?.news && <span className="mt-1 block text-xs text-accent">“{s.news}”</span>}
                     </td>
                     <td className="px-4 py-3 text-right">{g.custom && <RecordActions kind="game" id={g.id} name={g.title} onEdit={() => setEditingGame(g)} onDone={() => void lib.reload()} />}</td>
                   </tr>

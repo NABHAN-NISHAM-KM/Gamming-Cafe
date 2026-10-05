@@ -64,15 +64,56 @@ export async function minutesLeftToday(t: TenantTx, active: Awaited<ReturnType<t
   return Math.max(0, Math.min(...caps) - Math.ceil(row?.used ?? 0));
 }
 
-/** Refuses a session the restrictions don't allow (zone block, daily limit used up). */
+/** The venue's night curfew for under-age players (Settings), e.g. { from: "22:00", to: "07:00", underAge: 18 }. */
+export const Curfew = z.object({ from: z.string().regex(/^\d{2}:\d{2}$/), to: z.string().regex(/^\d{2}:\d{2}$/), underAge: z.number().int().min(10).max(21) }).strict();
+export type Curfew = z.infer<typeof Curfew>;
+
+const minutesOf = (hhmm: string) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
+
+/**
+ * Minutes until a minor's curfew starts (0 = it's curfew now), or null when it
+ * doesn't apply. ponytail: a player with no birth date isn't treated as a minor;
+ * venues that need it can require birth dates at sign-up.
+ */
+export function minutesToCurfew(curfew: Curfew | null, age: number | null, timezone: string, now = new Date()): number | null {
+  if (!curfew || age === null || age >= curfew.underAge) return null;
+  const local = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: timezone, hour: "numeric", minute: "numeric", hourCycle: "h23" }).formatToParts(now).map((p) => [p.type, p.value]));
+  const m = Number(local["hour"]) * 60 + Number(local["minute"]);
+  const from = minutesOf(curfew.from);
+  const to = minutesOf(curfew.to);
+  const inside = from <= to ? m >= from && m < to : m >= from || m < to; // a curfew usually wraps past midnight
+  if (inside) return 0;
+  return (from - m + 1440) % 1440;
+}
+
+export async function curfewFor(t: TenantTx) {
+  const settings = (await t.organization.findFirst({ select: { settings: true } }))?.settings as { minorCurfew?: unknown } | null;
+  const c = Curfew.safeParse(settings?.minorCurfew);
+  return c.success ? c.data : null;
+}
+
+/** Refuses a session the restrictions don't allow (zone block, daily limit used up, a minor's curfew). */
 export async function assertMayPlay(t: TenantTx, customerId: string, at: { zoneId: string; timezone: string }) {
   const active = await activeRestrictions(t, customerId);
   const ban = active.find((r) => r.type === "BAN");
   if (ban) throw new ForbiddenException({ error: "customer_banned", reason: ban.reason });
   if (active.some((r) => r.type === "ZONE_BLOCK" && r.scope.zoneIds?.includes(at.zoneId))) throw new ForbiddenException({ error: "customer_zone_blocked" });
-  const left = await minutesLeftToday(t, active, customerId, at.timezone);
-  if (left === 0) throw new ForbiddenException({ error: "daily_limit_reached" });
-  return { active, minutesLeftToday: left };
+  const daily = await minutesLeftToday(t, active, customerId, at.timezone);
+  if (daily === 0) throw new ForbiddenException({ error: "daily_limit_reached" });
+  const curfew = await curfewFor(t);
+  const dob = curfew ? (await t.customer.findUnique({ where: { id: customerId }, select: { dateOfBirth: true } }))?.dateOfBirth : null;
+  const toCurfew = minutesToCurfew(curfew, ageOf(dob), at.timezone);
+  if (toCurfew === 0) throw new ForbiddenException({ error: "curfew", from: curfew!.from, to: curfew!.to, message: `Players under ${curfew!.underAge} can't play between ${curfew!.from} and ${curfew!.to}.` });
+  // Whichever comes first caps the session: the daily limit or the curfew.
+  const left = toCurfew === null ? daily : daily === null ? toCurfew : Math.min(daily, toCurfew);
+  return { active, minutesLeftToday: left, limitReason: left !== null && left === toCurfew ? ("curfew" as const) : ("daily" as const) };
+}
+
+function ageOf(dob: Date | null | undefined, now = new Date()) {
+  if (!dob) return null;
+  let age = now.getUTCFullYear() - dob.getUTCFullYear();
+  if (now.getUTCMonth() < dob.getUTCMonth() || (now.getUTCMonth() === dob.getUTCMonth() && now.getUTCDate() < dob.getUTCDate())) age--;
+  return age;
 }
 
 export async function assertMayOrderFood(t: TenantTx, customerId: string | null) {

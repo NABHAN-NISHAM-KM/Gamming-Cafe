@@ -37,6 +37,10 @@ const Env = z.object({
   SALES_TIMEZONE: z.string().default("Asia/Dubai"),
   /** The plan a self-serve trial starts on (all its features for 14 days). */
   TRIAL_PLAN_CODE: z.string().default("PRO"),
+  /** Signs the "invoice paid" webhooks from the platform's Stripe account (venues paying their plan by card). */
+  BILLING_STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  /** Hourly renewal invoices and overdue checks; "off" in tests, which run the sweep themselves. */
+  BILLING_SWEEP: z.enum(["on", "off"]).default("on"),
   LOGIN_MAX_FAILURES: z.coerce.number().int().default(5),
   LOGIN_LOCK_MINUTES: z.coerce.number().int().default(15),
 });

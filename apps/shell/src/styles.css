@@ -16,7 +16,14 @@
      so a 16:9 screen never overflows: 1366×768 ≈ 13.7px, 1920×1080 = 19.2px,
      2560×1440 = 24px (cap). Windows display scaling is already in vw/vh. */
   html {
-    font-size: clamp(12px, min(1.111vw, 1.778vh), 24px);
+    /* --text-scale: the player's "Larger text" setting (1, 1.15, 1.3). */
+    font-size: calc(clamp(12px, min(1.111vw, 1.778vh), 24px) * var(--text-scale, 1));
+  }
+  /* High contrast (player setting): secondary text and borders at full strength. */
+  html.contrast {
+    --color-dim: #eef0f7;
+    --color-mute: #d4d8e6;
+    --color-rim: #9aa1b8;
   }
   body {
     margin: 0;

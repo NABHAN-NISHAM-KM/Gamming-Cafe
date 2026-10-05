@@ -9,6 +9,7 @@ import { askConfirm } from "./confirm";
 import { getLang, locale, setLang, t } from "./i18n";
 import { disablePush, enablePush, pushState, type PushState } from "./push";
 import { cx, ErrorText, hours, Loading, Screen, Sheet, useLoad, type Toast } from "./ui";
+import { CardTopUp } from "./growth";
 
 const money = (cur: string, v: string | number) => `${cur} ${Number(v).toFixed(2)}`;
 const day = (iso: string) => new Date(iso).toLocaleDateString(locale(), { day: "numeric", month: "short" });
@@ -599,6 +600,8 @@ export function TopUpSheet({ me, venue, onClose, onDone, toast }: { me: Me; venu
       setBusy(false);
     }
   };
+  const card = useLoad(() => api<{ available: boolean }>("/wallet/card").catch(() => ({ available: false })));
+  if (card.data?.available) return <Sheet title={t("Top up your wallet")} onClose={onClose}><CardTopUp me={me} onClose={onClose} /></Sheet>;
   return (
     <Sheet title={t("Top up your wallet")} onClose={onClose}>
       {!venue.demoPayments ? <p className="text-dim">{t("Top up your wallet at the counter — card and cash.")}</p> : (

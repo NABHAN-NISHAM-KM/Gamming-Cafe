@@ -18,8 +18,8 @@ const hm = (min: number) => (min >= 60 ? `${Math.floor(min / 60)} h${min % 60 ? 
  * screen then thanks them with the final time, spend and points.
  */
 async function logOut(t: Strings, sessionId: string) {
-  const so = await player<{ minutes: number; spent: string; currency: string }>("summary", { sessionId }).catch(() => null);
-  const sofar = so ? `\n\n${hm(so.minutes)} played · ${so.currency} ${so.spent} so far.` : "";
+  const so = await player<{ minutes: number; spent: string; currency: string; nextReward?: { name: string; pointsNeeded: number } | null }>("summary", { sessionId }).catch(() => null);
+  const sofar = so ? `\n\n${hm(so.minutes)} played · ${so.currency} ${so.spent} so far.${so.nextReward ? `\n${so.nextReward.pointsNeeded} points to ${so.nextReward.name} — stay a little longer?` : ""}` : "";
   if (!(await askConfirm(t.logoutConfirm + sofar, { ok: t.logout }))) return;
   const r = await askRating({ title: t.rateTitle, comment: t.rateComment, send: t.rateSend, skip: t.rateSkip });
   if (r) bridge.send({ type: "feedback", rating: r.rating, comment: r.comment });

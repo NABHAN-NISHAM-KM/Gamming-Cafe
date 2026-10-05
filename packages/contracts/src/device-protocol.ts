@@ -237,6 +237,7 @@ export interface BootReport {
 export const PLAYER_ACTIONS = [
   "overview", "rewards", "redeem", "inbox", "inbox_read", "leaderboard", "favorite", "prefs_set", "verify", "summary",
   "claim_code", "request_game", "players", "invite", "save_get", "save_put_begin", "save_put_chunk", "save_put_end",
+  "news", "tournament_checkin",
 ] as const;
 export type PlayerAction = (typeof PLAYER_ACTIONS)[number];
 

@@ -19,6 +19,7 @@ const EN = {
   "nav.Tournaments": "Tournaments", "nav.Restaurant": "Restaurant", "nav.POS": "POS", "nav.Orders": "Orders", "nav.Kitchen": "Kitchen",
   "nav.Inventory": "Inventory", "nav.Purchasing": "Purchasing", "nav.Branches & zones": "Branches & zones", "nav.Employees": "Employees",
   "nav.Roles": "Roles", "nav.Rates": "Rates", "nav.Finance": "Finance", "nav.Reports": "Reports", "nav.Marketing": "Marketing", "nav.Settings": "Settings",
+  "nav.Waitlist": "Waitlist", "nav.Rota": "Rota", "nav.Insights": "Insights", "nav.Billing": "Billing",
   "nav.more": "Show all menus", "nav.less": "Show fewer menus", "nav.search": "Search",
   // staff bar
   "clock.in": "Clock in", "clock.inDone": "Clocked in — have a good shift.", "clock.out": "Clock out", "clock.since": "On shift since", "clock.worked": "Worked", "clock.done": "Clocked out — see you next shift.",
@@ -70,6 +71,7 @@ const AR: Partial<Record<TKey, string>> = {
   "nav.Tournaments": "البطولات", "nav.Restaurant": "المطعم", "nav.POS": "نقطة البيع", "nav.Orders": "الطلبات", "nav.Kitchen": "المطبخ",
   "nav.Inventory": "المخزون", "nav.Purchasing": "المشتريات", "nav.Branches & zones": "الفروع والمناطق", "nav.Employees": "الموظفون",
   "nav.Roles": "الأدوار", "nav.Rates": "الأسعار", "nav.Finance": "المالية", "nav.Reports": "التقارير", "nav.Marketing": "التسويق", "nav.Settings": "الإعدادات",
+  "nav.Waitlist": "قائمة الانتظار", "nav.Rota": "جدول المناوبات", "nav.Insights": "رؤى", "nav.Billing": "الفوترة",
   "nav.more": "عرض كل القوائم", "nav.less": "عرض قوائم أقل", "nav.search": "بحث",
   "clock.in": "تسجيل الحضور", "clock.inDone": "تم تسجيل الحضور — دوام موفق.", "clock.out": "تسجيل الانصراف", "clock.since": "في الدوام منذ", "clock.worked": "مدة العمل", "clock.done": "تم تسجيل الانصراف — نراك في الدوام القادم.",
   "switch.title": "تبديل الموظف", "switch.who": "من سيستلم؟", "switch.pin": "الرمز السري", "switch.go": "تبديل", "switch.none": "لا يوجد زملاء لديهم رمز للكاونتر بعد. يمكن لكل شخص تعيينه من الإعدادات ← رمز الكاونتر.",

@@ -95,6 +95,9 @@ model OrgGameSetting {
   allowedZoneIds String[]     @db.Uuid // empty = all zones
   /// Save folders that follow the player between PCs, e.g. "%APPDATA%\\Game\\Saves" (empty = off)
   savePaths      String[]     @default([])
+  /// Venue's own note on the tile, e.g. "New season out now" (shown in the Shell)
+  news           String?
+  newsAt         DateTime?    @db.Timestamptz(3)
   createdAt      DateTime     @default(now()) @db.Timestamptz(3)
   updatedAt      DateTime     @updatedAt @db.Timestamptz(3)
   organization   Organization @relation(fields: [organizationId], references: [id])

@@ -79,6 +79,14 @@ import { AccountingPosterService } from "./accounting/poster.service.js";
 import { ReportsController } from "./reports/reports.controller.js";
 import { AnalyticsController } from "./reports/analytics.controller.js";
 import { StaffController } from "./staff/staff.controller.js";
+import { RotaController } from "./staff/rota.controller.js";
+import { WaitlistController } from "./waitlist/waitlist.controller.js";
+import { WaitlistService } from "./waitlist/waitlist.service.js";
+import { InsightsController } from "./reports/insights.controller.js";
+import { AccountController } from "./organizations/account.controller.js";
+import { AppExtrasController } from "./customer-app/extras.controller.js";
+import { SeasonsController } from "./loyalty/seasons.controller.js";
+import { ReceiptsController } from "./pos/receipts.controller.js";
 
 @Controller()
 class HealthController {
@@ -147,6 +155,13 @@ export class AppModule {
         ReportsController,
         AnalyticsController,
         StaffController,
+        RotaController,
+        WaitlistController,
+        InsightsController,
+        AccountController,
+        AppExtrasController,
+        SeasonsController,
+        ReceiptsController,
       ],
       providers: [
         TokensService,
@@ -191,6 +206,7 @@ export class AppModule {
         StockService,
         PurchasingService,
         AccountingPosterService,
+        WaitlistService,
         { provide: APP_GUARD, useClass: AuthGuard },
         { provide: APP_INTERCEPTOR, useClass: TenantInterceptor },
         { provide: APP_FILTER, useClass: ErrorsFilter },

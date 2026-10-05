@@ -32,6 +32,12 @@ model Customer {
   tags                   String[]                @default([]) // staff labels: VIP, regular, watch…
   showOnLeaderboard      Boolean                 @default(false) // opted in: leaderboard and "who's playing"
   shellPrefs             Json                    @default("{}") // mouse, volume, language — restored on any PC
+  /// Spending limit per rolling 7 days (wallet spend). Set by the customer, or by a linked guardian.
+  weeklySpendCap         Decimal?                @db.Decimal(19, 4)
+  spendCapByGuardian     Boolean                 @default(false)
+  guardianId             String?                 @db.Uuid
+  guardianCodeHash       String? // one-time code the child shows the parent to link accounts
+  guardianCodeExpiresAt  DateTime?               @db.Timestamptz(3)
   resetCodeHash          String? // one-time password reset code a staff member gave them
   resetCodeExpiresAt     DateTime?               @db.Timestamptz(3)
   referralCode           String?
@@ -50,6 +56,13 @@ model Customer {
   homeBranch             Branch?                 @relation(fields: [homeBranchId, organizationId], references: [id, organizationId], onDelete: Restrict)
   referredBy             Customer?               @relation("Referral", fields: [referredById, organizationId], references: [id, organizationId], onDelete: Restrict)
   referrals              Customer[]              @relation("Referral")
+  guardian               Customer?               @relation("Guardian", fields: [guardianId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  wards                  Customer[]              @relation("Guardian")
+  waitlistEntries        WaitlistEntry[]
+  seasonPasses           SeasonPass[]
+  lfgPosts               LfgPost[]
+  lfgMemberships         LfgMember[]
+  walletTopUps           WalletTopUp[]
   captainOf              Team[]                  @relation("TeamCaptain")
   bookings               Booking[]
   customerRestrictions   CustomerRestriction[]

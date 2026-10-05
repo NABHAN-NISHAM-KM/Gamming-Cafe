@@ -15,6 +15,8 @@ const SYS_PRODUCTS = {
   GAMING_TIME: { sku: "SYS-PREPAID-TIME", name: "Prepaid gaming time", category: "Gaming" },
   MEMBERSHIP: { sku: "SYS-MEMBERSHIP", name: "Membership", category: "Memberships" },
   WALLET_TOPUP: { sku: "SYS-WALLET-TOPUP", name: "Wallet top-up", category: "Wallet" },
+  /** Season passes (the only SERVICE sold from here). */
+  SERVICE: { sku: "SYS-SEASON-PASS", name: "Season pass", category: "Memberships" },
 } as const;
 
 /** Default life of bonus credit granted with a top-up. */
@@ -158,6 +160,12 @@ export class CommerceService {
   }
 
   // ── memberships ─────────────────────────────────────────────────────────
+
+  /** A paid season pass, from the customer's wallet: a sale like any other, so the books and the wallet agree. */
+  async sellSeasonPass(t: TenantTx, i: { customerId: string; branchId: string; name: string; price: string; idempotencyKey: string }, actor: SaleActor) {
+    const { unit } = await orgCurrency(t);
+    return this.sell(t, { branchId: i.branchId, customerId: i.customerId, type: "SERVICE", line: `Season pass — ${i.name}`, quantity: 1, grossMinor: toMinor(i.price, unit), discountMinor: 0, payment: { method: "WALLET" }, key: i.idempotencyKey, actor });
+  }
 
   async sellMembership(t: TenantTx, i: { customerId: string; branchId: string; tierId: string; payment: SalePayment; idempotencyKey: string }, actor: SaleActor) {
     const tier = await t.membershipTier.findUnique({ where: { id: i.tierId } });

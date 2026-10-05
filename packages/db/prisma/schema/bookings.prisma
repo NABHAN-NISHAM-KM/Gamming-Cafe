@@ -56,6 +56,7 @@ model Booking {
   notes            String?
   holdExpiresAt    DateTime?           @db.Timestamptz(3) // PENDING auto-cancels if unpaid
   checkedInAt      DateTime?           @db.Timestamptz(3)
+  runningLateUntil DateTime?           @db.Timestamptz(3) // "running late": held past the usual grace until then
   cancelledAt      DateTime?           @db.Timestamptz(3)
   cancelReason     String?
   createdById      String?             @db.Uuid

@@ -76,19 +76,21 @@ enum ReleaseComponent {
 
 /// Signed client binaries pushed by Super Admin.
 model ClientRelease {
-  id           String           @id @default(uuid(7)) @db.Uuid
-  component    ReleaseComponent
-  channel      ReleaseChannel   @default(STABLE)
-  version      String
-  artifactUrl  String
-  sha256       String
-  signature    String // detached code-signing signature, verified by the agent before install
-  releaseNotes String?
-  minVersion   String? // clients below this must force-update
-  publishedAt  DateTime?        @db.Timestamptz(3)
-  isRevoked    Boolean          @default(false)
-  createdAt    DateTime         @default(now()) @db.Timestamptz(3)
-  updatedAt    DateTime         @updatedAt @db.Timestamptz(3)
+  id             String           @id @default(uuid(7)) @db.Uuid
+  component      ReleaseComponent
+  channel        ReleaseChannel   @default(STABLE)
+  version        String
+  artifactUrl    String
+  sha256         String
+  signature      String // detached code-signing signature, verified by the agent before install
+  releaseNotes   String?
+  minVersion     String? // clients below this must force-update
+  publishedAt    DateTime?        @db.Timestamptz(3)
+  isRevoked      Boolean          @default(false)
+  rolloutPercent Int              @default(100) // share of stations offered this build (by a stable hash of the device)
+  pausedAt       DateTime?        @db.Timestamptz(3)
+  createdAt      DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime         @updatedAt @db.Timestamptz(3)
 
   @@unique([component, channel, version])
 }
@@ -203,6 +205,7 @@ model ImpersonationSession {
   startedAt        DateTime     @default(now()) @db.Timestamptz(3)
   expiresAt        DateTime     @db.Timestamptz(3)
   endedAt          DateTime?    @db.Timestamptz(3)
+  canWrite         Boolean      @default(false) // read-only unless the support admin asked for changes
   platformUser     User         @relation(fields: [platformUserId], references: [id])
   organization     Organization @relation(fields: [organizationId], references: [id])
   targetEmployee   Employee     @relation(fields: [targetEmployeeId, organizationId], references: [id, organizationId])
@@ -216,6 +219,7 @@ enum LeadKind {
   CONTACT // "Request a walkthrough"
   DEMO // booked a call slot
   TRIAL // signed up for a trial venue
+  UPGRADE // a venue near its plan limits asked for a bigger plan
 }
 
 enum LeadStatus {
@@ -227,28 +231,49 @@ enum LeadStatus {
 
 /// Someone who reached out on the website. Platform-level: never visible to venues.
 model Lead {
-  id         String     @id @default(uuid(7)) @db.Uuid
-  kind       LeadKind
-  status     LeadStatus @default(NEW)
-  name       String
-  email      String
-  phone      String?
-  venue      String?
-  country    String?
-  venueType  String?
-  plan       String?
-  branches   Int?
-  stations   Int?
-  notes      String?
+  id           String     @id @default(uuid(7)) @db.Uuid
+  kind         LeadKind
+  status       LeadStatus @default(NEW)
+  name         String
+  email        String
+  phone        String?
+  venue        String?
+  country      String?
+  venueType    String?
+  plan         String?
+  branches     Int?
+  stations     Int?
+  notes        String?
   /// DEMO: the call's start (30 minutes, UTC)
-  demoAt     DateTime?  @db.Timestamptz(3)
+  demoAt       DateTime?  @db.Timestamptz(3)
+  staffNotes   String? // the sales team's own notes
+  nextActionAt DateTime?  @db.Timestamptz(3)
   /// TRIAL: the venue that was created
-  trialOrgId String?    @db.Uuid
-  source     String? // page or campaign it came from
-  ip         String?
-  createdAt  DateTime   @default(now()) @db.Timestamptz(3)
-  updatedAt  DateTime   @updatedAt @db.Timestamptz(3)
+  trialOrgId   String?    @db.Uuid
+  source       String? // page or campaign it came from
+  ip           String?
+  createdAt    DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime   @updatedAt @db.Timestamptz(3)
 
   @@index([status, createdAt])
   @@index([kind, demoAt])
+}
+
+enum AnnouncementSeverity {
+  INFO
+  WARNING
+}
+
+/// A message from the platform to every venue's staff (maintenance, new features).
+model PlatformAnnouncement {
+  id          String               @id @default(uuid(7)) @db.Uuid
+  title       String
+  body        String
+  severity    AnnouncementSeverity @default(INFO)
+  startsAt    DateTime             @default(now()) @db.Timestamptz(3)
+  endsAt      DateTime?            @db.Timestamptz(3)
+  createdById String               @db.Uuid
+  createdAt   DateTime             @default(now()) @db.Timestamptz(3)
+
+  @@index([startsAt])
 }

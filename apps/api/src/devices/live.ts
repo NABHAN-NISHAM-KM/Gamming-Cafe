@@ -22,7 +22,9 @@ export type FloorEvent =
   | { type: "kitchen"; ticket: { id: string; stationId: string; status: string; orderId: string } }
   | { type: "print"; jobId: string }
   /** An order was placed ("placed", with what's needed for a staff pop-up) or changed (paid, cancelled, moved). */
-  | { type: "order"; change: "placed" | "updated"; order: { id: string } & Partial<OrderNotice> };
+  | { type: "order"; change: "placed" | "updated"; order: { id: string } & Partial<OrderNotice> }
+  /** The waitlist changed; "offered" when a station was offered to someone in line. */
+  | { type: "waitlist"; change: "added" | "offered" | "updated"; entry: { id: string; name: string; partySize: number; device?: string | null } };
 
 export interface OrderNotice {
   number: string;

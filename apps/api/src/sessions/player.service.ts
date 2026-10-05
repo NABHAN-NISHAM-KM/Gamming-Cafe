@@ -15,6 +15,7 @@ import { LoyaltyService } from "../loyalty/loyalty.service.js";
 import { PushService } from "../push/push.service.js";
 import { balances } from "../wallet/wallet.js";
 import { ShellAuthService } from "./shell-auth.service.js";
+import { TournamentsService } from "../tournaments/tournaments.service.js";
 
 const LIVE = ["PENDING", "ACTIVE", "PAUSED", "ENDING"] as const;
 const SAVE_MAX = 20 * 1024 * 1024;
@@ -40,7 +41,10 @@ const Args = {
   redeem: z.object({ rewardId: z.uuid(), key: z.string().min(8).max(64) }),
   inbox_read: z.object({ id: z.uuid() }),
   favorite: z.object({ gameId: z.uuid(), on: z.boolean() }),
-  prefs_set: z.object({ mouseSpeed: z.number().int().min(1).max(20), enhancePointerPrecision: z.boolean(), volume: z.number().int().min(0).max(100), lang: z.enum(["en", "ar"]) }).partial(),
+  prefs_set: z
+    .object({ mouseSpeed: z.number().int().min(1).max(20), enhancePointerPrecision: z.boolean(), volume: z.number().int().min(0).max(100), lang: z.enum(["en", "ar"]), textScale: z.union([z.literal(100), z.literal(115), z.literal(130)]), contrast: z.boolean() })
+    .partial(),
+  tournament_checkin: z.object({ tournamentId: z.uuid() }),
   verify: z.object({ secret: z.string().min(1).max(256) }),
   summary: z.object({ sessionId: z.uuid() }),
   request_game: z.object({ gameId: z.uuid().nullish(), title: z.string().trim().min(2).max(80) }),
@@ -76,6 +80,7 @@ export class PlayerService implements OnModuleInit {
     @Inject(LoyaltyService) private readonly loyalty: LoyaltyService,
     @Inject(PushService) private readonly push: PushService,
     @Inject(ShellAuthService) private readonly shellAuth: ShellAuthService,
+    @Inject(TournamentsService) private readonly tournaments: TournamentsService,
   ) {}
 
   onModuleInit() {
@@ -151,6 +156,10 @@ export class PlayerService implements OnModuleInit {
         return this.saveChunk(c, a.uploadId, a.data);
       case "save_put_end":
         return this.saveEnd(t, c, a.uploadId);
+      case "news":
+        return this.news(t);
+      case "tournament_checkin":
+        return this.checkIn(t, me(), a.tournamentId);
     }
   }
 
@@ -224,7 +233,39 @@ export class PlayerService implements OnModuleInit {
     const points = s.customerId
       ? (await t.loyaltyTransaction.aggregate({ where: { customerId: s.customerId, type: "EARN", referenceId: { in: [s.id, ...(s.billId ? [s.billId] : [])] } }, _sum: { points: true } }))._sum.points ?? 0
       : null;
-    return { minutes, spent: Number(s.bill?.total ?? s.amountDue).toFixed(2), currency: s.currency, points };
+    // What they played this session, and how close they are to their next reward.
+    const games = s.customerId && s.startedAt
+      ? (await t.customerRecentGame.findMany({ where: { customerId: s.customerId, lastPlayedAt: { gte: s.startedAt } }, orderBy: { lastPlayedAt: "desc" }, take: 5, select: { game: { select: { title: true } } } })).map((g) => g.game.title)
+      : [];
+    let nextReward: { name: string; pointsNeeded: number } | null = null;
+    if (s.customerId) {
+      const balance = (await t.customer.findUniqueOrThrow({ where: { id: s.customerId }, select: { loyaltyPoints: true } })).loyaltyPoints;
+      const r = await t.loyaltyReward.findFirst({ where: { isActive: true, costPoints: { gt: balance } }, orderBy: { costPoints: "asc" }, select: { name: true, costPoints: true } });
+      if (r) nextReward = { name: r.name, pointsNeeded: r.costPoints - balance };
+    }
+    return { minutes, spent: Number(s.bill?.total ?? s.amountDue).toFixed(2), currency: s.currency, points, games, nextReward };
+  }
+
+  // ── game news and tournament check-in ─────────────────────────────────────
+
+  /** The venue's news lines for game tiles, newest first. */
+  private async news(t: TenantTx) {
+    const rows = await t.orgGameSetting.findMany({ where: { isEnabled: true, news: { not: null }, newsAt: { gte: new Date(Date.now() - 30 * 86_400_000) } }, orderBy: { newsAt: "desc" }, take: 30, select: { gameId: true, news: true, newsAt: true } });
+    return rows;
+  }
+
+  /** Check my team in from the PC: my next tournament's matches and stations, once checked in. */
+  private async checkIn(t: TenantTx, customerId: string, tournamentId: string) {
+    const me = await t.tournamentPlayer.findFirst({ where: { customerId, tournamentId }, select: { teamId: true, team: { select: { name: true } } } });
+    if (!me) throw new NotFoundException({ error: "not_registered", message: "You're not registered for that tournament." });
+    await this.tournaments.checkIn(t, me.teamId, { type: "CUSTOMER", id: customerId });
+    const next = await t.match.findFirst({
+      where: { tournamentId, status: { in: ["PENDING", "SCHEDULED", "READY", "LIVE"] }, OR: [{ teamAId: me.teamId }, { teamBId: me.teamId }] },
+      orderBy: [{ round: "asc" }, { position: "asc" }],
+      select: { round: true, scheduledAt: true, stationIds: true, teamA: { select: { name: true } }, teamB: { select: { name: true } } },
+    });
+    const stations = next?.stationIds.length ? (await t.device.findMany({ where: { id: { in: next.stationIds } }, select: { name: true } })).map((d) => d.name) : [];
+    return { checkedIn: true, team: me.team.name, next: next ? { round: next.round, at: next.scheduledAt, vs: [next.teamA?.name, next.teamB?.name].filter((n) => n && n !== me.team.name)[0] ?? "TBD", stations } : null };
   }
 
   // ── asking staff for a game ───────────────────────────────────────────────

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { BellRing, Check, LifeBuoy, ReceiptText, X } from "lucide-react";
+import { BellRing, Check, LifeBuoy, ListOrdered, ReceiptText, X } from "lucide-react";
 import { api } from "@/lib/client/api";
 import { useBranch } from "@/lib/client/branch";
 import { ORDER_TYPE, money } from "@/lib/client/pos";
@@ -10,7 +10,8 @@ import { Button } from "@/components/ui";
 
 type Help = { kind: "help"; key: string; alertId: string; title: string; topic: string; note: string | null; device: string | null; customer: string | null; at: number };
 type Order = { kind: "order"; key: string; number: string; type: string; channel: string; deliverTo: string | null; customer: string | null; total: string; currency: string; notes: string | null; items: Array<{ name: string; quantity: number }>; at: number };
-type Notice = Help | Order;
+type Wait = { kind: "wait"; key: string; name: string; partySize: number; device: string; at: number };
+type Notice = Help | Order | Wait;
 
 const TOPIC: Record<string, string> = { general: "General help", game: "Help with a game", peripheral: "Mouse, keyboard or headset", network: "Internet / connection", payment: "Payment or time" };
 const CHANNEL: Record<string, string> = { SHELL: "from the PC", WAITER: "from a waiter", QR_TABLE: "from a table QR", WEB: "online", MOBILE: "from the app", KIOSK: "from the kiosk" };
@@ -53,6 +54,11 @@ export function LiveNotices() {
         if (e.change === "placed" && e.order.channel && e.order.channel !== "POS" && e.order.channel !== "SYSTEM") push({ ...e.order, kind: "order", key: `order:${e.order.id}`, at: Date.now() });
       });
       es.addEventListener("kitchen", (ev) => relay("kitchen", JSON.parse((ev as MessageEvent).data)));
+      es.addEventListener("waitlist", (ev) => {
+        const e = JSON.parse((ev as MessageEvent).data) as { change: string; entry: { id: string; name: string; partySize: number; device?: string | null } };
+        relay("waitlist", e);
+        if (e.change === "offered" && e.entry.device) push({ kind: "wait", key: `wait:${e.entry.id}`, name: e.entry.name, partySize: e.entry.partySize, device: e.entry.device, at: Date.now() });
+      });
       es.onerror = () => {
         es?.close();
         retry = setTimeout(connect, 3000);
@@ -75,6 +81,21 @@ export function LiveNotices() {
   return (
     <div className="fixed right-4 top-20 z-50 grid w-[min(380px,calc(100vw-2rem))] gap-3" role="region" aria-label="Live notifications" aria-live="assertive">
       {notices.map((n) => (
+        n.kind === "wait" ? (
+          <article key={n.key} className="surface animate-enter rounded-2xl border-2 border-ok/60 p-4 shadow-2xl shadow-black/60">
+            <header className="flex items-start gap-3">
+              <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-ok/15 text-ok"><ListOrdered className="size-5" /></span>
+              <div className="min-w-0 flex-1">
+                <p className="font-display text-base font-bold">Call {n.name}</p>
+                <p className="text-sm text-ink-2">{n.device} is free for them{n.partySize > 1 ? ` (${n.partySize} people)` : ""} · 10 minutes to claim</p>
+              </div>
+              <button onClick={() => drop(n.key)} className="rounded p-1 text-ink-3 hover:bg-panel-2 hover:text-ink" aria-label="Dismiss"><X className="size-4" /></button>
+            </header>
+            <footer className="mt-3 flex gap-2">
+              <Link href="/waitlist" onClick={() => drop(n.key)} className="press brand-gradient inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold text-accent-ink">Open waitlist</Link>
+            </footer>
+          </article>
+        ) : (
         <article key={n.key} className={`surface animate-enter rounded-2xl border-2 p-4 shadow-2xl shadow-black/60 ${n.kind === "help" ? "border-reserved/70" : "border-accent/60"}`}>
           <header className="flex items-start gap-3">
             <span className={`grid size-10 shrink-0 place-items-center rounded-xl ${n.kind === "help" ? "bg-reserved/15 text-reserved" : "bg-accent/15 text-accent"}`}>
@@ -120,6 +141,7 @@ export function LiveNotices() {
             )}
           </footer>
         </article>
+        )
       ))}
     </div>
   );
@@ -129,7 +151,7 @@ export function LiveNotices() {
 function chime(kind: Notice["kind"]) {
   try {
     const ctx = new AudioContext();
-    const notes = kind === "help" ? [660, 880, 1100, 660, 880, 1100] : [880, 1320];
+    const notes = kind === "help" ? [660, 880, 1100, 660, 880, 1100] : kind === "wait" ? [523, 659, 784] : [880, 1320];
     notes.forEach((f, i) => {
       const o = ctx.createOscillator();
       const g = ctx.createGain();

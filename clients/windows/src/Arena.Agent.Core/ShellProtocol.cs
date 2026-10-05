@@ -54,7 +54,7 @@ public static partial class ShellProtocol
     public static readonly HashSet<string> ShellPlayerActions =
     [
         "overview", "rewards", "redeem", "inbox", "inbox_read", "leaderboard", "favorite", "prefs_set", "verify", "summary",
-        "claim_code", "request_game", "players", "invite",
+        "claim_code", "request_game", "players", "invite", "news", "tournament_checkin",
     ];
 
     [GeneratedRegex("^[A-Za-z0-9-]{8,64}$")]

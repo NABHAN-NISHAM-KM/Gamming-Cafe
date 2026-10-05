@@ -69,7 +69,12 @@ function Tables({ branchId }: { branchId: string }) {
     <>
       <div className="flex flex-wrap items-center gap-3 text-xs text-ink-3">
         {(Object.keys(STATUS_LABEL) as TableRow["status"][]).map((s) => <span key={s} className="flex items-center gap-1.5"><span className={cx("size-3 rounded border", TABLE_STYLE[s])} />{STATUS_LABEL[s]}</span>)}
-        {can("restaurant.tables_manage", branchId) && <Button size="sm" className="ml-auto" onClick={() => setAdding(true)}><Plus className="size-4" /> Table</Button>}
+        {can("restaurant.tables_manage", branchId) && (
+          <span className="ml-auto flex gap-2">
+            <a href={`/table-qr?branch=${branchId}`} target="_blank" rel="noreferrer" className="press inline-flex h-8 items-center rounded-lg border border-line px-3 text-xs text-ink-2 hover:bg-panel-2 hover:text-ink">Print QR codes</a>
+            <Button size="sm" onClick={() => setAdding(true)}><Plus className="size-4" /> Table</Button>
+          </span>
+        )}
       </div>
       {tables.data.length === 0 ? (
         <Empty icon={<UtensilsCrossed className="size-8" />} title="No tables yet" />

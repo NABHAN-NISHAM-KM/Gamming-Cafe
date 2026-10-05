@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { use, useState } from "react";
-import { ArrowLeft, Ban, Building2, CalendarPlus, Cpu, Mail, PlayCircle, RotateCcw, Store, UsersRound, XCircle } from "lucide-react";
+import { ArrowLeft, Ban, Building2, CalendarPlus, Cpu, LifeBuoy, Mail, PlayCircle, RotateCcw, Store, UsersRound, XCircle } from "lucide-react";
 import { Badge, Button, Card, cx, Empty, ErrorNote, Field, Input, Modal, PageHeader, Select, Skeleton, Table } from "@/components/ui";
 import { ActivityList, OrgStatusBadge, SectionTitle, StatTile } from "@/components/platform";
 import { ago, can, platformApi, usePlatform, type OrgDetail, type OrgStatus, type Plan } from "@/lib/client/platform";
@@ -14,10 +14,11 @@ const relDays = (iso: string) => {
   return d === 0 ? "today" : d > 0 ? `in ${d} day${d === 1 ? "" : "s"}` : `${-d} day${d === -1 ? "" : "s"} ago`;
 };
 
-type Tab = "overview" | "subscription" | "features" | "activity";
+type Tab = "overview" | "subscription" | "invoices" | "features" | "activity";
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: "overview", label: "Overview" },
   { id: "subscription", label: "Subscription" },
+  { id: "invoices", label: "Invoices" },
   { id: "features", label: "Features" },
   { id: "activity", label: "Activity" },
 ];
@@ -232,6 +233,7 @@ export default function OrganizationPage({ params }: { params: Promise<{ orgId: 
   const { data: org, error, reload } = usePlatform<OrgDetail>(`/organizations/${orgId}`);
   const [tab, setTab] = useState<Tab>("overview");
   const [target, setTarget] = useState<OrgStatus | null>(null);
+  const [support, setSupport] = useState(false);
 
   if (error) return <ErrorNote>{error.message}</ErrorNote>;
   if (!org) return <Skeleton rows={8} />;
@@ -251,6 +253,7 @@ export default function OrganizationPage({ params }: { params: Promise<{ orgId: 
         actions={
           canStatus && (
             <>
+              {org.status !== "CANCELLED" && <Button variant="secondary" onClick={() => setSupport(true)}><LifeBuoy className="size-4" /> Sign in as venue</Button>}
               {org.status === "TRIAL" && <Button variant="primary" onClick={() => setTarget("ACTIVE")}><PlayCircle className="size-4" /> Activate</Button>}
               {suspended ? (
                 <Button variant="primary" onClick={() => setTarget("ACTIVE")}><PlayCircle className="size-4" /> Reactivate</Button>
@@ -330,6 +333,7 @@ export default function OrganizationPage({ params }: { params: Promise<{ orgId: 
           </>
         )}
         {tab === "subscription" && <SubscriptionPanel org={org} onSaved={() => void reload()} editable={canBilling} />}
+        {tab === "invoices" && <InvoicesPanel orgId={org.id} editable={canBilling} />}
         {tab === "features" && <FeaturesPanel org={org} onSaved={() => void reload()} editable={superAdmin} />}
         {tab === "activity" && (
           <Card>
@@ -340,6 +344,86 @@ export default function OrganizationPage({ params }: { params: Promise<{ orgId: 
       </div>
 
       <StatusDialog org={org} target={target} onClose={() => setTarget(null)} onDone={() => void reload()} />
+      <SupportDialog org={org} open={support} canWrite={superAdmin} onClose={() => setSupport(false)} />
     </>
+  );
+}
+
+/** Sign in as the venue's owner for support: read-only unless changes are needed, time-limited, recorded in their audit log. */
+function SupportDialog({ org, open, canWrite, onClose }: { org: OrgDetail; open: boolean; canWrite: boolean; onClose: () => void }) {
+  const [reason, setReason] = useState("");
+  const [minutes, setMinutes] = useState("30");
+  const [write, setWrite] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const start = async () => {
+    setBusy(true);
+    setErr(null);
+    const r = await fetch("/api/platform/impersonate/start", { method: "POST", headers: { "content-type": "application/json", "x-arena-csrf": "1" }, body: JSON.stringify({ organizationId: org.id, reason: reason.trim(), minutes: Number(minutes), canWrite: write }) });
+    const body = await r.json().catch(() => ({}));
+    setBusy(false);
+    if (!r.ok) return setErr(body.hint ?? body.error ?? "Couldn't start the support session.");
+    window.location.assign("/");
+  };
+  return (
+    <Modal open={open} onClose={onClose} title={`Sign in as ${org.displayName}`}>
+      <div className="grid gap-4">
+        <p className="text-sm text-ink-2">You'll see the venue's console as its owner. The venue sees a banner, and every action is recorded in their audit log with your name.</p>
+        <Field label="Why (shown in their audit log)"><Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Ticket #412: rates not applying" maxLength={500} /></Field>
+        <Field label="For how long">
+          <Select value={minutes} onChange={(e) => setMinutes(e.target.value)}>{[15, 30, 60].map((m) => <option key={m} value={m}>{m} minutes</option>)}</Select>
+        </Field>
+        {canWrite && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={write} onChange={(e) => setWrite(e.target.checked)} /> Allow changes (otherwise read-only)</label>}
+        <ErrorNote>{err}</ErrorNote>
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" pending={busy} disabled={reason.trim().length < 5} onClick={() => void start()}><LifeBuoy className="size-4" /> Start</Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+interface Invoice { id: string; number: string; amount: string; currency: string; status: string; periodStart: string; periodEnd: string; dueAt: string; paidAt: string | null; providerRef: string | null }
+
+function InvoicesPanel({ orgId, editable }: { orgId: string; editable: boolean }) {
+  const { data, error, reload } = usePlatform<Invoice[]>(`/organizations/${orgId}/invoices`);
+  const [err, setErr] = useState<string | null>(null);
+  const change = async (i: Invoice, status: "PAID" | "VOID") => {
+    setErr(null);
+    try {
+      await platformApi(`/invoices/${i.id}`, { method: "PATCH", body: { status } });
+      await reload();
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+  };
+  const d = (iso: string) => new Date(iso).toLocaleDateString();
+  return (
+    <Card>
+      <SectionTitle>Invoices</SectionTitle>
+      <ErrorNote>{error?.message ?? err}</ErrorNote>
+      {!data ? <Skeleton rows={3} /> : data.length === 0 ? <Empty title="No invoices yet.">Renewal invoices are issued a week before each period ends; a venue choosing a plan gets one straight away.</Empty> : (
+        <Table head={["Invoice", "Period", "Amount", "Due", "Status", ""]}>
+          {data.map((i) => (
+            <tr key={i.id}>
+              <td className="px-4 py-3 font-medium">{i.number}{i.providerRef && <span className="block text-xs text-ink-3">card checkout</span>}</td>
+              <td className="px-4 py-3 text-ink-2">{d(i.periodStart)} – {d(i.periodEnd)}</td>
+              <td className="tabular px-4 py-3">{Number(i.amount).toFixed(2)} {i.currency}</td>
+              <td className="px-4 py-3 text-ink-2">{d(i.dueAt)}</td>
+              <td className="px-4 py-3"><Badge tone={i.status === "PAID" ? "ok" : i.status === "OPEN" ? "warn" : "neutral"}>{i.status.toLowerCase()}</Badge>{i.paidAt && <span className="block text-xs text-ink-3">{d(i.paidAt)}</span>}</td>
+              <td className="whitespace-nowrap px-4 py-3 text-right">
+                {editable && i.status === "OPEN" && (
+                  <>
+                    <Button size="sm" variant="secondary" onClick={() => void change(i, "PAID")}>Mark paid</Button>
+                    <Button size="sm" variant="ghost" onClick={() => void change(i, "VOID")}>Void</Button>
+                  </>
+                )}
+              </td>
+            </tr>
+          ))}
+        </Table>
+      )}
+    </Card>
   );
 }

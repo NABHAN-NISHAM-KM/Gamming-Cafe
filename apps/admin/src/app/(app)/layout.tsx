@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
-  BarChart3, Boxes, Building2, CalendarClock, ChefHat, ChevronDown, Coins, Cpu, Gamepad2, Gauge, Joystick, LayoutGrid, LogOut, MonitorPlay,
+  BarChart3, Boxes, Building2, CalendarClock, CalendarDays, ChefHat, CreditCard, Lightbulb, ListOrdered, ChevronDown, Coins, Cpu, Gamepad2, Gauge, Joystick, LayoutGrid, LogOut, MonitorPlay,
   Megaphone, Menu, Printer, ReceiptText, Search, Settings, ShieldAlert, ShieldCheck, ShoppingCart, Tag, Timer, Trophy, Truck, UserRound, Users, UtensilsCrossed, X,
 } from "lucide-react";
 import { session } from "@/lib/client/api";
@@ -13,6 +13,7 @@ import { MeProvider, type Me } from "@/lib/client/me";
 import { cx, Kbd } from "@/components/ui";
 import { CommandPalette, type Command } from "@/components/command";
 import { LiveNotices } from "@/components/live-notices";
+import { AccountBanners } from "@/components/account-banners";
 import { StaffBar } from "@/components/staff-bar";
 import { applyDir, useLang, useT, type TKey } from "@/lib/client/i18n";
 
@@ -34,6 +35,7 @@ const NAV: Array<{ group: string; items: NavItem[] }> = [
     { href: "/floor", label: "Live Floor", icon: LayoutGrid, anyOf: ["station.view"], everyday: true },
     { href: "/sessions", label: "Sessions", icon: Timer, anyOf: ["station.view"] },
     { href: "/bookings", label: "Bookings", icon: CalendarClock, anyOf: ["booking.view"], everyday: true },
+    { href: "/waitlist", label: "Waitlist", icon: ListOrdered, anyOf: ["booking.view"], everyday: true },
     { href: "/customers", label: "Customers", icon: UserRound, anyOf: ["customer.view"], everyday: true },
     { href: "/printing", label: "Printing", icon: Printer, anyOf: ["print.view"] },
   ] },
@@ -54,11 +56,14 @@ const NAV: Array<{ group: string; items: NavItem[] }> = [
   { group: "Business", items: [
     { href: "/branches", label: "Branches & zones", icon: Building2, anyOf: ["branch.view"] },
     { href: "/employees", label: "Employees", icon: Users, anyOf: ["employee.view"] },
+    { href: "/rota", label: "Rota", icon: CalendarDays, anyOf: ["employee.view"] },
     { href: "/roles", label: "Roles", icon: ShieldCheck, anyOf: ["employee.view"] },
     { href: "/rates", label: "Rates", icon: Tag, anyOf: ["pricing.view"] },
     { href: "/finance", label: "Finance", icon: Coins, anyOf: ["accounting.view"] },
     { href: "/reports", label: "Reports", icon: BarChart3, anyOf: ["reports.operational", "reports.financial", "reports.staff"] },
+    { href: "/insights", label: "Insights", icon: Lightbulb, anyOf: ["reports.operational", "reports.financial", "station.view"] },
     { href: "/marketing", label: "Marketing", icon: Megaphone, anyOf: ["promotion.view", "loyalty.view", "crm.view"] },
+    { href: "/billing", label: "Billing", icon: CreditCard, anyOf: ["org.billing"] },
     { href: "/settings", label: "Settings", icon: Settings, everyday: true },
   ] },
 ];
@@ -298,6 +303,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               </span>
             </div>
           </header>
+          <div className="mx-auto w-full max-w-7xl"><AccountBanners /></div>
           <main key={path} className="animate-enter mx-auto w-full max-w-7xl flex-1 px-4 py-8 lg:px-8">
             {children}
           </main>

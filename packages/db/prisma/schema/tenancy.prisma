@@ -119,6 +119,7 @@ model SubscriptionInvoice {
   paidAt         DateTime?                 @db.Timestamptz(3)
   failureReason  String?
   attempts       Int                       @default(0)
+  providerRef    String? // hosted checkout session id
   createdAt      DateTime                  @default(now()) @db.Timestamptz(3)
   updatedAt      DateTime                  @updatedAt @db.Timestamptz(3)
   subscription   Subscription              @relation(fields: [subscriptionId, organizationId], references: [id, organizationId])
@@ -234,6 +235,9 @@ model Branch {
   timeClockEntries        TimeClockEntry[]
   handoverNotes           HandoverNote[]
   sessionFeedback         SessionFeedback[]
+  waitlistEntries         WaitlistEntry[]
+  shiftPlans              ShiftPlan[]
+  lfgPosts                LfgPost[]
 
   @@unique([id, organizationId])
   @@unique([organizationId, code])

@@ -193,6 +193,7 @@ function OrderDetail({ o, branchId, onChanged }: { o: OrderView; branchId: strin
 
       <div className="flex flex-wrap gap-2 border-t border-line pt-4">
         <Button onClick={() => printReceipt(o, me.organization.displayName)}><Printer className="size-4" />Print</Button>
+        {o.bill && <a href={`/receipt?bill=${o.bill.id}`} target="_blank" rel="noreferrer" className="press inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm text-ink-2 hover:bg-panel-2 hover:text-ink"><ReceiptText className="size-4" />Full receipt</a>}
         {unpaid && o.bill && can("pos.sell", branchId) && <Button variant={paying ? "secondary" : "primary"} onClick={() => setPaying(!paying)}><Wallet className="size-4" />{paying ? "Hide payment" : "Pay"}</Button>}
         {canMove && <Button onClick={() => setMoving(!moving)}><Monitor className="size-4" />Move to PC bill</Button>}
         {live && o.status !== "COMPLETED" && can("restaurant.cancel_order", branchId) && (

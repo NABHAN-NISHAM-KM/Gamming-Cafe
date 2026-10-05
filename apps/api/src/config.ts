@@ -38,6 +38,10 @@ const Env = z.object({
   VAPID_SUBJECT: z.string().default("mailto:support@arenaos.app"),
   /** The customer app's address, for the "sign in with your phone" QR code on the PCs. */
   CUSTOMER_APP_URL: z.url().default("http://localhost:5175"),
+  /** The admin console's address, for "back to ArenaOS" links after paying online. */
+  ADMIN_URL: z.url().default("http://localhost:3000"),
+  /** The platform's own Stripe account, for venues paying their ArenaOS plan by card. Without it, invoices are paid offline. */
+  BILLING_STRIPE_SECRET_KEY: z.string().optional(),
   /** Where to read Steam's latest public build per appid ("off" to disable; default api.steamcmd.net, off in tests). */
   STEAM_BUILDS_URL: z.union([z.literal("off"), z.url()]).optional(),
 }).transform((c) => ({ ...c, demoPayments: c.NODE_ENV !== "production" && c.DEMO_PAYMENTS !== "off" }));

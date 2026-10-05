@@ -41,6 +41,12 @@ export class TargetResolver {
       return branchTarget(d.branchId);
     }
 
+    const billId = id("billId");
+    if (billId) {
+      const b = await tx.bill.findUnique({ where: { id: billId }, select: { branchId: true } });
+      if (!b) throw new NotFoundException({ error: "not_found" });
+      return branchTarget(b.branchId);
+    }
     const sessionId = id("sessionId");
     if (sessionId) {
       const s = await tx.gamingSession.findUnique({ where: { id: sessionId }, select: { branchId: true } });

@@ -44,7 +44,15 @@ export class ShellTimeService implements OnModuleInit {
       const plan = (s.rateSnapshot as { plan: PlanDef | null; minorUnit?: number }).plan;
       const unit = (s.rateSnapshot as { minorUnit?: number }).minorUnit ?? 2;
       const wallet = await walletView(t, s.customerId, 0);
+      // Offers running right now that need no code: shown with the "time's nearly up" nudge.
+      const now = new Date();
+      const promotions = await t.promotion.findMany({
+        where: { status: "ACTIVE", requiresCode: false, AND: [{ OR: [{ startsAt: null }, { startsAt: { lte: now } }] }, { OR: [{ endsAt: null }, { endsAt: { gt: now } }] }] },
+        select: { name: true, description: true },
+        take: 3,
+      });
       return {
+        promotions,
         ok: true,
         currency: wallet.currency,
         wallet: wallet.frozen ? null : wallet.total,

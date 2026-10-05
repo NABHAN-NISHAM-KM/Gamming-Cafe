@@ -313,6 +313,7 @@ export class DevicesController {
           off = this.bus.subscribe(org, branchId, (e: FloorEvent) => {
             if (help && e.type === "alert") sub.next({ type: "alert", data: e });
             else if (orders && (e.type === "order" || e.type === "kitchen")) sub.next({ type: e.type, data: e });
+            else if (help && e.type === "waitlist") sub.next({ type: "waitlist", data: e });
           });
           sub.next({ type: "ready", data: { help, orders } });
         })

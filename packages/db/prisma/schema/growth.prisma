@@ -1,0 +1,167 @@
+// Waitlist, staff rota, season passes, "find a team", card top-ups and
+// platform announcements read by staff (migration 0027_ops_growth).
+
+enum WaitlistStatus {
+  WAITING
+  NOTIFIED
+  SEATED
+  CANCELLED
+  EXPIRED
+}
+
+/// Walk-ins (or app users) waiting for a station when the floor is full. When a
+/// matching station frees up the first in line is offered it for a few minutes.
+model WaitlistEntry {
+  id              String         @id @default(uuid(7)) @db.Uuid
+  organizationId  String         @db.Uuid
+  branchId        String         @db.Uuid
+  zoneId          String?        @db.Uuid // null = any zone
+  customerId      String?        @db.Uuid
+  name            String
+  phone           String?
+  partySize       Int            @default(1)
+  status          WaitlistStatus @default(WAITING)
+  source          String         @default("STAFF") // STAFF | APP
+  offeredDeviceId String?        @db.Uuid
+  notifiedAt      DateTime?      @db.Timestamptz(3)
+  claimUntil      DateTime?      @db.Timestamptz(3)
+  createdById     String?        @db.Uuid
+  createdAt       DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime       @updatedAt @db.Timestamptz(3)
+  branch          Branch         @relation(fields: [branchId, organizationId], references: [id, organizationId])
+  customer        Customer?      @relation(fields: [customerId, organizationId], references: [id, organizationId], onDelete: Cascade)
+
+  @@index([organizationId, branchId, status, createdAt])
+  @@index([organizationId, customerId])
+}
+
+/// A planned shift on the rota. Compared with TimeClockEntry for lateness and no-shows.
+model ShiftPlan {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @db.Uuid
+  branchId       String   @db.Uuid
+  employeeId     String   @db.Uuid
+  startsAt       DateTime @db.Timestamptz(3)
+  endsAt         DateTime @db.Timestamptz(3)
+  note           String?
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(3)
+  branch         Branch   @relation(fields: [branchId, organizationId], references: [id, organizationId])
+  employee       Employee @relation(fields: [employeeId, organizationId], references: [id, organizationId], onDelete: Cascade)
+
+  @@index([organizationId, branchId, startsAt])
+  @@index([organizationId, employeeId, startsAt])
+}
+
+/// A season: a time-boxed track of reward tiers earned by playing and finishing challenges.
+/// tiers = [{ "xp": 300, "reward": { "type": "BONUS" | "MINUTES" | "POINTS", "amount": 10 } }, …]
+model Season {
+  id             String       @id @default(uuid(7)) @db.Uuid
+  organizationId String       @db.Uuid
+  name           String
+  startsAt       DateTime     @db.Timestamptz(3)
+  endsAt         DateTime     @db.Timestamptz(3)
+  price          Decimal      @default(0) @db.Decimal(19, 4) // 0 = free to join
+  currency       String       @db.Char(3)
+  tiers          Json         @default("[]")
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime     @updatedAt @db.Timestamptz(3)
+  passes         SeasonPass[]
+
+  @@unique([id, organizationId])
+  @@index([organizationId, startsAt])
+}
+
+model SeasonPass {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @db.Uuid
+  seasonId       String   @db.Uuid
+  customerId     String   @db.Uuid
+  claimedTiers   Int[]    @default([])
+  joinedAt       DateTime @default(now()) @db.Timestamptz(3)
+  season         Season   @relation(fields: [seasonId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  customer       Customer @relation(fields: [customerId, organizationId], references: [id, organizationId], onDelete: Cascade)
+
+  @@unique([seasonId, customerId])
+  @@index([organizationId, customerId])
+}
+
+enum LfgStatus {
+  OPEN
+  FULL
+  CLOSED
+}
+
+/// "Need 2 for Valorant at 8pm": a player looking for teammates at their venue.
+model LfgPost {
+  id             String      @id @default(uuid(7)) @db.Uuid
+  organizationId String      @db.Uuid
+  branchId       String      @db.Uuid
+  customerId     String      @db.Uuid
+  game           String
+  playersNeeded  Int
+  startsAt       DateTime    @db.Timestamptz(3)
+  note           String?
+  status         LfgStatus   @default(OPEN)
+  createdAt      DateTime    @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime    @updatedAt @db.Timestamptz(3)
+  branch         Branch      @relation(fields: [branchId, organizationId], references: [id, organizationId])
+  customer       Customer    @relation(fields: [customerId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  members        LfgMember[]
+
+  @@unique([id, organizationId])
+  @@index([organizationId, branchId, status, startsAt])
+}
+
+model LfgMember {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @db.Uuid
+  postId         String   @db.Uuid
+  customerId     String   @db.Uuid
+  joinedAt       DateTime @default(now()) @db.Timestamptz(3)
+  post           LfgPost  @relation(fields: [postId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  customer       Customer @relation(fields: [customerId, organizationId], references: [id, organizationId], onDelete: Cascade)
+
+  @@unique([postId, customerId])
+  @@index([organizationId, customerId])
+}
+
+enum TopUpStatus {
+  PENDING
+  PAID
+  FAILED
+  EXPIRED
+}
+
+/// A card top-up through the venue's payment gateway (hosted checkout). The
+/// wallet is credited once, when the provider confirms payment.
+model WalletTopUp {
+  id             String      @id @default(uuid(7)) @db.Uuid
+  organizationId String      @db.Uuid
+  customerId     String      @db.Uuid
+  amount         Decimal     @db.Decimal(19, 4)
+  currency       String      @db.Char(3)
+  provider       String
+  providerRef    String?
+  status         TopUpStatus @default(PENDING)
+  paidAt         DateTime?   @db.Timestamptz(3)
+  createdAt      DateTime    @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime    @updatedAt @db.Timestamptz(3)
+  customer       Customer    @relation(fields: [customerId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@unique([providerRef])
+  @@index([organizationId, customerId, createdAt])
+}
+
+/// Which staff member has seen which platform announcement.
+model AnnouncementRead {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @db.Uuid
+  announcementId String   @db.Uuid
+  employeeId     String   @db.Uuid
+  readAt         DateTime @default(now()) @db.Timestamptz(3)
+
+  @@unique([announcementId, employeeId])
+  @@index([organizationId, announcementId])
+}

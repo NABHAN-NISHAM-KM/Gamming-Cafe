@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import QRCode from "qrcode";
-import { Check, CheckCircle2, Copy, Globe, KeyRound, Smartphone, Store } from "lucide-react";
+import { Check, CheckCircle2, Copy, CreditCard, Globe, KeyRound, Moon, Smartphone, Store } from "lucide-react";
 import { api } from "@/lib/client/api";
 import { useAction, useApi } from "@/lib/client/hooks";
 import { useCanOrg, useMe } from "@/lib/client/me";
@@ -50,6 +50,8 @@ export default function SettingsPage() {
         </div>
       </Card>
       <PublicPage />
+      <CardGateway />
+      <MinorCurfew />
       <ShellLook />
       <ChangePassword />
       <CounterPin />
@@ -232,6 +234,80 @@ function PublicPage() {
           ) : (
             <p className="mt-3 text-sm text-ink-3">Only someone who can manage the organization can change this.</p>
           )}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+/** Card top-ups in the customer app go through the venue's own Stripe account. Secrets stay on the server. */
+function CardGateway() {
+  const canOrg = useCanOrg();
+  const may = canOrg("payment.gateway_manage");
+  const { data, setData } = useApi<{ gateway: { mode: "TEST" | "LIVE"; credentialsRef: string; webhookSecretRef: string; isActive: boolean; secretFound: boolean; webhookSecretFound: boolean } | null; webhookPath: string }>(may ? "/payments/gateway" : null);
+  const [f, setF] = useState<{ mode: "TEST" | "LIVE"; key: string; hook: string; isActive: boolean } | null>(null);
+  const cur = f ?? (data ? { mode: data.gateway?.mode ?? "TEST", key: data.gateway?.credentialsRef ?? "env:STRIPE_SECRET_KEY", hook: data.gateway?.webhookSecretRef ?? "env:STRIPE_WEBHOOK_SECRET", isActive: data.gateway?.isActive ?? false } : null);
+  const save = useAction(async () => {
+    setData(await api("/payments/gateway", { method: "PUT", body: { provider: "STRIPE", mode: cur!.mode, credentialsRef: cur!.key.trim(), webhookSecretRef: cur!.hook.trim(), isActive: cur!.isActive }, action: "Save card payments", done: "Card payments saved." }));
+    setF(null);
+  });
+  if (!may || !data || !cur) return null;
+  const g = data.gateway;
+  return (
+    <Card className="mb-4 max-w-2xl p-6">
+      <div className="flex items-start gap-3">
+        <CreditCard className="mt-0.5 size-5 text-accent" />
+        <div className="flex-1">
+          <h2 className="flex items-center gap-2 font-semibold">Card top-ups in the app {g?.isActive && g.secretFound && g.webhookSecretFound ? <Badge tone="ok">On</Badge> : <Badge>Off</Badge>}</h2>
+          <p className="mt-1 text-sm text-ink-2">Customers top up their wallet by card from their phone, through your Stripe account. Keys never go in here: put them in the server's settings and name them below.</p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <Field label="Secret key" hint={g ? (g.secretFound ? "Found on the server" : "Not found on the server") : undefined}><Input value={cur.key} onChange={(e) => setF({ ...cur, key: e.target.value })} placeholder="env:STRIPE_SECRET_KEY" /></Field>
+            <Field label="Webhook signing secret" hint={g ? (g.webhookSecretFound ? "Found on the server" : "Not found on the server") : undefined}><Input value={cur.hook} onChange={(e) => setF({ ...cur, hook: e.target.value })} placeholder="env:STRIPE_WEBHOOK_SECRET" /></Field>
+          </div>
+          <p className="mt-3 text-xs text-ink-3">In Stripe, send the <b>checkout.session.completed</b> event to <span className="select-all font-mono">{`<your API address>${data.webhookPath}`}</span>.</p>
+          <div className="mt-4 flex flex-wrap items-center gap-4 text-sm">
+            <label className="flex items-center gap-2"><input type="radio" checked={cur.mode === "TEST"} onChange={() => setF({ ...cur, mode: "TEST" })} /> Test mode</label>
+            <label className="flex items-center gap-2"><input type="radio" checked={cur.mode === "LIVE"} onChange={() => setF({ ...cur, mode: "LIVE" })} /> Live</label>
+            <label className="flex items-center gap-2"><input type="checkbox" checked={cur.isActive} onChange={(e) => setF({ ...cur, isActive: e.target.checked })} /> Turned on</label>
+            <Button className="ml-auto" pending={save.pending} onClick={() => void save.run()}>Save</Button>
+          </div>
+          <ErrorNote>{save.error}</ErrorNote>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+/** Players under an age can't play at night: sign-in is refused during the curfew and sessions stop when it starts. */
+function MinorCurfew() {
+  const canOrg = useCanOrg();
+  const { data: org, setData } = useApi<{ settings: Record<string, unknown> | null }>("/organization");
+  const saved = (org?.settings?.["minorCurfew"] ?? null) as { from: string; to: string; underAge: number } | null;
+  const [f, setF] = useState<{ on: boolean; from: string; to: string; underAge: string } | null>(null);
+  const cur = f ?? { on: !!saved, from: saved?.from ?? "22:00", to: saved?.to ?? "07:00", underAge: String(saved?.underAge ?? 18) };
+  const save = useAction(async () => {
+    const rest = { ...(org?.settings ?? {}) };
+    delete rest["minorCurfew"];
+    const settings = cur.on ? { ...rest, minorCurfew: { from: cur.from, to: cur.to, underAge: Number(cur.underAge) || 18 } } : rest;
+    setData(await api("/organization", { method: "PATCH", body: { settings }, done: cur.on ? "Curfew saved." : "Curfew turned off." }));
+    setF(null);
+  });
+  if (!org || !canOrg("org.manage")) return null;
+  return (
+    <Card className="mb-4 max-w-2xl p-6">
+      <div className="flex items-start gap-3">
+        <Moon className="mt-0.5 size-5 text-accent" />
+        <div className="flex-1">
+          <h2 className="flex items-center gap-2 font-semibold">Night curfew for young players {saved ? <Badge tone="ok">{saved.from}–{saved.to}</Badge> : <Badge>Off</Badge>}</h2>
+          <p className="mt-1 text-sm text-ink-2">Players younger than the age below can't sign in during these hours, and their time stops when the curfew starts. Age comes from the birth date on their account; games rated above their age are already hidden.</p>
+          <div className="mt-4 flex flex-wrap items-end gap-3 text-sm">
+            <label className="flex items-center gap-2 pb-2"><input type="checkbox" checked={cur.on} onChange={(e) => setF({ ...cur, on: e.target.checked })} /> Turned on</label>
+            <Field label="Under age"><Input type="number" min={10} max={21} value={cur.underAge} onChange={(e) => setF({ ...cur, underAge: e.target.value })} className="w-24" /></Field>
+            <Field label="From"><Input type="time" value={cur.from} onChange={(e) => setF({ ...cur, from: e.target.value })} /></Field>
+            <Field label="Until"><Input type="time" value={cur.to} onChange={(e) => setF({ ...cur, to: e.target.value })} /></Field>
+            <Button className="ml-auto" pending={save.pending} onClick={() => void save.run()}>Save</Button>
+          </div>
+          <ErrorNote>{save.error}</ErrorNote>
         </div>
       </div>
     </Card>

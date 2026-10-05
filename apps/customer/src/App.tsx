@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState, type InputHTMLAttributes } from "react";
 import {
   BarChart3, Camera, CalendarClock, Check, ChevronRight, Clock, CreditCard, Crown, Gamepad2, Gift, HeartHandshake, Home, Inbox, KeyRound, Languages, LifeBuoy, Loader2, LogOut,
-  Plus, ShoppingBag, Sparkles, Trophy, User, Users, UtensilsCrossed, Wallet, X,
+  Medal, Plus, ReceiptText, ShieldCheck, ShoppingBag, Sparkles, Swords, Trophy, User, Users, UtensilsCrossed, Wallet, X,
 } from "lucide-react";
+import { BookingExtras, ReceiptsScreen, SeasonScreen, SpendingScreen, TableOrderSheet, TeamsScreen, WaitlistCard } from "./growth";
 import { api, ApiError, key, LOCKED_VENUE, setToken, setVenue, signedIn, SLUG_RE, venueSlug, whenSignedOut, type Booking, type LedgerRow, type Me, type Venue } from "./api";
 import { BookScreen } from "./book";
 import { InboxScreen, RewardsScreen, ScreenshotsScreen, TournamentsScreen } from "./engage";
@@ -197,7 +198,7 @@ function Auth({ slug, venue, onIn, onChangeVenue, pcCode }: { slug: string; venu
 
 // ── home ────────────────────────────────────────────────────────────────────
 
-function HomeScreen({ me, venue, bookings, go, unread, addTime }: { me: Me; venue: Venue; bookings: Booking[]; go: (t: Tab) => void; unread: number; addTime: () => void }) {
+function HomeScreen({ me, venue, bookings, go, unread, addTime, toast }: { me: Me; venue: Venue; bookings: Booking[]; go: (t: Tab) => void; unread: number; addTime: () => void; toast: (t: string, ok?: boolean) => void }) {
   const next = bookings.filter((b) => ["CONFIRMED", "CHECKED_IN"].includes(b.status) && new Date(b.endsAt) > new Date()).sort((a, b) => a.startsAt.localeCompare(b.startsAt))[0];
   const tier = me.membershipTier;
   const tiles: Array<[Tab, string, typeof Home, string, number?]> = [
@@ -209,6 +210,8 @@ function HomeScreen({ me, venue, bookings, go, unread, addTime }: { me: Me; venu
     ["screenshots", "Screenshots", Camera, "text-good"],
     ["stats", "My stats", BarChart3, "text-glow"],
     ["help", "Help", LifeBuoy, "text-warn"],
+    ["season", "Season pass", Medal, "text-warn"],
+    ["teams", "Find a team", Swords, "text-glow"],
   ];
   return (
     <Screen title={t("Hi, {name}", { name: me.displayName.split(" ")[0] ?? "" })}>
@@ -262,6 +265,7 @@ function HomeScreen({ me, venue, bookings, go, unread, addTime }: { me: Me; venu
         <ChevronRight className={cx("size-5 text-mute", dir() === "rtl" && "rotate-180")} />
       </button>
 
+      {!me.playingNow && <WaitlistCard toast={toast} />}
       {!me.playingNow && <LiveCard multiBranch={venue.branches.length > 1} />}
 
       <div className="mt-4 grid grid-cols-4 gap-2">
@@ -323,6 +327,7 @@ function BookingsScreen({ bookings, reload, toast }: { bookings: Booking[]; relo
         <div className="mt-4 flex gap-4">
           <button onClick={() => setSplit(b)} className="flex items-center gap-1.5 text-sm text-glow"><HeartHandshake className="size-4" /> {t("Split with friends")}</button>
           {b.status === "CONFIRMED" && <button onClick={() => void cancel(b)} className="flex items-center gap-1.5 text-sm text-alarm"><X className="size-4" /> {t("Cancel")}</button>}
+          <BookingExtras b={b} toast={toast} onChanged={reload} />
         </div>
       )}
     </div>
@@ -500,7 +505,7 @@ function WalletScreen({ me, venue, back, toast, onChanged }: { me: Me; venue: Ve
 }
 
 function MeScreen({ me, venue, go, onOut }: { me: Me; venue: Venue; go: (t: Tab) => void; onOut: () => void }) {
-  const links: Array<[Tab, string, typeof Home]> = [["profile", "Profile & settings", User], ["wallet", "Wallet", Wallet], ["stats", "My stats", BarChart3], ["friends", "Friends & gifts", Users], ["help", "Help", LifeBuoy]];
+  const links: Array<[Tab, string, typeof Home]> = [["profile", "Profile & settings", User], ["wallet", "Wallet", Wallet], ["receipts", "Receipts", ReceiptText], ["spending", "Spending limit", ShieldCheck], ["stats", "My stats", BarChart3], ["friends", "Friends & gifts", Users], ["help", "Help", LifeBuoy]];
   return (
     <Screen title={t("Me")}>
       <div className="card flex items-center gap-4 p-5">
@@ -530,7 +535,7 @@ function MeScreen({ me, venue, go, onOut }: { me: Me; venue: Venue; go: (t: Tab)
 
 // ── root ────────────────────────────────────────────────────────────────────
 
-type Tab = "home" | "book" | "bookings" | "shop" | "wallet" | "me" | "rewards" | "events" | "inbox" | "screenshots" | "food" | "games" | "friends" | "help" | "stats" | "profile" | "orders";
+type Tab = "home" | "book" | "bookings" | "shop" | "wallet" | "me" | "rewards" | "events" | "inbox" | "screenshots" | "food" | "games" | "friends" | "help" | "stats" | "profile" | "orders" | "season" | "teams" | "spending" | "receipts";
 const NAV: Array<{ id: Tab; label: string; icon: typeof Home }> = [
   { id: "home", label: "Home", icon: Home },
   { id: "book", label: "Book", icon: CalendarClock },
@@ -538,14 +543,18 @@ const NAV: Array<{ id: Tab; label: string; icon: typeof Home }> = [
   { id: "rewards", label: "Rewards", icon: Gift },
   { id: "me", label: "Me", icon: User },
 ];
-const TABS = new Set<string>(["home", "book", "bookings", "shop", "wallet", "me", "rewards", "events", "inbox", "screenshots", "food", "games", "friends", "help", "stats", "profile", "orders"]);
+const TABS = new Set<string>(["home", "book", "bookings", "shop", "wallet", "me", "rewards", "events", "inbox", "screenshots", "food", "games", "friends", "help", "stats", "profile", "orders", "season", "teams", "spending", "receipts"]);
 
 // Opened from a PC's QR code (?pc=CODE) or a notification (?screen=…): remembered across signing in.
 const params = new URLSearchParams(location.search);
 const startPc = params.get("pc")?.toUpperCase().replace(/[^A-Z0-9]/g, "") || sessionStorage.getItem("arena.pc") || null;
 const startClaim = params.get("claim")?.toUpperCase().replace(/[^A-Z0-9]/g, "") || sessionStorage.getItem("arena.claim") || null;
 const startScreen = params.get("screen");
-if (params.has("pc") || params.has("claim") || params.has("screen")) history.replaceState(null, "", location.pathname);
+// A table's QR code (?table=ID) opens its menu; ?topup=done is the card payment page sending them back.
+const startTable = params.get("table")?.match(/^[0-9a-f-]{36}$/i)?.[0] || sessionStorage.getItem("arena.table") || null;
+const startTopUp = params.get("topup");
+if (params.has("pc") || params.has("claim") || params.has("screen") || params.has("table") || params.has("topup")) history.replaceState(null, "", location.pathname);
+if (startTable) sessionStorage.setItem("arena.table", startTable);
 if (startPc) sessionStorage.setItem("arena.pc", startPc);
 if (startClaim) sessionStorage.setItem("arena.claim", startClaim);
 
@@ -562,6 +571,12 @@ export function App() {
   const [pcCode, setPcCode] = useState<string | null>(startPc);
   const [claimCode, setClaimCode] = useState<string | null>(startClaim);
   const [addingTime, setAddingTime] = useState(false);
+  const [tableId, setTableId] = useState<string | null>(startTable);
+  // Back from the card payment page: the wallet is credited once the payment is confirmed (usually within seconds).
+  useEffect(() => {
+    if (startTopUp === "done") showToast(t("Payment received — your wallet updates in a moment."));
+    if (startTopUp === "cancelled") showToast(t("Top-up cancelled."), false);
+  }, [showToast]);
   const [slug] = useState(venueSlug);
   // Only the app (hosted API, no venue built in) can switch; on the web the venue is the URL.
   const pick = (s: string | null) => { setVenue(s); location.reload(); };
@@ -654,7 +669,7 @@ export function App() {
   return (
     <div className="min-h-dvh">
       {toast && <Toast text={toast.text} tone={toast.tone} onDone={() => setToastState(null)} />}
-      {tab === "home" && <HomeScreen me={me} venue={venue.data} bookings={bookings} go={setTab} unread={unread} addTime={() => setAddingTime(true)} />}
+      {tab === "home" && <HomeScreen me={me} venue={venue.data} bookings={bookings} go={setTab} unread={unread} addTime={() => setAddingTime(true)} toast={showToast} />}
       {tab === "book" && <BookScreen venue={venue.data} me={me} toast={showToast} onBooked={() => { void refresh(); setTab("bookings"); }} />}
       {tab === "bookings" && <BookingsScreen bookings={bookings} reload={() => void refresh()} toast={showToast} />}
       {tab === "shop" && <ShopScreen venue={venue.data} me={me} toast={showToast} onBought={() => void refresh()} />}
@@ -670,13 +685,18 @@ export function App() {
       {tab === "help" && <HelpScreen back={home} toast={showToast} />}
       {tab === "stats" && <StatsScreen me={me} back={home} />}
       {tab === "profile" && <ProfileScreen me={me} back={() => setTab("me")} toast={showToast} onChanged={() => void refresh()} />}
+      {tab === "season" && <SeasonScreen back={home} toast={showToast} onChanged={() => void refresh()} />}
+      {tab === "teams" && <TeamsScreen back={home} toast={showToast} branches={venue.data.branches} />}
+      {tab === "spending" && <SpendingScreen back={() => setTab("me")} toast={showToast} />}
+      {tab === "receipts" && <ReceiptsScreen back={() => setTab("me")} />}
       {addingTime && me.playingNow && <AddTimeSheet station={me.playingNow.station} onClose={() => setAddingTime(false)} onDone={() => { setAddingTime(false); void refresh(); }} toast={showToast} />}
       {pcCode && <PcLoginSheet code={pcCode} onClose={closePc} onDone={() => { closePc(); void refresh(); }} toast={showToast} />}
+      {tableId && !pcCode && <TableOrderSheet tableId={tableId} me={me} onClose={() => { setTableId(null); sessionStorage.removeItem("arena.table"); void refresh(); }} toast={showToast} />}
       {claimCode && !pcCode && <ClaimSheet code={claimCode} onClose={closeClaim} onDone={() => { closeClaim(); void refresh(); }} toast={showToast} />}
       <nav className="glass safe-bottom fixed inset-x-0 bottom-0 z-40 border-x-0 border-b-0" aria-label={t("Main")}>
         <div className="mx-auto flex max-w-lg justify-around pt-2">
           {NAV.map((n) => {
-            const active = tab === n.id || (n.id === "book" && tab === "bookings") || (n.id === "me" && ["profile", "stats", "friends", "help"].includes(tab));
+            const active = tab === n.id || (n.id === "book" && tab === "bookings") || (n.id === "me" && ["profile", "stats", "friends", "help", "spending", "receipts"].includes(tab));
             return (
               <button key={n.id} onClick={() => setTab(n.id)} className={cx("press relative flex min-h-12 w-16 flex-col items-center gap-1 py-1 text-[11px] font-medium", active ? "text-text" : "text-mute")} aria-current={active ? "page" : undefined}>
                 {active && <span className="absolute -top-2 h-0.5 w-8 rounded-full bg-glow shadow-[0_0_10px_var(--color-glow)]" aria-hidden />}
