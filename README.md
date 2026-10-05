@@ -37,6 +37,7 @@ Everything syncs in real time and keeps working at the branch when the internet 
 | [19 · Accounting, reports & analytics](docs/19-accounting-reports-analytics.md) | Automatic double-entry posting, statements, reconciliation, period lock, reports, dashboard |
 | [20 · End-to-end walkthrough](docs/20-end-to-end-walkthrough.md) | Super Admin → Owner builds a venue from zero → Customer → every staff role, on the real system |
 | [21 · Website](docs/21-website.md) | Marketing site, leads and call booking, self-serve trials, public venue pages, help centre, Arabic, SEO |
+| [22 · Operations & growth](docs/22-operations-and-growth.md) | Waitlist, rota, insights, billing by card, support sign-in, releases, announcements, season passes, find a team, spending limits, receipts, table QR, curfew |
 
 ## Repository
 

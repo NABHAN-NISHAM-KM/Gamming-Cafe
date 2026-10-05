@@ -746,6 +746,25 @@ Browser-only version (no PC): `http://localhost:5174` (mock agent), and
 | - [ ] 9 | **العربية** in the nav | The Arabic page, right to left; **English** goes back |
 | - [ ] 10 | `/sitemap.xml`, `/robots.txt` | Every page listed; `/v1/`, `/live/`, `/demo/` disallowed |
 
+### F.13 · Operations & growth (see [22](22-operations-and-growth.md))
+
+| # | Do | Expect |
+|---|---|---|
+| - [ ] 1 | Owner → **Waitlist** → add *Wally*, any zone, while every PC is busy; then end one session | Within 30 s Wally shows *PC-xx is theirs* and a pop-up says **Call Wally** |
+| - [ ] 2 | Phone app (all PCs busy) → **Join the waitlist**; free a PC | Push: *Your station is ready*; the app shows the PC and the time to claim it |
+| - [ ] 3 | **Rota** → add a shift for the cashier that started an hour ago | It shows *no-show*; clock in as the cashier → *late* |
+| - [ ] 4 | **Insights** | A 7-day heat map, *Worth a look*, and station health with temperatures |
+| - [ ] 5 | **Rates** → edit a rate → type a new price → *What would last week have earned…* | Old and new totals |
+| - [ ] 6 | **Restaurant → Print QR codes**; scan one with a signed-in phone, order a drink | The table's menu; the order lands on that table's bill |
+| - [ ] 7 | **Marketing → Season passes → Season** (levels 60/600 XP); phone → **Season pass → Join**; play an hour | XP rises; level 1 can be claimed |
+| - [ ] 8 | Phone A → **Find a team** → post *Valorant, 1 wanted*; phone B → **Join** | Phone A gets *Your team is full* |
+| - [ ] 9 | Child's phone → **Me → Spending limit → Show a code**; parent's phone → link with it, set limit 10; child buys a 20 package | Refused: *spend limit reached*; the child can't change the limit |
+| - [ ] 10 | **Settings → Night curfew** on, under 18, covering now; a player born 2012 signs in at a PC | Refused with the curfew hours |
+| - [ ] 11 | At a PC with 11 minutes left | At 10 minutes a card offers the best-value package and **Add time** |
+| - [ ] 12 | Shell → **My account → Settings → Larger** and **High contrast**; log out, sign in on another PC | Bigger text and stronger contrast come back |
+| - [ ] 13 | Super Admin → a venue → **Sign in as venue** (read-only) → try to save anything | The console opens as the owner with a support banner; saving is refused; **End support session** returns to the console |
+| - [ ] 14 | Super Admin → **Announcements** → publish one | It shows on the venue console until dismissed |
+
 ---
 
 ## G · Security and isolation tests

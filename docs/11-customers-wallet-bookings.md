@@ -232,6 +232,8 @@ Retrying is safe: every transfer has its own idempotency key.
   are written in English in the code (`t("…")`) and looked up in
   `src/i18n-ar.ts`. The choice is saved on the account (`Customer.locale`).
 
+Also in the app: the waitlist, season passes, **Find a team**, card top-ups through the venue's own gateway, **Running late** and directions for a booking, a weekly spending limit (set by the player or a linked guardian), receipts, and ordering from a table's QR code. See [22 · Operations & growth](22-operations-and-growth.md#customer-app).
+
 ### Self-service (`customer-app/self-service.controller.ts`)
 
 | Feature | How it works |

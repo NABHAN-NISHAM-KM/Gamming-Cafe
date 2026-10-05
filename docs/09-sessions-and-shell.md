@@ -182,16 +182,20 @@ lets the Shell use the player actions below; the save actions are its own.
 | `inbox` · `inbox_read` | Messages kept for 60 days, with promo codes. |
 | `leaderboard` | Top 10 opted-in players this month and the player's own place. |
 | `favorite` | Star a game; shared with the app's favourites. |
-| `prefs_set` | Mouse speed, pointer precision, volume, language — stored on the account (`Customer.shellPrefs`) and applied when they sign in on any PC. |
+| `prefs_set` | Mouse speed, pointer precision, volume, language, text size and high contrast — stored on the account (`Customer.shellPrefs`) and applied when they sign in on any PC. |
 | `verify` | The away lock: checks the password or PIN (5 tries a minute per PC). |
 | `summary` | Time, spend and points of a session on this PC (live, or ended in the last 15 min): shown in the log-out confirmation and on the sign-in screen afterwards. |
 | `claim_code` | Guest → member: a one-time QR (`…?claim=CODE`). The guest signs up or in on their phone and the app calls `POST /app/claim`: the session, its bill and orders become theirs and the PC shows their name (a fresh `START_SESSION`). |
 | `request_game` | A `GAME_REQUESTED` alert on the Live Floor (3 per 10 min per PC). |
 | `players` · `invite` | Opted-in players playing at this branch now (first name, PC, game); an invite to a username arrives as an app message and a push (5 per 10 min per PC, one per hour per pair). |
 | `save_*` | The agent's save folders (see [10](10-games-and-station-tools.md#save-folders-that-follow-the-player)). |
+| `news` | The venue's news line per game, shown on the tiles. |
+| `tournament_checkin` | Checks the player's team in, and returns their next match and stations. |
 
 **Also on the PC:** a break reminder every 2 hours of play, and the reason a
-game is locked (`lockReason`: age rating or blocked by staff).
+game is locked (`lockReason`: age rating or blocked by staff). The minors' night
+curfew, the ten-minutes-left offer, a note and live status when calling staff,
+and larger text / high contrast are described in [22](22-operations-and-growth.md#gaming-shell).
 
 **Away lock:** the screen locks (and comes in front of the game) while the
 player steps away; their time keeps running.

@@ -73,7 +73,7 @@ It answers `404 venue_not_found` unless the venue has switched it on. The switch
 
 ## Help centre
 
-`scripts/build-help.mjs` reads `docs/08`–`15` and `17`–`21` (architecture, API and test-guide docs are left out) and splits each one at its `##` headings. It renders the Markdown to HTML and writes `assets/help.json`, which is committed so the site stays static. `help.html` searches titles and text in the browser, and `help.html?q=refund` opens with a search. Run `npm run build:help -w @arena/website` after editing the docs.
+`scripts/build-help.mjs` reads `docs/08`–`15` and `17` onwards (architecture, API and test-guide docs are left out) and splits each one at its `##` headings. It renders the Markdown to HTML and writes `assets/help.json`, which is committed so the site stays static. `help.html` searches titles and text in the browser, and `help.html?q=refund` opens with a search. Run `npm run build:help -w @arena/website` after editing the docs.
 
 ## SEO
 
