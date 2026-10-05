@@ -145,7 +145,10 @@ own tenant transaction.
     controllers, wheels and joysticks, and names the vendor by USB vendor id
     (Razer, Logitech, SteelSeries, HyperX, Corsair…).
   - Composite devices are de-duplicated. Onboard audio is ignored.
-  - The server keeps `DeviceAccessory` rows keyed by PnP instance id.
+  - The server keeps one `DeviceAccessory` row per physical device, keyed by
+    USB vendor + product id + kind (`VID_1BCF&PID_08A0:MOUSE`), so moving a
+    receiver to another USB port doesn't list it twice. Devices built into the
+    PC (a laptop's I2C touchpad or keyboard, which has no USB vendor id) are ignored.
     `PERIPHERAL_MISSING` opens when a mouse, keyboard or headset disappears
     (and no other of that kind is present), and clears when it is back.
 - **Connectivity:** `NetworkProber`, every 60 s.
