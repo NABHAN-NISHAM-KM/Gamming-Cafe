@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="ar" dir="rtl" data-page="features" data-base="../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>الميزات — ArenaOS</title>
+  <meta name="description" content="كل وحدات ArenaOS: الصالة الحيّة، الجلسات والتسعير، واجهة الألعاب، الكونسول والواقع الافتراضي، المحفظة والحجوزات، نقطة البيع والمطبخ، المخزون، الولاء والبطولات، والتقارير." />
+  <link rel="canonical" href="%SITE%/ar/features.html" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="ArenaOS" />
+  <meta property="og:title" content="الميزات — ArenaOS" />
+  <meta property="og:description" content="كل وحدات ArenaOS: الصالة الحيّة، الجلسات والتسعير، واجهة الألعاب، الكونسول والواقع الافتراضي، المحفظة والحجوزات، نقطة البيع والمطبخ، المخزون، الولاء والبطولات، والتقارير." />
+  <meta property="og:url" content="%SITE%/ar/features.html" />
+  <meta property="og:image" content="%SITE%/assets/og.png" />
+  <meta property="og:locale" content="ar_AE" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="الميزات — ArenaOS" />
+  <meta name="twitter:description" content="كل وحدات ArenaOS: الصالة الحيّة، الجلسات والتسعير، واجهة الألعاب، الكونسول والواقع الافتراضي، المحفظة والحجوزات، نقطة البيع والمطبخ، المخزون، الولاء والبطولات، والتقارير." />
+  <meta name="twitter:image" content="%SITE%/assets/og.png" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%226%22 fill=%22%237c5cff%22/%3E%3Ctext x=%2216%22 y=%2223%22 font-size=%2220%22 font-family=%22Arial%22 font-weight=%22900%22 text-anchor=%22middle%22 fill=%22white%22%3EA%3C/text%3E%3C/svg%3E" />
+  <link rel="alternate" hreflang="en" href="%SITE%/features.html" />
+  <link rel="alternate" hreflang="ar" href="%SITE%/ar/features.html" />
+  <link rel="alternate" hreflang="x-default" href="%SITE%/features.html" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@400;600;800&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../assets/site.css?v=7" />
+  <style>
+    .jump { display: flex; flex-wrap: wrap; gap: 0; margin-top: 48px; border-top: 1px solid var(--line); counter-reset: j; }
+    .jump a { counter-increment: j; padding: 14px 22px 14px 0; margin-right: 22px; color: var(--ink-2); font-size: 14px; display: flex; gap: 8px; }
+    .jump a::before { content: counter(j, decimal-leading-zero); font: 12px var(--mono); color: var(--ink-3); padding-top: 2px; }
+    .jump a:hover { color: var(--accent); }
+    .mod { scroll-margin-top: 80px; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: clamp(32px, 5vw, 80px); padding: clamp(64px, 9vw, 120px) 0; border-top: 1px solid var(--line); counter-increment: mod; }
+    .mod-head { position: sticky; top: 100px; align-self: start; }
+    .mod-head::before { content: counter(mod, decimal-leading-zero); display: block; font: 900 clamp(88px, 10vw, 160px)/.8 var(--display); color: transparent; -webkit-text-stroke: 1px var(--line-2); margin-bottom: 24px; }
+    .mod-head h2 { font-size: clamp(40px, 4.4vw, 68px); margin: 22px 0 16px; }
+    .mod-head p { color: var(--ink-2); margin: 0; max-width: 460px; }
+    .mod .icon { width: 52px; height: 52px; }
+    .mod .grid { grid-template-columns: 1fr; }
+    .mod .grid.g2 { grid-template-columns: repeat(2, 1fr); }
+    .mod .card h3 { margin: 0 0 6px; font-size: 22px; }
+    .mods { counter-reset: mod; }
+    .pill { display: inline-block; font: 500 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--amber); }
+    @media (max-width: 900px) { .mod { grid-template-columns: 1fr; } .mod-head { position: static; } .mod .grid.g2 { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header id="nav"></header>
+  <main>
+    <section class="hero" data-scroll>
+      <div class="hero-grid"></div>
+      <div class="wrap">
+        <span class="eyebrow">الميزات · كل الوحدات، نموذج بيانات واحد</span>
+        <h1>مصمَّم لأكثر الليالي ازدحاماً.</h1>
+        <p class="lead">فعّل الوحدات حسب الخطة أو حسب المكان. كلها تتشارك عميلاً واحداً ومحفظة واحدة وفاتورة واحدة.</p>
+        <nav class="jump" aria-label="الوحدات">
+          <a href="#stations">الأجهزة والصالة الحيّة</a><a href="#sessions">الجلسات والواجهة</a><a href="#games">الألعاب والأدوات</a><a href="#consoles">الكونسول والواقع الافتراضي والطباعة</a><a href="#customers">العملاء والحجوزات</a><a href="#pos">نقطة البيع والمطعم</a><a href="#inventory">المخزون</a><a href="#engage">الولاء والبطولات</a><a href="#platform">المنصة والأمان</a><a href="#staff">الاستقبال</a><a href="#app">التطبيق والواجهة</a><a href="#reports">التقارير</a><a href="#roadmap">القادم</a>
+        </nav>
+      </div>
+    </section>
+
+    <div class="wrap mods">
+      <div class="mod" id="stations">
+        <div class="mod-head reveal"><span class="icon" data-icon="floor" data-size="26"></span><h2>الأجهزة والصالة الحيّة</h2><p>وكيل ويندوز على كل حاسوب يتصل بالسحابة (أو بخادم فرعك) ويرسم خريطة حيّة للمكان كله.</p></div>
+        <div class="grid g3">
+          <div class="card"><h3>خريطة الصالة الحيّة</h3><ul><li>الحالة خلال ثانية: متاح، مستخدم، محجوز، على وشك الانتهاء، غير متصل، صيانة</li><li>محرّر تخطيط بالسحب والإفلات لكل منطقة</li><li>لوحة الجهاز: العميل واللعبة والوقت والعتاد</li></ul></div>
+          <div class="card"><h3>التحكم عن بُعد</h3><ul><li>قفل، فتح، إعادة تشغيل، إيقاف، رسالة، تشغيل عبر الشبكة</li><li>إجراءات جماعية لمنطقة كاملة</li><li>أوامر تنتظر الحواسيب غير المتصلة، موقَّعة لكل فرع</li></ul></div>
+          <div class="card"><h3>المراقبة والتنبيهات</h3><ul><li>جرد العتاد وقراءات بطاقات NVIDIA</li><li>تنبيهات للحرارة وامتلاء القرص وتغيّر العتاد وانقطاع الاتصال</li><li>تسجيل الجهاز برمز، ومفتاحه محمي بنظام ويندوز</li></ul></div>
+        </div>
+      </div>
+
+      <div class="mod" id="sessions">
+        <div class="mod-head reveal"><span class="icon" data-icon="timer" data-size="26" style="--c:var(--green)"></span><h2>الجلسات والتسعير وواجهة الألعاب</h2><p>جلسات يملك الخادم وقتها فتنتهي في موعدها — حتى لو أُعيد تشغيل الحاسوب أو الوكيل أو الخادم.</p></div>
+        <div class="grid g3">
+          <div class="card"><h3>محرك التسعير</h3><ul><li>أسعار حسب المنطقة أو الفرع أو المؤسسة</li><li>فترات زمنية بتوقيت الفرع (الساعات السعيدة)</li><li>شرائح وباقات وتذاكر ودفع لاحق وبالدقيقة</li><li>خصومات الأعضاء والموظفين؛ ويُحفظ السعر مع كل جلسة</li></ul></div>
+          <div class="card"><h3>التحكم في الجلسة</h3><ul><li>بدء وتمديد ونقل وإنهاء — كل منها عملية كاملة لا تتكرر</li><li>تنبيهات عند 30 / 15 / 10 / 5 / 1 دقائق</li><li>استرداد الوقت المدفوع غير المستخدم عند الخروج</li><li>دخول العميل على الحاسوب بكلمة مرور أو رمز PIN</li></ul></div>
+          <div class="card"><h3>واجهة الألعاب</h3><ul><li>تطبيق ويندوز محصَّن لشاشة اللاعب</li><li>شاشة قفل وعدّاد تنازلي، بالعربية والإنجليزية</li><li>قفل احتياطي محلي عند انقطاع الشبكة</li><li>طلب الطعام من المقعد ورسائل الموظفين</li></ul></div>
+        </div>
+      </div>
+
+      <div class="mod" id="games">
+        <div class="mod-head reveal"><span class="icon" data-icon="game" data-size="26" style="--c:var(--accent-2)"></span><h2>الألعاب وأدوات الأجهزة</h2><p>حافظ على مكتبة واحدة محدَّثة على مئات الحواسيب دون التجول في الصالة بذاكرة USB.</p></div>
+        <div class="grid g3">
+          <div class="card"><h3>مكتبة ألعاب موقَّعة</h3><ul><li>Steam وEpic وRiot وBattle.net ومنصات أخرى</li><li>اكتشاف تلقائي للألعاب المثبتة على كل حاسوب</li><li>إدارة مركزية للتحديثات حسب المنطقة</li></ul></div>
+          <div class="card"><h3>الملحقات والاتصال</h3><ul><li>إعدادات للملحقات وتتبّع للإكسسوارات</li><li>فحص سرعة الاتصال من المقعد</li><li>إصلاحات للسماعة والفأرة والشاشة يجريها اللاعب بنفسه</li></ul></div>
+          <div class="card"><h3>الإصلاح والتشغيل دون قرص</h3><ul><li>نصوص إصلاح عن بُعد من الصالة الحيّة</li><li>جلسات صيانة للفنيين</li><li>طبقة ربط مع أنظمة التشغيل دون قرص</li></ul></div>
+        </div>
+      </div>
+
+      <div class="mod" id="consoles">
+        <div class="mod-head reveal"><span class="icon" data-icon="vr" data-size="26" style="--c:var(--amber)"></span><h2>الكونسول والواقع الافتراضي والمحاكيات والطباعة</h2><p>الأجهزة بلا وكيل لها المكانة نفسها: المؤقّتات نفسها والفواتير نفسها والصالة الحيّة نفسها.</p></div>
+        <div class="grid g3">
+          <div class="card"><h3>أجهزة الكونسول والواقع الافتراضي</h3><ul><li>تسعير حسب اللاعبين (لاعبون مشمولون + سعر للاعب الإضافي)</li><li>علامة «يحتاج تنظيفاً» بين جلسات الواقع الافتراضي</li><li>محاكيات سباق بباقات قصيرة</li></ul></div>
+          <div class="card"><h3>شاشات التلفاز</h3><ul><li>اربط تلفازاً برمز ليعرض المؤقّت والحالة</li><li>ربط المقابس الذكية لتشغيل الشاشات وإطفائها مع الجلسة</li></ul></div>
+          <div class="card"><h3>طباعة مقاهي الإنترنت</h3><ul><li>مهام طباعة تنتظر الموافقة وتُحسب بالصفحة</li><li>خطط للتصفح والتطبيقات المكتبية بالدقيقة</li></ul></div>
+        </div>
+      </div>
+
+      <div class="mod" id="customers">
+        <div class="mod-head reveal"><span class="icon" data-icon="wallet" data-size="26" style="--c:var(--green)"></span><h2>العملاء والمحفظة والحجوزات</h2><p>حساب واحد في كل الفروع — مع سجل محفظة سيحبه محاسبك.</p></div>
+        <div class="grid g3">
+          <div class="card"><h3>المحفظة</h3><ul><li>رصيد نقدي ومكافآت وعروض وهدايا، إضافة إلى الوقت المدفوع مسبقاً</li><li>سجل لا يُعدَّل بعد كتابته، وشحن لا يتكرر</li><li>الأرصدة لا تصبح سالبة أبداً — تفرضها قاعدة البيانات</li></ul></div>
+          <div class="card"><h3>العضويات</h3><ul><li>مستويات بخصومات ومضاعفات للنقاط</li><li>قيود (العمر، الحظر) تُطبَّق عند الدخول</li></ul></div>
+          <div class="card"><h3>الحجوزات وتطبيق العملاء</h3><ul><li>احجز حواسيب أو كونسول أو واقعاً افتراضياً أو مناطق كاملة</li><li>لا حجز مزدوج — تمنعه قاعدة البيانات</li><li>تطبيق للهاتف: المحفظة والحجوزات والمتجر والمكافآت والبطولات والرسائل</li></ul></div>
+        </div>
+      </div>
+
+      <div class="mod" id="pos">
+        <div class="mod-head reveal"><span class="icon" data-icon="cart" data-size="26" style="--c:var(--orange)"></span><h2>نقطة البيع والمطعم والمطبخ</h2><p>وقت اللعب والوجبات الخفيفة وقائمة مطعم كاملة على فاتورة واحدة.</p></div>
+        <div class="grid g3">
+          <div class="card"><h3>نقطة بيع موحَّدة</h3><ul><li>بِع الوقت والمنتجات والباقات وشحن الرصيد</li><li>تقسيم الدفع والدفع المختلط، واسترداد مع ذكر السبب</li><li>أدراج النقد والورديات وحركات النقد</li></ul></div>
+          <div class="card"><h3>المطعم والطاولات</h3><ul><li>خريطة الطاولات، الأكل في المكان، السفري والطلب من المقعد</li><li>الإضافات وتوقيت إرسال الأطباق</li></ul></div>
+          <div class="card"><h3>شاشة المطبخ</h3><ul><li>تذاكر حسب قسم المطبخ مع مؤقّتات</li><li>إنهاء واسترجاع وإشعار الجاهزية إلى المقعد</li></ul></div>
+        </div>
+      </div>
+
+      <div class="mod" id="inventory">
+        <div class="mod-head reveal"><span class="icon" data-icon="box" data-size="26" style="--c:var(--amber)"></span><h2>المخزون والمشتريات</h2><p>اعرف بالضبط كم علبة مشروب طاقة لديك — لكل فرع ولكل مستودع ولكل دفعة.</p></div>
+        <div class="grid g3">
+          <div class="card"><h3>سجل المخزون</h3><ul><li>دفعات وحركات وتحويلات بين الفروع</li><li>جرد المخزون والفروقات</li><li>تتبّع الهدر مع الأسباب</li></ul></div>
+          <div class="card"><h3>الوصفات</h3><ul><li>الوصفات تخصم المكوّنات مع كل بيع</li><li>نسبة هدر مخطَّطة لكل مكوّن</li></ul></div>
+          <div class="card"><h3>المشتريات</h3><ul><li>الموردون وأوامر الشراء والاستلام</li><li>مطابقة فواتير الموردين مع الاستلامات</li></ul></div>
+        </div>
+      </div>
+
+      <div class="mod" id="engage">
+        <div class="mod-head reveal"><span class="icon" data-icon="trophy" data-size="26" style="--c:#f472b6"></span><h2>الولاء والعروض والبطولات وإدارة العملاء</h2><p>محرّك النمو: كافئ الزبائن الدائمين، واملأ الساعات الهادئة، ونظّم فعاليات تملأ المكان.</p></div>
+        <div class="grid g2">
+          <div class="card"><h3>الولاء</h3><ul><li>نقاط على اللعب والطعام والدقائق والحجوزات المنفَّذة والبطولات والإحالات وأعياد الميلاد</li><li>مضاعفات للمستويات، وانتهاء النقاط الأقدم أولاً، والاسترداد يلغي النقاط</li><li>مكافآت: دقائق مجانية، رصيد في المحفظة، رموز خصم أو منتجات لمرة واحدة</li></ul></div>
+          <div class="card"><h3>محرك العروض</h3><ul><li>قواعد واضحة: شروط ← نتائج، أفضل عرض غير قابل للجمع مع العروض القابلة للجمع، مع حد أقصى</li><li>ساعات سعيدة، دقائق إضافية في عطلة الأسبوع، عروض أعياد الميلاد والزيارة الأولى</li><li>رموز مشتركة وشخصية بميزانيات وحدود لكل عميل</li></ul></div>
+          <div class="card"><h3>البطولات</h3><ul><li>خروج المغلوب الفردي والمزدوج، دوري من دورة واحدة، دوري، والنظام السويسري</li><li>توزيع المصنّفين مع التأهل المباشر، تسجيل النتائج، وتقدّم تلقائي</li><li>رسوم المشاركة من نقطة البيع أو المحفظة؛ جوائز إلى المحفظة ونقاط</li></ul></div>
+          <div class="card"><h3>إدارة العملاء والحملات</h3><ul><li>شرائح جاهزة ومخصَّصة، وقوائم ثابتة</li><li>حملات بموافقة العميل فقط: صندوق الرسائل في التطبيق، رسالة على الشاشة، SMS، بريد، واتساب</li><li>رموز عروض شخصية لكل مستلم</li></ul></div>
+        </div>
+      </div>
+
+      <div class="mod" id="platform">
+        <div class="mod-head reveal"><span class="icon" data-icon="shield" data-size="26"></span><h2>المنصة والأدوار والأمان</h2><p>منصة سحابية لعدة مؤسسات منذ اليوم الأول، مع لوحة مشرف عام لمشغّل المنصة.</p></div>
+        <div class="grid g3">
+          <div class="card"><h3>المشرف العام</h3><ul><li>إنشاء المؤسسات وتعليقها وتفعيلها</li><li>الخطط والحدود و26 ميزة قابلة للتفعيل لكل خطة أو مؤسسة</li><li>إصدارات التطبيقات والدول والعملات والضرائب وبوابات الدفع</li><li>دخول بصفة العميل للدعم، مع تدقيق</li></ul></div>
+          <div class="card"><h3>المؤسسات والصلاحيات</h3><ul><li>تسلسل: مؤسسة ← علامة تجارية ← فرع ← منطقة</li><li>111 صلاحية و14 قالب دور وأدوار مخصَّصة</li><li>منع رفع الصلاحيات عند منح الأدوار؛ أدوار لكل فرع</li></ul></div>
+          <div class="card"><h3>الأمان</h3><ul><li>رموز دخول موقَّعة، تدوير مع كشف إعادة الاستخدام، ودخول بخطوتين</li><li>عزل البيانات على مستوى الصفوف في PostgreSQL؛ سجل تدقيق متسلسل</li><li>الإجراءات الحساسة تتطلب سبباً</li></ul></div>
+        </div>
+      </div>
+
+      <div class="mod" id="staff">
+        <div class="mod-head reveal"><span class="icon" data-icon="users" data-size="26" style="--c:var(--accent-2)"></span><h2>الاستقبال وملف العميل</h2><p>كل ما تحتاجه الوردية في شاشة واحدة، وكل ما تعرفه عن الزبون الدائم في مكان واحد.</p></div>
+        <div class="grid g2">
+          <div class="card"><h3>وضع الكاونتر والورديات</h3><ul><li>تسجيل الحضور، تبديل الموظفين برمز PIN، ملاحظات التسليم</li><li>تنبيهات فورية للطلبات والنداءات والجلسات المنتهية</li><li>الأجهزة المعطّلة، ملخص اليوم، تقييمات العملاء</li></ul></div>
+          <div class="card"><h3>ملف العميل</h3><ul><li>سجل زمني لكل زيارة وشحن وطلب وحجز</li><li>ملاحظات ووسوم ورؤى (الإنفاق، الألعاب المفضلة، أكثر الساعات ازدحاماً)</li><li>قيود مع الأسباب وتاريخ الانتهاء، تُطبَّق على كل حاسوب</li><li>دمج الحسابات المكررة، تصدير بيانات العميل، إجراءات جماعية</li></ul></div>
+        </div>
+      </div>
+
+      <div class="mod" id="app">
+        <div class="mod-head reveal"><span class="icon" data-icon="phone" data-size="26" style="--c:var(--green)"></span><h2>تطبيق العملاء وواجهة الألعاب</h2><p>اللاعبون ينجزون أكثر بأنفسهم — فيقلّ العمل على الكاونتر.</p></div>
+        <div class="grid g2">
+          <div class="card"><h3>من الهاتف</h3><ul><li>اطلب الطعام وأضف وقتاً إلى الحاسوب الذي تجلس عليه</li><li>سجّل الدخول على الحاسوب بمسح رمز QR</li><li>إشعارات، هدايا للأصدقاء، تحديات</li><li>عربية كاملة من اليمين إلى اليسار</li></ul></div>
+          <div class="card"><h3>على الحاسوب</h3><ul><li>سطح مكتب صغير: نوافذ وشريط مهام وقائمة ابدأ وأيقونات حقيقية وأغلفة Steam</li><li>المحفظة والنقاط على الشاشة، وإضافة الوقت من المقعد</li><li>قفل عند الابتعاد، وإعدادات وحفظ للألعاب يرافق اللاعب إلى أي حاسوب</li><li>لقطات الشاشة محفوظة في حساب اللاعب</li></ul></div>
+        </div>
+      </div>
+
+      <div class="mod" id="reports">
+        <div class="mod-head reveal"><span class="icon" data-icon="chart" data-size="26" style="--c:var(--amber)"></span><h2>التقارير والمحاسبة</h2><p>الأرقام التي يطلبها محاسبك، مباشرة من السجل نفسه الذي تكتب فيه الصالة.</p></div>
+        <div class="grid g2">
+          <div class="card"><h3>المحاسبة</h3><ul><li>دفتر أستاذ عام يُرحَّل تلقائياً من المبيعات والشحن والاسترداد</li><li>المصروفات والفواتير وتقارير الضرائب</li></ul></div>
+          <div class="card"><h3>التحليلات</h3><ul><li>الإشغال حسب الساعة، الإيراد حسب المصدر، مقارنة الفروع</li><li>تصدير أي جدول إلى CSV</li></ul></div>
+        </div>
+      </div>
+
+      <div class="mod" id="roadmap">
+        <div class="mod-head reveal"><span class="icon" data-icon="zap" data-size="26" style="--c:var(--amber)"></span><h2>القادم</h2><p>المراحل 1–11 مكتملة، إضافة إلى التجارب الذاتية. <a href="../changelog.html" style="color:var(--accent)">شاهد الجديد ←</a></p></div>
+        <div class="grid">
+          <div class="card"><span class="pill">التالي</span><h3>خادم الفرع والتحصين</h3><p>خادم في الفرع يُبقي الصالة تعمل أثناء انقطاع الإنترنت، إضافة إلى المراقبة والنسخ الاحتياطي والتعافي من الكوارث.</p></div>
+        </div>
+      </div>
+    </div>
+
+    <section>
+      <div class="wrap">
+        <div class="cta-band" data-scroll>
+          <h2><span>اختر</span> <span class="out">وحداتك.</span></h2>
+          <div class="row">
+            <p>كل خطة تشمل واجهة الألعاب والصالة الحيّة والجلسات وتطبيق العملاء. أضف المطعم والبطولات وإدارة العملاء كلما نموت.</p>
+            <div class="hero-cta"><a class="btn btn-primary btn-lg" href="pricing.html">قارن الخطط <span data-icon="arrow" data-size="16"></span></a><a class="btn btn-ghost btn-lg" href="../demos.html">جرّب العروض</a></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+  <footer id="footer"></footer>
+  <script src="../assets/site.js?v=7"></script>
+</body>
+</html>

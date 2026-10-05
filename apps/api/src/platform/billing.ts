@@ -32,8 +32,27 @@ export async function applyInvoicePayment(db: PlatformClient, invoiceId: string,
       data: { planId: plan.id, status: "ACTIVE", currentPeriodStart: inv.periodStart, currentPeriodEnd: inv.periodEnd > sub.currentPeriodEnd || sub.status !== "ACTIVE" ? inv.periodEnd : sub.currentPeriodEnd },
     });
     await t.organization.updateMany({ where: { id: inv.organizationId, status: { in: ["TRIAL", "PAST_DUE"] } }, data: { status: "ACTIVE" } });
+    await rewardReferrer(t, inv.organizationId);
     return { invoice: paid, changed: true };
   });
+}
+
+/** Free time the referring venue gets when a venue it referred first pays. */
+export const REFERRAL_REWARD_DAYS = 30;
+
+/**
+ * A venue that signed up through another venue's referral link has paid: the
+ * referrer's current period is extended by a month. Once per referred venue
+ * (the lead is stamped), and only for a referrer that's still a customer.
+ */
+async function rewardReferrer(t: Parameters<Parameters<PlatformClient["$transaction"]>[0]>[0], organizationId: string) {
+  const lead = await t.lead.findFirst({ where: { kind: "TRIAL", trialOrgId: organizationId, referrerOrgId: { not: null }, referralRewardedAt: null } });
+  if (!lead || lead.referrerOrgId === organizationId) return;
+  const sub = await t.subscription.findFirst({ where: { organizationId: lead.referrerOrgId!, status: { in: ["ACTIVE", "TRIALING", "PAST_DUE"] } }, orderBy: { createdAt: "desc" } });
+  if (!sub) return;
+  const from = sub.currentPeriodEnd > new Date() ? sub.currentPeriodEnd : new Date();
+  await t.subscription.update({ where: { id: sub.id }, data: { currentPeriodEnd: new Date(from.getTime() + REFERRAL_REWARD_DAYS * 86_400_000) } });
+  await t.lead.update({ where: { id: lead.id }, data: { referralRewardedAt: new Date() } });
 }
 
 /**

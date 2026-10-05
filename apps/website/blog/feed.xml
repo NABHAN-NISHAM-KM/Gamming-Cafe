@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+<channel>
+  <title>ArenaOS blog</title>
+  <link>%SITE%/blog/</link>
+  <atom:link href="%SITE%/blog/feed.xml" rel="self" type="application/rss+xml" />
+  <description>Guides for gaming cafés, esports arenas and console and VR centres.</description>
+  <language>en</language>
+  <item>
+    <title>Switching café software without closing: an opening-week checklist</title>
+    <link>%SITE%/blog/opening-week-checklist.html</link>
+    <guid>%SITE%/blog/opening-week-checklist.html</guid>
+    <pubDate>Sat, 03 Oct 2026 08:00:00 GMT</pubDate>
+    <description>How to move a gaming café onto new software one area at a time — PCs, staff, prices and players' balances — without a day of downtime.</description>
+  </item>
+  <item>
+    <title>Running a tournament night at your venue, step by step</title>
+    <link>%SITE%/blog/running-a-tournament-night.html</link>
+    <guid>%SITE%/blog/running-a-tournament-night.html</guid>
+    <pubDate>Fri, 02 Oct 2026 08:00:00 GMT</pubDate>
+    <description>Formats, entry fees, check-in, brackets and prizes — how to run a local tournament that brings players back instead of chaos at the counter.</description>
+  </item>
+  <item>
+    <title>How to price a gaming café: hourly rates, packages and happy hours</title>
+    <link>%SITE%/blog/pricing-your-gaming-cafe.html</link>
+    <guid>%SITE%/blog/pricing-your-gaming-cafe.html</guid>
+    <pubDate>Thu, 01 Oct 2026 08:00:00 GMT</pubDate>
+    <description>A practical way to set hourly rates, prepaid packages and off-peak offers that fill quiet hours without giving away your busy ones.</description>
+  </item>
+</channel>
+</rss>

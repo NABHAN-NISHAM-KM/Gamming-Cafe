@@ -64,6 +64,24 @@
       ],
       "port": 5180,
       "autoPort": true
+    },
+    {
+      "name": "demo-api",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "packages/demo/scripts/stack.mjs",
+        "api"
+      ],
+      "port": 4010
+    },
+    {
+      "name": "demo-platform",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "packages/demo/scripts/stack.mjs",
+        "platform"
+      ],
+      "port": 4110
     }
   ]
 }

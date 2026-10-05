@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en" data-page="partners">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Partners — install and resell ArenaOS</title>
+  <meta name="description" content="Installers, PC builders and resellers: set up ArenaOS for gaming cafés and esports venues in your region. Apply to become an ArenaOS partner." />
+  <link rel="canonical" href="%SITE%/partners.html" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="ArenaOS" />
+  <meta property="og:title" content="Partners — install and resell ArenaOS" />
+  <meta property="og:description" content="Installers, PC builders and resellers: set up ArenaOS for gaming cafés and esports venues in your region. Apply to become an ArenaOS partner." />
+  <meta property="og:url" content="%SITE%/partners.html" />
+  <meta property="og:image" content="%SITE%/assets/og.png" />
+  <meta property="og:locale" content="en_US" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Partners — install and resell ArenaOS" />
+  <meta name="twitter:description" content="Installers, PC builders and resellers: set up ArenaOS for gaming cafés and esports venues in your region. Apply to become an ArenaOS partner." />
+  <meta name="twitter:image" content="%SITE%/assets/og.png" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%226%22 fill=%22%237c5cff%22/%3E%3Ctext x=%2216%22 y=%2223%22 font-size=%2220%22 font-family=%22Arial%22 font-weight=%22900%22 text-anchor=%22middle%22 fill=%22white%22%3EA%3C/text%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/site.css?v=7" />
+</head>
+<body>
+  <header id="nav"></header>
+  <main>
+    <section class="hero" data-scroll style="border-bottom:0">
+      <div class="hero-grid"></div>
+      <div class="wrap split" style="align-items:start">
+        <div>
+          <span class="eyebrow">Partners</span>
+          <h1 data-split style="font-size:clamp(52px,7vw,112px)!important">Build venues with us.</h1>
+          <p class="lead">You build the PCs, wire the network and know the owners in your city. We give you the software that runs the venue once the doors open.</p>
+          <ul class="checks">
+            <li>For installers, PC and network builders, and IT resellers</li>
+            <li>A partner trial account to set up and demo venues</li>
+            <li>Onboarding and install training for your team, in Arabic and English</li>
+            <li>Your venues are listed as yours, and we send you leads from your region</li>
+            <li>Terms agreed with each partner — tell us how you work today</li>
+          </ul>
+        </div>
+        <div class="form-card reveal">
+          <form class="form" id="partnerForm">
+            <div class="row"><label>Name<input required name="name" autocomplete="name" /></label><label>Work email<input required type="email" name="email" autocomplete="email" /></label></div>
+            <div class="row"><label>Company<input required name="venue" autocomplete="organization" /></label><label>Phone<input name="phone" type="tel" autocomplete="tel" /></label></div>
+            <div class="row"><label>Country<select name="country"><option>United Arab Emirates</option><option>Saudi Arabia</option><option>Qatar</option><option>Kuwait</option><option>Bahrain</option><option>Oman</option><option>India</option><option>United Kingdom</option><option>United States</option><option>Other</option></select></label><label>What you do<select name="venueType"><option>Installer / PC builder</option><option>Network &amp; IT services</option><option>Reseller / distributor</option><option>Consultant</option></select></label></div>
+            <label>Venues you set up a year<input type="number" min="1" name="branches" /></label>
+            <label>Tell us about your business<textarea rows="4" name="notes" placeholder="Cities you cover, brands you sell, venues you've built…"></textarea></label>
+            <label class="hp" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off" /></label>
+            <button class="btn btn-primary btn-lg" type="submit">Apply to partner <span data-icon="arrow" data-size="16"></span></button>
+            <div class="ok-msg" id="ok" role="status">Thanks — our partner team will reply within two business days.</div>
+          </form>
+        </div>
+      </div>
+    </section>
+  </main>
+  <footer id="footer"></footer>
+  <script src="assets/site.js?v=7"></script>
+  <script src="assets/forms.js?v=1"></script>
+  <script>
+    const form = document.getElementById("partnerForm");
+    arenaForm(form, "/v1/public/leads", () => {
+      form.querySelector("button[type=submit]").style.display = "none";
+      document.getElementById("ok").style.display = "block";
+    }, (v) => ({ ...v, kind: "PARTNER", source: "partners" }));
+  </script>
+</body>
+</html>

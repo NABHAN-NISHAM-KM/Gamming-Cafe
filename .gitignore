@@ -38,3 +38,4 @@ apps/customer/Arena.apk
 apps/customer/android/
 apps/website/downloads/*.apk
 clients/windows/dist/
+apps/website/status-data.json

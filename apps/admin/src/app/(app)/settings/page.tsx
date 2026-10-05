@@ -234,6 +234,11 @@ function PublicPage() {
           ) : (
             <p className="mt-3 text-sm text-ink-3">Only someone who can manage the organization can change this.</p>
           )}
+          <p className="mt-4 text-sm text-ink-2">
+            Printable posters for the counter and tables:{" "}
+            <a href="/poster?kind=app" target="_blank" rel="noopener" className="text-accent hover:underline">app QR poster</a>
+            {on && <> · <a href="/poster?kind=page" target="_blank" rel="noopener" className="text-accent hover:underline">venue page QR poster</a></>}
+          </p>
         </div>
       </div>
     </Card>

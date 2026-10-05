@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en" data-page="status">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Status — ArenaOS</title>
+  <meta name="description" content="Live status and uptime of the ArenaOS venue API, admin console and sign-up service, with recent outages." />
+  <link rel="canonical" href="%SITE%/status.html" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="ArenaOS" />
+  <meta property="og:title" content="Status — ArenaOS" />
+  <meta property="og:description" content="Live status and uptime of the ArenaOS venue API, admin console and sign-up service, with recent outages." />
+  <meta property="og:url" content="%SITE%/status.html" />
+  <meta property="og:image" content="%SITE%/assets/og.png" />
+  <meta property="og:locale" content="en_US" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Status — ArenaOS" />
+  <meta name="twitter:description" content="Live status and uptime of the ArenaOS venue API, admin console and sign-up service, with recent outages." />
+  <meta name="twitter:image" content="%SITE%/assets/og.png" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%226%22 fill=%22%237c5cff%22/%3E%3Ctext x=%2216%22 y=%2223%22 font-size=%2220%22 font-family=%22Arial%22 font-weight=%22900%22 text-anchor=%22middle%22 fill=%22white%22%3EA%3C/text%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/site.css?v=7" />
+  <style>
+    .svc { border: 1px solid var(--line); background: var(--panel); padding: 20px; margin-bottom: 14px; }
+    .svc-head { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: baseline; }
+    .svc-head b { font-size: 17px; }
+    .pill { font: 500 12px var(--mono); padding: 4px 10px; border: 1px solid; }
+    .pill.up { color: var(--green); } .pill.down { color: #f87171; } .pill.unknown { color: var(--ink-3); }
+    .bars { display: flex; gap: 2px; height: 34px; margin: 14px 0 8px; }
+    .bars i { flex: 1; background: var(--line-2); min-width: 2px; }
+    .bars i.g { background: var(--green); } .bars i.y { background: #facc15; } .bars i.r { background: #f87171; }
+    .meta { display: flex; justify-content: space-between; font: 12px var(--mono); color: var(--ink-3); flex-wrap: wrap; gap: 8px; }
+    .inc { border-bottom: 1px solid var(--line); padding: 12px 0; color: var(--ink-2); font-size: 14px; }
+    #overall { font-size: clamp(28px, 4vw, 44px); margin: 0 0 24px; }
+  </style>
+</head>
+<body>
+  <header id="nav"></header>
+  <main>
+    <section class="hero" style="border-bottom:0;padding-bottom:8px">
+      <div class="hero-grid"></div>
+      <div class="wrap">
+        <span class="eyebrow">Status</span>
+        <h1 data-split style="font-size:clamp(48px,6.5vw,104px)!important">Is ArenaOS up?</h1>
+        <p class="lead">Checked every minute from our server. Stations keep running offline during an outage and sync when the connection is back.</p>
+      </div>
+    </section>
+    <div class="wrap" style="padding-bottom:96px;max-width:960px">
+      <h2 id="overall" aria-live="polite">Checking…</h2>
+      <div id="svcs"></div>
+      <h3 style="margin-top:40px">Recent outages</h3>
+      <div id="incs"></div>
+      <p style="color:var(--ink-3);font-size:13px;margin-top:24px" id="updated"></p>
+    </div>
+  </main>
+  <footer id="footer"></footer>
+  <script src="assets/site.js?v=7"></script>
+  <script>
+    const fmtPct = (p) => (p == null ? "—" : `${p.toFixed(p === 100 ? 0 : 2)}%`);
+    const when = (t) => new Date(t).toLocaleString(undefined, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+    async function load() {
+      const s = await fetch("status.json", { cache: "no-store" }).then((r) => r.json()).catch(() => null);
+      if (!s) { document.getElementById("overall").textContent = "Status unavailable right now."; return; }
+      const down = s.services.filter((x) => x.now && !x.now.ok);
+      document.getElementById("overall").textContent = !s.services.some((x) => x.now) ? "Waiting for the first check…" : down.length ? `${down.map((x) => x.name).join(", ")} — having problems` : "All systems working";
+      document.getElementById("svcs").innerHTML = s.services.map((x) => {
+        const state = !x.now ? "unknown" : x.now.ok ? "up" : "down";
+        const days = x.days.slice(-90);
+        const bars = Array.from({ length: 90 - days.length }, () => `<i title="No data"></i>`).join("") +
+          days.map((d) => `<i class="${d.pct == null ? "" : d.pct >= 99.5 ? "g" : d.pct >= 95 ? "y" : "r"}" title="${d.day}: ${d.pct == null ? "no data" : d.pct + "% up"}"></i>`).join("");
+        return `<div class="svc"><div class="svc-head"><b>${x.name}</b><span class="pill ${state}">${state === "up" ? "Working" : state === "down" ? "Down" : "No data yet"}</span></div>
+          <div class="bars" aria-hidden="true">${bars}</div>
+          <div class="meta"><span>90 days ago</span><span>24 h ${fmtPct(x.uptime.day)} · 7 d ${fmtPct(x.uptime.week)} · 90 d ${fmtPct(x.uptime.quarter)}</span><span>Today</span></div></div>`;
+      }).join("");
+      document.getElementById("incs").innerHTML = s.incidents.length
+        ? s.incidents.map((i) => `<div class="inc"><b>${i.name}</b> — ${i.end ? `down ${i.minutes} min` : `down for ${i.minutes} min so far`} · ${when(i.start)}</div>`).join("")
+        : `<p style="color:var(--ink-3)">No outages in the last 90 days.</p>`;
+      document.getElementById("updated").textContent = `Updated ${when(s.updatedAt)}. Refreshes every minute.`;
+    }
+    load();
+    setInterval(load, 60_000);
+  </script>
+</body>
+</html>

@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en" data-page="stories">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Customer stories — ArenaOS</title>
+  <meta name="description" content="How gaming cafés, esports arenas and gaming restaurants run on ArenaOS — in their own words, with the numbers that changed." />
+  <link rel="canonical" href="%SITE%/stories.html" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="ArenaOS" />
+  <meta property="og:title" content="Customer stories — ArenaOS" />
+  <meta property="og:description" content="How gaming cafés, esports arenas and gaming restaurants run on ArenaOS — in their own words, with the numbers that changed." />
+  <meta property="og:url" content="%SITE%/stories.html" />
+  <meta property="og:image" content="%SITE%/assets/og.png" />
+  <meta property="og:locale" content="en_US" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Customer stories — ArenaOS" />
+  <meta name="twitter:description" content="How gaming cafés, esports arenas and gaming restaurants run on ArenaOS — in their own words, with the numbers that changed." />
+  <meta name="twitter:image" content="%SITE%/assets/og.png" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%226%22 fill=%22%237c5cff%22/%3E%3Ctext x=%2216%22 y=%2223%22 font-size=%2220%22 font-family=%22Arial%22 font-weight=%22900%22 text-anchor=%22middle%22 fill=%22white%22%3EA%3C/text%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/site.css?v=7" />
+  <style>
+    .stories { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr)); gap: 18px; }
+    .story { border: 1px solid var(--line); background: var(--panel); padding: 24px; display: flex; flex-direction: column; gap: 12px; }
+    .story blockquote { margin: 0; font-size: 18px; line-height: 1.5; color: var(--ink); }
+    .story .who { color: var(--ink-3); font-size: 14px; }
+    .story .nums { display: flex; gap: 18px; flex-wrap: wrap; }
+    .story .nums b { display: block; font: 800 30px var(--display); color: var(--accent); }
+    .story .nums span { font-size: 12px; color: var(--ink-3); }
+  </style>
+</head>
+<body>
+  <header id="nav"></header>
+  <main>
+    <section class="hero" style="border-bottom:0;padding-bottom:16px">
+      <div class="hero-grid"></div>
+      <div class="wrap">
+        <span class="eyebrow">Customer stories</span>
+        <h1 data-split style="font-size:clamp(48px,6.5vw,104px)!important">Venues on ArenaOS.</h1>
+        <p class="lead">Owners and managers on what changed after they switched — told by them, checked with them.</p>
+      </div>
+    </section>
+    <div class="wrap" style="padding-bottom:64px">
+      <div class="stories" id="stories"></div>
+    </div>
+    <section class="wrap split" style="padding-bottom:96px;align-items:start">
+      <div>
+        <h2>Run a venue on ArenaOS?</h2>
+        <p class="lead">Tell us how it's going. If you'd like your story here, we'll write it up with you and you approve every word before it goes live.</p>
+      </div>
+      <div class="form-card">
+        <form class="form" id="storyForm">
+          <div class="row"><label>Name<input required name="name" autocomplete="name" /></label><label>Email<input required type="email" name="email" autocomplete="email" /></label></div>
+          <label>Venue<input required name="venue" /></label>
+          <label>What changed for you?<textarea required rows="4" name="notes" placeholder="Less time at the counter, more bookings, fewer mistakes at close…"></textarea></label>
+          <label class="hp" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off" /></label>
+          <button class="btn btn-primary btn-lg" type="submit">Share my story <span data-icon="arrow" data-size="16"></span></button>
+          <div class="ok-msg" id="ok" role="status">Thank you — we'll be in touch to write it up together.</div>
+        </form>
+      </div>
+    </section>
+  </main>
+  <footer id="footer"></footer>
+  <script src="assets/site.js?v=7"></script>
+  <script src="assets/forms.js?v=1"></script>
+  <script>
+    const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+    // Stories live in assets/stories.json — only real, approved ones go there.
+    fetch("assets/stories.json").then((r) => r.json()).catch(() => []).then((list) => {
+      const box = document.getElementById("stories");
+      box.innerHTML = list.length
+        ? list.map((s) => `<article class="story"><span class="eyebrow">${esc(s.type)} · ${esc(s.city)}</span>
+            <blockquote>“${esc(s.quote)}”</blockquote><div class="who">${esc(s.person)}, ${esc(s.role)} — ${esc(s.venue)}</div>
+            ${s.numbers?.length ? `<div class="nums">${s.numbers.map((n) => `<div><b>${esc(n.value)}</b><span>${esc(n.label)}</span></div>`).join("")}</div>` : ""}</article>`).join("")
+        : `<div class="story" style="grid-column:1/-1"><b>The first stories are being written.</b><p style="color:var(--ink-2);margin:0">Our first venues are telling their stories now. Until they're ready, <a href="demos.html" style="color:var(--accent)">try every screen in the live demos</a> or <a href="contact.html" style="color:var(--accent)">ask us to put you in touch with a venue near you</a>.</p></div>`;
+    });
+    const form = document.getElementById("storyForm");
+    arenaForm(form, "/v1/public/leads", () => {
+      form.querySelector("button[type=submit]").style.display = "none";
+      document.getElementById("ok").style.display = "block";
+    }, (v) => ({ ...v, notes: `Customer story: ${v.notes}`, source: "stories" }));
+  </script>
+</body>
+</html>

@@ -90,6 +90,7 @@
       if (!typed) slug.value = name.value.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
     });
     const form = document.getElementById("trialForm");
+    form.addEventListener("input", () => window.arenaTrack?.("trial_started"), { once: true });
     arenaForm(form, "/v1/public/trial", async (data) => {
       const { adminUrl } = await fetch("/config.json").then((r) => r.json()).catch(() => ({ adminUrl: "/" }));
       form.hidden = true;

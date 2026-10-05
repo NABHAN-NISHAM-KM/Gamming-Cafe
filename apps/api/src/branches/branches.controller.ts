@@ -25,6 +25,9 @@ const CreateBranch = z
     city: z.string().max(100).nullish(),
     region: z.string().max(100).nullish(),
     postalCode: z.string().max(20).nullish(),
+    /** Where the branch is on the map (the website's venue finder). */
+    latitude: z.number().min(-90).max(90).nullish(),
+    longitude: z.number().min(-180).max(180).nullish(),
     phone: z.string().max(32).nullish(),
     email: z.email().nullish(),
     taxProfileId: z.uuid().nullish(),

@@ -39,3 +39,12 @@ node packages/demo/scripts/enrich.mjs tokens      # enrolment codes; run the dev
 node packages/demo/scripts/enrich.mjs activity    # customers, sessions, orders, bookings via the real API
 cd apps/api && npx tsx ../../packages/demo/scripts/capture.ts   # -> packages/demo/src/fixtures/*.json
 ```
+
+`node packages/demo/scripts/stack.mjs api|platform` runs the API (4010) or the platform service (4110) against `arena_demo` (the `demo-api` and `demo-platform` entries in `.claude/launch.json` do the same).
+
+**Adding screens without re-capturing everything:** `capture-new.ts` captures only the screens built after the main capture (billing and usage, announcements, seasons, card payments, customer insights, waitlist, forecast, anomalies, station health, table QR codes, receipts, the rota, Super Admin releases / health / leads / website stats / invoices, and the customer app's waitlist, seasons, "find a team", spending limits, bills and saved card). It moves their timestamps back to the original capture time and merges them into the fixtures. It plans a sample week of shifts on the DXB1 branch the first time. Like `capture.ts`, it signs the demo super admin in by enrolling two-step sign-in, so delete that user's `MfaFactor` row in `arena_demo` first. Migrate `arena_demo` to the latest migration before running it.
+
+```bash
+cd apps/api && npx tsx ../../packages/demo/scripts/capture-new.ts
+npm run build:demos
+```

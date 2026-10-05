@@ -87,6 +87,7 @@ import { AccountController } from "./organizations/account.controller.js";
 import { AppExtrasController } from "./customer-app/extras.controller.js";
 import { SeasonsController } from "./loyalty/seasons.controller.js";
 import { ReceiptsController } from "./pos/receipts.controller.js";
+import { VenuePublicController } from "./customer-app/venue-public.controller.js";
 
 @Controller()
 class HealthController {
@@ -162,6 +163,7 @@ export class AppModule {
         AppExtrasController,
         SeasonsController,
         ReceiptsController,
+        VenuePublicController,
       ],
       providers: [
         TokensService,

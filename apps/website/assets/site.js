@@ -50,19 +50,21 @@
   // Arabic pages live under /ar/ (lang="ar", dir="rtl", data-base="../") and get Arabic chrome.
   const ar = document.documentElement.lang === "ar";
   const T = (en, arText) => (ar ? arText : en);
-  const AR_PAGES = ["index.html", "contact.html", "signup.html"];
+  const AR_PAGES = ["index.html", "contact.html", "signup.html", "features.html", "pricing.html", "downloads.html", "compare.html", "help.html", "finder.html",
+    "for-gaming-cafes.html", "for-esports-arenas.html", "for-internet-cafes.html", "for-console-vr-centres.html", "for-gaming-restaurants.html"];
+  const arHref = (f) => (AR_PAGES.includes(f) ? `ar/${f}` : f);
   const file = location.pathname.split("/").pop() || "index.html";
   const other = ar ? `${base}${file}` : `${base}ar/${AR_PAGES.includes(file) ? file : "index.html"}`;
   const links = ar
-    ? [["ar/index.html", "المنتج", "home"], ["features.html", "الميزات", "features"], ["pricing.html", "الأسعار", "pricing"], ["demos.html", "عروض حية", "demos"], ["downloads.html", "التنزيلات", "downloads"], ["help.html", "المساعدة", "help"], ["ar/contact.html", "تواصل معنا", "contact"]]
+    ? [["ar/index.html", "المنتج", "home"], ["ar/features.html", "الميزات", "features"], ["ar/pricing.html", "الأسعار", "pricing"], ["demos.html", "عروض حية", "demos"], ["ar/downloads.html", "التنزيلات", "downloads"], ["ar/finder.html", "ابحث عن مكان", "finder"], ["ar/help.html", "المساعدة", "help"], ["ar/contact.html", "تواصل معنا", "contact"]]
     : [
         ["index.html", "Product", "home"],
         ["features.html", "Features", "features"],
         ["pricing.html", "Pricing", "pricing"],
         ["demos.html", "Live demos", "demos"],
         ["downloads.html", "Download", "downloads"],
+        ["finder.html", "Find a venue", "finder"],
         ["help.html", "Help", "help"],
-        ["install.html", "Install", "install"],
         ["contact.html", "Contact", "contact"],
       ];
   const nav = document.getElementById("nav");
@@ -93,13 +95,30 @@
       <div class="foot">
         <div><a class="brand" href="${base}index.html"><span class="brand-mark" aria-hidden="true">A</span><span>Arena<b>OS</b></span></a>
           <p>${T("The operating system for gaming cafés, esports arenas, internet cafés, console &amp; VR centres and gaming restaurants.", "نظام تشغيل مقاهي الألعاب وساحات الرياضات الإلكترونية ومقاهي الإنترنت ومراكز الكونسول والواقع الافتراضي ومطاعم الألعاب.")}</p></div>
-        <div><h4>${T("Built for", "مصمّم لـ")}</h4><a href="${base}for-gaming-cafes.html">${T("Gaming cafés", "مقاهي الألعاب")}</a><a href="${base}for-esports-arenas.html">${T("Esports arenas", "ساحات الرياضات الإلكترونية")}</a><a href="${base}for-internet-cafes.html">${T("Internet cafés", "مقاهي الإنترنت")}</a><a href="${base}for-console-vr-centres.html">${T("Console &amp; VR centres", "مراكز الكونسول والواقع الافتراضي")}</a><a href="${base}for-gaming-restaurants.html">${T("Gaming restaurants", "مطاعم الألعاب")}</a></div>
-        <div><h4>${T("Product", "المنتج")}</h4><a href="${base}features.html">${T("Features", "الميزات")}</a><a href="${base}changelog.html">${T("What's new", "الجديد")}</a><a href="${base}compare.html">${T("Why switch", "لماذا تنتقل")}</a><a href="${base}demos.html">${T("Live demos", "عروض حية")}</a><a href="${base}downloads.html">${T("Downloads", "التنزيلات")}</a></div>
-        <div><h4>${T("Company", "الشركة")}</h4><a href="${base}pricing.html">${T("Pricing", "الأسعار")}</a><a href="${base}${ar ? "ar/" : ""}signup.html">${T("Free trial", "تجربة مجانية")}</a><a href="${base}${ar ? "ar/" : ""}contact.html">${T("Contact sales", "تواصل مع المبيعات")}</a><a href="${base}help.html">${T("Help centre", "مركز المساعدة")}</a><a href="${base}install.html">${T("Install guide", "دليل التثبيت")}</a></div>
+        <div><h4>${T("Built for", "مصمّم لـ")}</h4><a href="${base}${ar ? arHref("for-gaming-cafes.html") : "for-gaming-cafes.html"}">${T("Gaming cafés", "مقاهي الألعاب")}</a><a href="${base}${ar ? arHref("for-esports-arenas.html") : "for-esports-arenas.html"}">${T("Esports arenas", "ساحات الرياضات الإلكترونية")}</a><a href="${base}${ar ? arHref("for-internet-cafes.html") : "for-internet-cafes.html"}">${T("Internet cafés", "مقاهي الإنترنت")}</a><a href="${base}${ar ? arHref("for-console-vr-centres.html") : "for-console-vr-centres.html"}">${T("Console &amp; VR centres", "مراكز الكونسول والواقع الافتراضي")}</a><a href="${base}${ar ? arHref("for-gaming-restaurants.html") : "for-gaming-restaurants.html"}">${T("Gaming restaurants", "مطاعم الألعاب")}</a><a href="${base}wizard.html">${T("Plan your venue", "خطّط لمكانك")}</a></div>
+        <div><h4>${T("Product", "المنتج")}</h4><a href="${base}${ar ? "ar/" : ""}features.html">${T("Features", "الميزات")}</a><a href="${base}changelog.html">${T("What's new", "الجديد")}</a><a href="${base}${ar ? "ar/" : ""}compare.html">${T("Why switch", "لماذا تنتقل")}</a><a href="${base}stories.html">${T("Customer stories", "قصص العملاء")}</a><a href="${base}demos.html">${T("Live demos", "عروض حية")}</a><a href="${base}${ar ? "ar/" : ""}downloads.html">${T("Downloads", "التنزيلات")}</a><a href="${base}status.html">${T("Status", "حالة الخدمة")}</a></div>
+        <div><h4>${T("Company", "الشركة")}</h4><a href="${base}${ar ? "ar/" : ""}pricing.html">${T("Pricing", "الأسعار")}</a><a href="${base}${ar ? "ar/" : ""}signup.html">${T("Free trial", "تجربة مجانية")}</a><a href="${base}${ar ? "ar/" : ""}contact.html">${T("Contact sales", "تواصل مع المبيعات")}</a><a href="${base}partners.html">${T("Partners", "الشركاء")}</a><a href="${base}blog/">${T("Blog", "المدونة")}</a><a href="${base}${ar ? "ar/" : ""}help.html">${T("Help centre", "مركز المساعدة")}</a><a href="${base}install.html">${T("Install guide", "دليل التثبيت")}</a><a href="${base}security.html">${T("Security &amp; privacy", "الأمان والخصوصية")}</a></div>
       </div>
       <div class="wordmark" data-scroll aria-hidden="true">Arena<b>OS</b></div>
       <div class="copy"><span>© ${new Date().getFullYear()} ArenaOS. ${T("All rights reserved.", "جميع الحقوق محفوظة.")}</span><span>${T("Built for venues that never close.", "صُمّم لأماكن لا تُغلق أبوابها.")}</span></div>
     </div>`;
+  }
+
+  // Anonymous visit counts: the page and the referring site, nothing else — no cookies,
+  // nothing stored in the browser. Skipped when the browser asks not to be tracked.
+  const tracking = navigator.doNotTrack !== "1" && !navigator.webdriver && location.protocol.startsWith("http");
+  window.arenaTrack = (event = "view", path = location.pathname) => {
+    if (!tracking) return;
+    const body = JSON.stringify({ path: path.slice(0, 200) || "/", referrer: event === "view" ? document.referrer || null : null, event });
+    if (!navigator.sendBeacon?.("/v1/public/events", new Blob([body], { type: "application/json" }))) fetch("/v1/public/events", { method: "POST", headers: { "content-type": "application/json" }, body, keepalive: true }).catch(() => {});
+  };
+  window.arenaTrack();
+  // A venue's referral link (?ref=<venue code>) is remembered for this visit and sent with sign-up and contact forms.
+  try {
+    const ref = new URLSearchParams(location.search).get("ref");
+    if (ref && /^[a-z0-9-]{2,64}$/.test(ref)) sessionStorage.setItem("arena.ref", ref);
+  } catch {
+    /* storage off: the link still works on the page it landed on */
   }
 
   // Copy buttons on documentation code blocks (trailing "# comments" are dropped).

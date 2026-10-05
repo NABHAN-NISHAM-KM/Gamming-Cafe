@@ -287,17 +287,21 @@ export class PlatformAdminController {
 
   @PlatformRoles(...READ_ROLES)
   @Get("leads")
-  leads(@Query("status") status?: string, @Query("kind") kind?: string, @Query("due") due?: string) {
-    return this.db.lead.findMany({
+  async leads(@Query("status") status?: string, @Query("kind") kind?: string, @Query("due") due?: string) {
+    const leads = await this.db.lead.findMany({
       where: {
         ...(status && ["NEW", "CONTACTED", "WON", "LOST"].includes(status) ? { status: status as "NEW" } : {}),
-        ...(kind && ["CONTACT", "DEMO", "TRIAL", "UPGRADE"].includes(kind) ? { kind: kind as "DEMO" } : {}),
+        ...(kind && ["CONTACT", "DEMO", "TRIAL", "UPGRADE", "PARTNER"].includes(kind) ? { kind: kind as "DEMO" } : {}),
         // Follow-ups due now, and calls in the next 24 hours: what the sales team should do today.
         ...(due ? { status: { in: ["NEW", "CONTACTED"] }, OR: [{ nextActionAt: { lte: new Date() } }, { kind: "DEMO", demoAt: { gte: new Date(Date.now() - 3_600_000), lte: new Date(Date.now() + 86_400_000) } }] } : {}),
       },
       orderBy: due ? [{ nextActionAt: { sort: "asc", nulls: "last" } }, { demoAt: { sort: "asc", nulls: "last" } }] : { createdAt: "desc" },
       take: 200,
     });
+    // The venue whose referral link brought the lead in.
+    const ids = [...new Set(leads.map((l) => l.referrerOrgId).filter((x): x is string => !!x))];
+    const orgs = ids.length ? await this.db.organization.findMany({ where: { id: { in: ids } }, select: { id: true, displayName: true } }) : [];
+    return leads.map((l) => ({ ...l, referrer: ((o) => (o ? { id: o.id, name: o.displayName } : null))(orgs.find((o) => o.id === l.referrerOrgId)) }));
   }
 
   @PlatformRoles("SUPER_ADMIN", "PLATFORM_SUPPORT", "PLATFORM_BILLING")

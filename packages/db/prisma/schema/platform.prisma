@@ -220,6 +220,7 @@ enum LeadKind {
   DEMO // booked a call slot
   TRIAL // signed up for a trial venue
   UPGRADE // a venue near its plan limits asked for a bigger plan
+  PARTNER // an installer or reseller applying to sell ArenaOS
 }
 
 enum LeadStatus {
@@ -231,29 +232,32 @@ enum LeadStatus {
 
 /// Someone who reached out on the website. Platform-level: never visible to venues.
 model Lead {
-  id           String     @id @default(uuid(7)) @db.Uuid
-  kind         LeadKind
-  status       LeadStatus @default(NEW)
-  name         String
-  email        String
-  phone        String?
-  venue        String?
-  country      String?
-  venueType    String?
-  plan         String?
-  branches     Int?
-  stations     Int?
-  notes        String?
+  id                 String     @id @default(uuid(7)) @db.Uuid
+  kind               LeadKind
+  status             LeadStatus @default(NEW)
+  name               String
+  email              String
+  phone              String?
+  venue              String?
+  country            String?
+  venueType          String?
+  plan               String?
+  branches           Int?
+  stations           Int?
+  notes              String?
   /// DEMO: the call's start (30 minutes, UTC)
-  demoAt       DateTime?  @db.Timestamptz(3)
-  staffNotes   String? // the sales team's own notes
-  nextActionAt DateTime?  @db.Timestamptz(3)
+  demoAt             DateTime?  @db.Timestamptz(3)
+  staffNotes         String? // the sales team's own notes
+  nextActionAt       DateTime?  @db.Timestamptz(3)
+  /// The venue that referred this one (website ?ref=<venue code>); rewarded once the new venue first pays.
+  referrerOrgId      String?    @db.Uuid
+  referralRewardedAt DateTime?  @db.Timestamptz(3)
   /// TRIAL: the venue that was created
-  trialOrgId   String?    @db.Uuid
-  source       String? // page or campaign it came from
-  ip           String?
-  createdAt    DateTime   @default(now()) @db.Timestamptz(3)
-  updatedAt    DateTime   @updatedAt @db.Timestamptz(3)
+  trialOrgId         String?    @db.Uuid
+  source             String? // page or campaign it came from
+  ip                 String?
+  createdAt          DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime   @updatedAt @db.Timestamptz(3)
 
   @@index([status, createdAt])
   @@index([kind, demoAt])
@@ -276,4 +280,16 @@ model PlatformAnnouncement {
   createdAt   DateTime             @default(now()) @db.Timestamptz(3)
 
   @@index([startsAt])
+}
+
+/// Privacy-friendly website stats: counts per day, page, referring site and event.
+/// No IP addresses, cookies or user agents are stored.
+model SiteStat {
+  day      DateTime @db.Date
+  path     String
+  referrer String   @default("")
+  event    String   @default("view")
+  count    Int      @default(0)
+
+  @@id([day, path, referrer, event])
 }

@@ -36,10 +36,24 @@
       <div class="wrap">
         <div class="v-head"><img id="logo" alt="" hidden /><div><span class="eyebrow" id="eyebrow">Gaming venue</span><h1 id="name" style="font-size:clamp(48px,7vw,104px)!important;margin:8px 0 0">…</h1></div></div>
         <p class="lead" id="state">Loading…</p>
-        <div class="hero-cta" id="cta" hidden><a class="btn btn-primary btn-lg" id="app">Book &amp; top up in the app <span data-icon="arrow" data-size="16"></span></a></div>
+        <div class="hero-cta" id="cta" hidden><a class="btn btn-primary btn-lg" href="#book">Book a station <span data-icon="arrow" data-size="16"></span></a><a class="btn btn-ghost btn-lg" id="app">Open the app</a></div>
       </div>
     </section>
     <div class="wrap" id="body"></div>
+    <section class="wrap branch" id="book" hidden>
+      <h2>Book a station</h2>
+      <p style="color:var(--ink-3);margin:0 0 24px">No app or account needed — we hold your stations for 15 minutes after the start time. Pay at the counter.</p>
+      <form class="form form-card" id="bookForm" style="max-width:640px">
+        <div class="row"><label>Branch<select name="branchId" id="bBranch"></select></label><label>When<input type="datetime-local" name="when" id="bWhen" required /></label></div>
+        <div class="row"><label>How long<select name="minutes" id="bMin"><option value="60">1 hour</option><option value="120" selected>2 hours</option><option value="180">3 hours</option><option value="240">4 hours</option></select></label><label>Players<input type="number" name="players" id="bPlayers" min="1" max="10" value="1" required /></label></div>
+        <label>Area<select name="zoneId" id="bZone" required></select></label>
+        <div class="row"><label>Your name<input name="name" required autocomplete="name" /></label><label>Phone<input name="phone" type="tel" required autocomplete="tel" placeholder="+971 50 123 4567" /></label></div>
+        <label class="hp" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off" /></label>
+        <div class="err-msg" id="bErr" role="alert"></div>
+        <button class="btn btn-primary btn-lg" type="submit">Book</button>
+        <div class="ok-msg" id="bOk" role="status"></div>
+      </form>
+    </section>
   </main>
   <footer id="footer"></footer>
   <script src="/assets/site.js?v=7"></script>
@@ -91,8 +105,57 @@
         el("span", {}, `${t.name}${t.game ? ` · ${t.game}` : ""} · ${new Date(t.startsAt).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}${t.teamSize > 1 ? ` · ${t.teamSize}v${t.teamSize}` : ""}`),
         el("b", {}, Number(t.prizePool) ? `Prize ${money(t.prizePool, t.currency)}` : Number(t.entryFee) ? `Entry ${money(t.entryFee, t.currency)}` : "Free entry"),
       ))));
+      return v;
     }
-    load();
+    // Booking without the app: free counts for the chosen time, then a name and phone number.
+    const bf = document.getElementById("bookForm");
+    const bErr = document.getElementById("bErr");
+    const pad = (n) => String(n).padStart(2, "0");
+    const local = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    async function zones() {
+      const when = new Date(bf.when.value);
+      const sel = document.getElementById("bZone");
+      if (!bf.branchId.value || Number.isNaN(when.getTime())) return;
+      const r = await fetch(`/v1/app/${encodeURIComponent(slug)}/public-availability?branchId=${bf.branchId.value}&startsAt=${encodeURIComponent(when.toISOString())}&minutes=${bf.minutes.value}`).then((x) => (x.ok ? x.json() : [])).catch(() => []);
+      const players = Number(bf.players.value) || 1;
+      sel.replaceChildren(...r.map((z) => Object.assign(new Option(`${z.name} — ${z.free} of ${z.total} free`, z.zoneId), { disabled: z.free < players })));
+      if (!r.some((z) => z.free >= players)) sel.prepend(Object.assign(new Option(r.length ? "Nothing free then — try another time" : "No bookable areas at this branch", ""), { selected: true }));
+    }
+    function setupBooking(v) {
+      const branches = v.branches.filter((b) => b.zones.length);
+      if (!branches.length) return;
+      document.getElementById("bBranch").replaceChildren(...branches.map((b) => new Option(b.name, b.id)));
+      const start = new Date(Date.now() + 60 * 60_000);
+      start.setMinutes(Math.ceil(start.getMinutes() / 15) * 15, 0, 0);
+      Object.assign(bf.when, { value: local(start), min: local(new Date(Date.now() + 20 * 60_000)), max: local(new Date(Date.now() + 13 * 86_400_000)) });
+      document.getElementById("book").hidden = false;
+      zones();
+    }
+    for (const f of ["branchId", "when", "minutes", "players"]) bf[f].addEventListener("change", zones);
+    bf.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      bErr.textContent = "";
+      if (!bf.zoneId.value) return void (bErr.textContent = "Pick an area with free stations.");
+      const btn = bf.querySelector("button[type=submit]");
+      btn.disabled = true;
+      const r = await fetch(`/v1/app/${encodeURIComponent(slug)}/book`, {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ branchId: bf.branchId.value, zoneId: bf.zoneId.value, startsAt: new Date(bf.when.value).toISOString(), minutes: Number(bf.minutes.value), players: Number(bf.players.value), name: bf.name.value, phone: bf.phone.value, ...(bf.website.value ? { website: bf.website.value } : {}) }),
+      }).catch(() => null);
+      btn.disabled = false;
+      const data = await r?.json().catch(() => ({}));
+      if (!r?.ok) {
+        bErr.textContent = r?.status === 429 ? "Too many bookings from here — please call the venue." : r?.status === 400 ? "Check the time (15 minutes to two weeks ahead), your name and phone number." : data?.error === "no_capacity" || r?.status === 409 ? "Those stations were just taken — pick another time or area." : "Couldn't book. Check your connection and try again.";
+        return zones();
+      }
+      window.arenaTrack?.("venue_booked");
+      btn.hidden = true;
+      const ok = document.getElementById("bOk");
+      ok.textContent = `Booked! Reference ${data.reference} — ${new Date(data.startsAt).toLocaleString(undefined, { weekday: "long", day: "numeric", month: "long", hour: "numeric", minute: "2-digit" })} for ${data.minutes} minutes. Show the reference at the counter.`;
+      ok.style.display = "block";
+    });
+
+    load().then((v) => v && setupBooking(v));
     setInterval(() => document.visibilityState === "visible" && (document.getElementById("body").replaceChildren(), load()), 60_000);
   </script>
 </body>

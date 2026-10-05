@@ -33,9 +33,18 @@
       const target = typeof url === "function" ? url(values) : url;
       btn.disabled = true;
       err.textContent = "";
-      const r = await window.arenaPost(target, shape(values));
+      let ref = null;
+      try { ref = sessionStorage.getItem("arena.ref"); } catch { /* storage off */ }
+      const payload = shape(values);
+      if (ref && target.startsWith("/v1/public/")) payload.ref = ref;
+      const r = await window.arenaPost(target, payload);
       btn.disabled = false;
-      if (r.ok) return done(r.data, values);
+      if (r.ok) {
+        // A finished step in the sign-up funnel (counted, nothing about the person).
+        const step = target.endsWith("/trial") ? "trial_done" : target.endsWith("/demo") ? "demo_booked" : payload.kind === "PARTNER" ? "partner_sent" : target.endsWith("/leads") ? "contact_sent" : null;
+        if (step) window.arenaTrack?.(step);
+        return done(r.data, values);
+      }
       err.textContent = msg[r.error] ?? msg.failed;
       for (const i of r.issues ?? []) form.querySelector(`[name="${i.path}"]`)?.setAttribute("aria-invalid", "true");
     });

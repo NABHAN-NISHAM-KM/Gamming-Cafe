@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="ar" dir="rtl" data-page="finder" data-base="../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ابحث عن مكان للعب — ArenaOS</title>
+  <meta name="description" content="مقاهي ألعاب وساحات رياضات إلكترونية ومراكز كونسول وواقع افتراضي تعمل بنظام ArenaOS: ابحث عن أقربها إليك، وشاهد الأجهزة المتاحة الآن، واحجز." />
+  <link rel="canonical" href="%SITE%/ar/finder.html" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="ArenaOS" />
+  <meta property="og:title" content="ابحث عن مكان للعب — ArenaOS" />
+  <meta property="og:description" content="مقاهي ألعاب وساحات رياضات إلكترونية ومراكز كونسول وواقع افتراضي تعمل بنظام ArenaOS: ابحث عن أقربها إليك، وشاهد الأجهزة المتاحة الآن، واحجز." />
+  <meta property="og:url" content="%SITE%/ar/finder.html" />
+  <meta property="og:image" content="%SITE%/assets/og.png" />
+  <meta property="og:locale" content="ar_AE" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="ابحث عن مكان للعب — ArenaOS" />
+  <meta name="twitter:description" content="مقاهي ألعاب وساحات رياضات إلكترونية ومراكز كونسول وواقع افتراضي تعمل بنظام ArenaOS: ابحث عن أقربها إليك، وشاهد الأجهزة المتاحة الآن، واحجز." />
+  <meta name="twitter:image" content="%SITE%/assets/og.png" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%226%22 fill=%22%237c5cff%22/%3E%3Ctext x=%2216%22 y=%2223%22 font-size=%2220%22 font-family=%22Arial%22 font-weight=%22900%22 text-anchor=%22middle%22 fill=%22white%22%3EA%3C/text%3E%3C/svg%3E" />
+  <link rel="alternate" hreflang="en" href="%SITE%/finder.html" />
+  <link rel="alternate" hreflang="ar" href="%SITE%/ar/finder.html" />
+  <link rel="alternate" hreflang="x-default" href="%SITE%/finder.html" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@400;600;800&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <link rel="stylesheet" href="../assets/site.css?v=7" />
+  <style>
+    .finder { display: grid; grid-template-columns: minmax(0, 380px) minmax(0, 1fr); gap: 20px; }
+    #map { height: 560px; border: 1px solid var(--line); background: var(--panel); }
+    .filters { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+    .filters select, .filters input { background: var(--panel); color: var(--ink); border: 1px solid var(--line-2); padding: 10px 12px; font: inherit; }
+    .list { display: flex; flex-direction: column; gap: 10px; max-height: 560px; overflow: auto; }
+    .vcard { border: 1px solid var(--line); background: var(--panel); padding: 14px 16px; display: block; color: inherit; text-decoration: none; }
+    .vcard:hover, .vcard:focus-visible { border-color: var(--accent); }
+    .vcard b { display: block; } .vcard small { color: var(--ink-3); }
+    .vcard .free { font: 500 12px var(--mono); color: var(--green); }
+    .tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; } .tags span { font: 11px var(--mono); border: 1px solid var(--line-2); padding: 2px 6px; color: var(--ink-2); }
+    .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+    @media (max-width: 900px) { .finder { grid-template-columns: 1fr; } #map { height: 360px; } .list { max-height: none; } }
+  </style>
+</head>
+<body>
+  <header id="nav"></header>
+  <main>
+    <section class="hero" style="border-bottom:0;padding-bottom:16px">
+      <div class="hero-grid"></div>
+      <div class="wrap">
+        <span class="eyebrow">ابحث عن مكان</span>
+        <h1 style="font-size:clamp(48px,6.5vw,104px)!important">العب بالقرب منك.</h1>
+        <p class="lead">أماكن تعمل بنظام ArenaOS ونشرت صفحتها — اعرف أيها لديه أجهزة متاحة الآن، والأسعار والبطولات، واحجز دون تطبيق.</p>
+      </div>
+    </section>
+    <div class="wrap" style="padding-bottom:96px">
+      <div class="filters">
+        <label class="sr-only" for="q">بحث</label><input id="q" type="search" placeholder="اسم المكان أو المنطقة" />
+        <label class="sr-only" for="city">المدينة</label><select id="city"><option value="">كل المدن</option></select>
+        <label class="sr-only" for="kind">النوع</label><select id="kind"><option value="">حواسيب وكونسول وواقع افتراضي</option><option value="PC">حواسيب ألعاب</option><option value="CONSOLE">كونسول</option><option value="VR">واقع افتراضي</option><option value="SIMULATOR">محاكيات</option></select>
+      </div>
+      <div class="finder">
+        <div class="list" id="list" aria-live="polite"><p style="color:var(--ink-3)">جارٍ تحميل الأماكن…</p></div>
+        <div id="map" role="region" aria-label="خريطة الأماكن"></div>
+      </div>
+    </div>
+  </main>
+  <footer id="footer"></footer>
+  <script src="../assets/site.js?v=7"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script>
+    const ar = document.documentElement.lang === "ar";
+    const L10N = ar
+      ? { none: "لا توجد أماكن مطابقة.", empty: "لم تنشر أي أماكن صفحتها بعد.", free: (n) => `${n} متاح الآن`, open: "عرض الصفحة والحجز" }
+      : { none: "No venues match.", empty: "No venues have published their page yet.", free: (n) => `${n} free now`, open: "See page & book" };
+    // Zone types grouped the way players think of them.
+    const GROUP = { PC_STANDARD: "PC", PC_VIP: "PC", BOOTCAMP: "PC", STREAMING: "PC", INTERNET: "PC", CONSOLE: "CONSOLE", VR: "VR", SIMULATOR: "SIMULATOR" };
+    const KIND = { PC: ar ? "حواسيب ألعاب" : "Gaming PCs", CONSOLE: ar ? "كونسول" : "Consoles", VR: "VR", SIMULATOR: ar ? "محاكيات" : "Simulators" };
+    const kindsOf = (b) => [...new Set(b.kinds.map((k) => GROUP[k]).filter(Boolean))];
+    const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+    const base = document.documentElement.dataset.base ?? "";
+    let all = [];
+    const map = window.L ? L.map("map", { scrollWheelZoom: false }).setView([25.2, 55.3], 4) : null;
+    if (map) L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap contributors" }).addTo(map);
+    const layer = map ? L.layerGroup().addTo(map) : null;
+    const free = new Map();
+
+    function render() {
+      const q = document.getElementById("q").value.trim().toLowerCase();
+      const city = document.getElementById("city").value;
+      const kind = document.getElementById("kind").value;
+      const rows = all.flatMap((v) => v.branches.map((b) => ({ v, b })))
+        .filter(({ v, b }) => (!city || b.city === city) && (!kind || kindsOf(b).includes(kind)) && (!q || `${v.name} ${b.name} ${b.address ?? ""} ${b.city ?? ""}`.toLowerCase().includes(q)));
+      const list = document.getElementById("list");
+      list.innerHTML = rows.length
+        ? rows.map(({ v, b }) => `<a class="vcard" href="${base}v/${encodeURIComponent(v.slug)}"><b>${esc(v.name)}${v.branches.length > 1 ? ` · ${esc(b.name)}` : ""}</b>
+            <small>${esc([b.address, b.city].filter(Boolean).join(", "))}</small>
+            ${free.has(b.id) ? `<div class="free">${L10N.free(free.get(b.id))}</div>` : ""}
+            <div class="tags">${kindsOf(b).map((k) => `<span>${esc(KIND[k])}</span>`).join("")}</div></a>`).join("")
+        : `<p style="color:var(--ink-3)">${all.length ? L10N.none : L10N.empty}</p>`;
+      if (!layer) return;
+      layer.clearLayers();
+      const pts = rows.filter(({ b }) => b.lat != null && b.lng != null).map(({ v, b }) =>
+        L.marker([b.lat, b.lng]).bindPopup(`<b>${esc(v.name)}</b><br>${esc(b.name)}<br><a href="${base}v/${encodeURIComponent(v.slug)}">${L10N.open}</a>`).addTo(layer).getLatLng());
+      if (pts.length) map.fitBounds(L.latLngBounds(pts).pad(0.3), { maxZoom: 13 });
+    }
+
+    fetch("/v1/app/venues").then((r) => (r.ok ? r.json() : [])).catch(() => []).then((venues) => {
+      all = venues;
+      const cities = [...new Set(venues.flatMap((v) => v.branches.map((b) => b.city)).filter(Boolean))].sort();
+      document.getElementById("city").append(...cities.map((c) => new Option(c, c)));
+      render();
+      // Free stations right now, per branch (the same counts the venue's page shows).
+      for (const v of venues.slice(0, 40))
+        fetch(`/v1/app/${encodeURIComponent(v.slug)}/public`).then((r) => r.ok && r.json()).then((p) => {
+          if (!p) return;
+          for (const b of p.branches) free.set(b.id, b.zones.reduce((t, z) => t + z.free, 0));
+          render();
+        }).catch(() => {});
+    });
+    for (const id of ["q", "city", "kind"]) document.getElementById(id).addEventListener("input", render);
+  </script>
+</body>
+</html>

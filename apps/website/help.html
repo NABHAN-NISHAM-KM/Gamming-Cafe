@@ -19,6 +19,9 @@
   <meta name="twitter:image" content="%SITE%/assets/og.png" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%226%22 fill=%22%237c5cff%22/%3E%3Ctext x=%2216%22 y=%2223%22 font-size=%2220%22 font-family=%22Arial%22 font-weight=%22900%22 text-anchor=%22middle%22 fill=%22white%22%3EA%3C/text%3E%3C/svg%3E" />
   <script type="application/ld+json">{"@context": "https://schema.org", "@type": "WebSite", "name": "ArenaOS", "url": "%SITE%/", "potentialAction": {"@type": "SearchAction", "target": "%SITE%/help.html?q={query}", "query-input": "required name=query"}}</script>
+  <link rel="alternate" hreflang="en" href="%SITE%/help.html" />
+  <link rel="alternate" hreflang="ar" href="%SITE%/ar/help.html" />
+  <link rel="alternate" hreflang="x-default" href="%SITE%/help.html" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -42,6 +45,11 @@
     article.doc blockquote { border-left: 2px solid var(--accent); margin: 16px 0; padding: 4px 16px; color: var(--ink-2); }
     .pager { display: flex; justify-content: space-between; gap: 16px; margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--line); }
     .pager a { color: var(--accent); }
+    .ask { display: flex; gap: 10px; margin-top: 12px; }
+    .ask input { flex: 1; background: var(--panel); border: 1px solid var(--line-2); color: var(--ink); padding: 12px 14px; font: inherit; }
+    .answer { border: 1px solid var(--accent); background: var(--panel); padding: 20px 22px; margin-bottom: 32px; white-space: pre-wrap; color: var(--ink-2); line-height: 1.7; }
+    .answer .src { white-space: normal; margin-top: 12px; font-size: 13px; color: var(--ink-3); }
+    .answer .src a { color: var(--accent); margin-right: 12px; }
     @media (max-width: 900px) { .help { grid-template-columns: 1fr; } .help aside { position: static; max-height: none; } }
   </style>
 </head>
@@ -54,11 +62,12 @@
         <span class="eyebrow">Help centre</span>
         <h1 style="font-size:clamp(48px,6vw,96px)!important;margin:8px 0 0">How can we help?</h1>
         <input class="search" id="q" type="search" placeholder="Search — e.g. happy hour, refund, enrol a PC, kitchen display" aria-label="Search the help centre" autocomplete="off" />
+        <form class="ask" id="ask" hidden><input name="question" maxlength="500" placeholder="Or ask a question — e.g. how do I give a customer free time?" aria-label="Ask the help assistant" /><button class="btn btn-primary" type="submit">Ask</button></form>
       </div>
     </section>
     <div class="wrap help">
       <aside id="toc" aria-label="Topics"></aside>
-      <div id="view" aria-live="polite"></div>
+      <div><div id="answer" aria-live="polite"></div><div id="view" aria-live="polite"></div></div>
     </div>
   </main>
   <footer id="footer"></footer>
@@ -113,6 +122,29 @@
       if (initial) { q.value = initial; search(initial); } else show(location.hash.slice(1));
     });
     q.addEventListener("input", () => search(q.value));
+
+    // The assistant answers from these articles only (AI-written; links to its sources).
+    const askForm = document.getElementById("ask");
+    const answer = document.getElementById("answer");
+    fetch("config.json").then((r) => r.json()).then((c) => { askForm.hidden = !c.assistant; }).catch(() => {});
+    askForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const question = askForm.question.value.trim();
+      if (question.length < 3) return;
+      const btn = askForm.querySelector("button");
+      btn.disabled = true;
+      answer.innerHTML = `<div class="answer">Looking through the help centre…</div>`;
+      window.arenaTrack?.("help_asked");
+      const r = await fetch("ask", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ question }) }).catch(() => null);
+      const data = await r?.json().catch(() => null);
+      btn.disabled = false;
+      if (!r?.ok || !data) {
+        answer.innerHTML = `<div class="answer">${r?.status === 429 ? "That's a lot of questions — please try again in a few minutes." : "The assistant isn't available right now. Try the search above, or contact us."}</div>`;
+        return;
+      }
+      answer.innerHTML = `<div class="answer">${esc(data.answer)}${data.sources.length ? `<div class="src">From: ${data.sources.map((s) => `<a href="#${s.id}">${esc(s.title)}</a>`).join("")}</div>` : ""}<div class="src">Written by AI from the articles — check the article if it matters.</div></div>`;
+    });
+    addEventListener("hashchange", () => (answer.innerHTML = ""));
     addEventListener("hashchange", () => { q.value = ""; show(location.hash.slice(1)); scrollTo({ top: 0 }); });
   </script>
 </body>

@@ -259,6 +259,34 @@ export class PlatformOpsController implements OnModuleInit, OnModuleDestroy {
     return { venues, attention: venues.filter((v) => v.flags.length).length };
   }
 
+  // ── website stats ─────────────────────────────────────────────────────────
+
+  /** Anonymous website stats: views per day, top pages, where visitors came from, and the sign-up funnel. */
+  @PlatformRoles(...READ_ROLES)
+  @Get("platform/site-stats")
+  async siteStats(@Query("days") daysParam?: string) {
+    const days = Math.min(365, Math.max(1, Number(daysParam) || 30));
+    const since = new Date(Date.now() - (days - 1) * 86_400_000);
+    since.setUTCHours(0, 0, 0, 0);
+    const n = (x: unknown) => Number(x ?? 0);
+    const [byDay, pages, referrers, events] = await Promise.all([
+      this.db.$queryRaw<Array<{ day: Date; views: bigint }>>`SELECT "day", SUM("count") AS views FROM "SiteStat" WHERE "event" = 'view' AND "day" >= ${since}::date GROUP BY 1 ORDER BY 1`,
+      this.db.$queryRaw<Array<{ path: string; views: bigint }>>`SELECT "path", SUM("count") AS views FROM "SiteStat" WHERE "event" = 'view' AND "day" >= ${since}::date GROUP BY 1 ORDER BY 2 DESC LIMIT 20`,
+      this.db.$queryRaw<Array<{ referrer: string; views: bigint }>>`SELECT "referrer", SUM("count") AS views FROM "SiteStat" WHERE "event" = 'view' AND "referrer" <> '' AND "day" >= ${since}::date GROUP BY 1 ORDER BY 2 DESC LIMIT 20`,
+      this.db.$queryRaw<Array<{ event: string; count: bigint }>>`SELECT "event", SUM("count") AS count FROM "SiteStat" WHERE "day" >= ${since}::date GROUP BY 1`,
+    ]);
+    const ev = (k: string) => n(events.find((e) => e.event === k)?.count);
+    const signupViews = n(pages.find((p) => p.path === "/signup.html")?.views);
+    return {
+      days,
+      views: byDay.reduce((a, d) => a + n(d.views), 0),
+      byDay: byDay.map((d) => ({ day: d.day.toISOString().slice(0, 10), views: n(d.views) })),
+      pages: pages.map((p) => ({ path: p.path, views: n(p.views) })),
+      referrers: referrers.map((r) => ({ referrer: r.referrer, views: n(r.views) })),
+      funnel: { signupViews, trialStarted: ev("trial_started"), trialDone: ev("trial_done"), contactSent: ev("contact_sent"), demoBooked: ev("demo_booked"), partnerSent: ev("partner_sent"), quoteMade: ev("quote_made"), venueBooked: ev("venue_booked"), helpAsked: ev("help_asked") },
+    };
+  }
+
   // ── invoices ──────────────────────────────────────────────────────────────
 
   @PlatformRoles(...READ_ROLES)

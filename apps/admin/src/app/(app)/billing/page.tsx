@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CreditCard, Rocket } from "lucide-react";
+import { CreditCard, Gift, Rocket } from "lucide-react";
 import { api } from "@/lib/client/api";
 import { useAction, useApi } from "@/lib/client/hooks";
 import { Badge, Button, Card, ErrorNote, Field, Input, PageHeader, Spinner, Table, cx, toast } from "@/components/ui";
@@ -114,6 +114,8 @@ export default function BillingPage() {
             </div>
           </Card>
 
+          <Referrals />
+
           <Card>
             <h2 className="p-5 pb-3 font-semibold">Invoices</h2>
             {billing.data.invoices.length === 0 ? <p className="px-5 pb-5 text-sm text-ink-3">No invoices yet.</p> : (
@@ -133,5 +135,24 @@ export default function BillingPage() {
         </>
       )}
     </div>
+  );
+}
+
+/** "Invite a venue": a sign-up link with this venue's code; a free month for each venue that signs up through it and pays. */
+function Referrals() {
+  const links = useApi<{ referral: string }>("/organization/links");
+  const stats = useApi<{ signedUp: number; paying: number; rewarded: number; rewardDays: number }>("/organization/referrals");
+  if (!links.data || !stats.data) return null;
+  const link = links.data.referral;
+  return (
+    <Card className="p-5">
+      <h2 className="flex items-center gap-2 font-semibold"><Gift className="size-4 text-accent" /> Invite a venue, get a free month</h2>
+      <p className="mt-1 text-sm text-ink-2">Know another venue owner? Send them your link. When they sign up through it and pay their first invoice, your plan is extended by {stats.data.rewardDays} days.</p>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <Input readOnly value={link} className="min-w-72 flex-1 font-mono text-xs" onFocus={(e) => e.target.select()} aria-label="Your referral link" />
+        <Button variant="secondary" onClick={() => void navigator.clipboard.writeText(link).then(() => toast("Link copied"))}>Copy link</Button>
+      </div>
+      <p className="mt-3 text-sm text-ink-3">{stats.data.signedUp} signed up · {stats.data.paying} paying · {stats.data.rewarded} free month{stats.data.rewarded === 1 ? "" : "s"} earned</p>
+    </Card>
   );
 }

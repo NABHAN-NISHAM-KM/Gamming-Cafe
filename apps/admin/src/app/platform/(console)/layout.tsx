@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Activity, Building2, Gauge, Inbox, Layers, LogOut, Megaphone, Menu, Rocket, ScrollText, Search, ShieldCheck, X } from "lucide-react";
+import { Activity, BarChart3, Building2, Gauge, Inbox, Layers, LogOut, Megaphone, Menu, Rocket, ScrollText, Search, ShieldCheck, X } from "lucide-react";
 import { platformSession, roleLabel, usePlatform, type PlatformMe } from "@/lib/client/platform";
 import { PlatformMeProvider } from "@/lib/client/platform-me";
 import { cx, Kbd } from "@/components/ui";
@@ -14,6 +14,7 @@ const NAV = [
   { href: "/platform/organizations", label: "Organizations", icon: Building2 },
   { href: "/platform/leads", label: "Leads", icon: Inbox },
   { href: "/platform/health", label: "Venue health", icon: Activity },
+  { href: "/platform/site", label: "Website", icon: BarChart3 },
   { href: "/platform/releases", label: "Releases", icon: Rocket },
   { href: "/platform/announcements", label: "Announcements", icon: Megaphone },
   { href: "/platform/plans", label: "Plans & features", icon: Layers },

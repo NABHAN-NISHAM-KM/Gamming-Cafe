@@ -8,7 +8,7 @@ import { usePlatformMe } from "@/lib/client/platform-me";
 type Status = "NEW" | "CONTACTED" | "WON" | "LOST";
 interface Lead {
   id: string;
-  kind: "CONTACT" | "DEMO" | "TRIAL" | "UPGRADE";
+  kind: "CONTACT" | "DEMO" | "TRIAL" | "UPGRADE" | "PARTNER";
   status: Status;
   name: string;
   email: string;
@@ -24,10 +24,12 @@ interface Lead {
   trialOrgId: string | null;
   staffNotes: string | null;
   nextActionAt: string | null;
+  source: string | null;
+  referrer: { id: string; name: string } | null;
   createdAt: string;
 }
 
-const KIND: Record<Lead["kind"], [string, "accent" | "ok" | "neutral" | "warn"]> = { CONTACT: ["Walkthrough", "neutral"], DEMO: ["Call booked", "accent"], TRIAL: ["Trial", "ok"], UPGRADE: ["Upgrade", "warn"] };
+const KIND: Record<Lead["kind"], [string, "accent" | "ok" | "neutral" | "warn"]> = { CONTACT: ["Walkthrough", "neutral"], DEMO: ["Call booked", "accent"], TRIAL: ["Trial", "ok"], UPGRADE: ["Upgrade", "warn"], PARTNER: ["Partner", "accent"] };
 /** A datetime-local value (this browser's time) for an ISO instant. */
 const local = (iso: string | null) => (iso ? new Date(new Date(iso).getTime() - new Date().getTimezoneOffset() * 60_000).toISOString().slice(0, 16) : "");
 const STATUS_TONE: Record<Status, "accent" | "warn" | "ok" | "neutral"> = { NEW: "accent", CONTACTED: "warn", WON: "ok", LOST: "neutral" };
@@ -57,12 +59,12 @@ export default function LeadsPage() {
       <PageHeader
         eyebrow="Platform"
         title="Leads"
-        subtitle="Walkthrough requests, booked calls, free trials and upgrade requests. “To do today” shows follow-ups that are due and calls in the next 24 hours."
+        subtitle="Walkthrough requests, booked calls, free trials, upgrade requests and partner applications. “To do today” shows follow-ups that are due and calls in the next 24 hours."
         actions={
           <div className="flex gap-2">
             <label className="flex items-center gap-2 whitespace-nowrap text-sm"><input type="checkbox" checked={due} onChange={(e) => setDue(e.target.checked)} /> To do today</label>
             <Select value={kind} onChange={(e) => setKind(e.target.value)} aria-label="Type">
-              <option value="">All types</option><option value="CONTACT">Walkthrough</option><option value="DEMO">Call booked</option><option value="TRIAL">Trial</option><option value="UPGRADE">Upgrade</option>
+              <option value="">All types</option><option value="CONTACT">Walkthrough</option><option value="DEMO">Call booked</option><option value="TRIAL">Trial</option><option value="UPGRADE">Upgrade</option><option value="PARTNER">Partner</option>
             </Select>
             <Select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Status">
               <option value="">All statuses</option><option value="NEW">New</option><option value="CONTACTED">Contacted</option><option value="WON">Won</option><option value="LOST">Lost</option>
@@ -94,6 +96,8 @@ export default function LeadsPage() {
                   <Badge tone={KIND[l.kind][1]}>{KIND[l.kind][0]}</Badge>
                   {l.demoAt && <span className="mt-1 block whitespace-nowrap text-xs text-ink-2">{new Date(l.demoAt).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}</span>}
                   {l.trialOrgId && <a href={`/platform/organizations/${l.trialOrgId}`} className="mt-1 block text-xs text-accent">Open organization</a>}
+                  {l.referrer && <a href={`/platform/organizations/${l.referrer.id}`} className="mt-1 block text-xs text-ink-2">Referred by {l.referrer.name}</a>}
+                  {l.source && <span className="mt-1 block text-xs text-ink-3">From {l.source}</span>}
                 </td>
                 <td className="px-4 py-3">
                   {canEdit ? (

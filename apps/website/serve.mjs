@@ -2,12 +2,14 @@
 // Also hosts the live demos built by `npm run build:demos` under /live/, and
 // forwards the site's few API calls (leads, demo slots, trial, releases → the
 // platform service; venue pages → the API) so the browser never needs CORS.
+// Also: the status page's uptime monitor, and the help centre's assistant (/ask).
 import { createServer, request } from "node:http";
 import { createHash } from "node:crypto";
 import { readFile, readdir, stat } from "node:fs/promises";
 import { extname, join, normalize, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
+import { createMonitor } from "./status.mjs";
 
 const root = dirname(fileURLToPath(import.meta.url));
 const port = Number(process.argv[2] ?? process.env.PORT ?? 5180);
@@ -17,6 +19,7 @@ const types = {
   ".js": "text/javascript; charset=utf-8",
   ".mjs": "text/javascript; charset=utf-8",
   ".json": "application/json",
+  ".xml": "application/rss+xml; charset=utf-8",
   ".txt": "text/plain; charset=utf-8",
   ".svg": "image/svg+xml",
   ".png": "image/png",
@@ -33,6 +36,43 @@ const types = {
   ".zip": "application/zip",
 };
 const compressible = new Set([".html", ".css", ".js", ".mjs", ".json", ".txt", ".svg", ".webmanifest"]);
+// The server's own files are never served.
+const PRIVATE = /^(serve|assistant|status)\.mjs$|^status-data\.json$|^package(-lock)?\.json$|^(scripts|posts)[\\/]|^node_modules[\\/]/;
+const monitor = createMonitor(join(root, "status-data.json"));
+if (process.env.STATUS_MONITOR !== "off") {
+  void monitor.check();
+  setInterval(() => void monitor.check(), 60_000).unref();
+}
+
+/** Per-IP sliding window (the assistant costs money per question). */
+const asked = new Map();
+const mayAsk = (ip) => {
+  const now = Date.now();
+  const recent = (asked.get(ip) ?? []).filter((t) => now - t < 10 * 60_000);
+  if (recent.length >= 10) return false;
+  asked.set(ip, [...recent, now]);
+  return true;
+};
+const readJson = (req, max = 4096) =>
+  new Promise((ok, fail) => {
+    let raw = "";
+    req.on("data", (c) => {
+      raw += c;
+      if (raw.length > max) fail(new Error("too large"));
+    });
+    req.on("end", () => {
+      try {
+        ok(JSON.parse(raw || "{}"));
+      } catch (e) {
+        fail(e);
+      }
+    });
+  });
+const sendJson = (res, status, body) => {
+  res.writeHead(status, { "content-type": "application/json", "cache-control": "no-cache" });
+  res.end(JSON.stringify(body));
+};
+
 const upstreams = [
   ["/v1/public/", process.env.PLATFORM_URL ?? "http://localhost:4100"],
   ["/v1/app/", process.env.API_URL ?? "http://localhost:4000"],
@@ -45,7 +85,9 @@ function proxy(req, res, target) {
   const peer = req.socket.remoteAddress ?? "";
   const local = /^(::1|127\.|::ffff:127\.)/.test(peer);
   const client = (local && String(req.headers["x-forwarded-for"] ?? "").split(",").pop()?.trim()) || peer;
-  const up = request(u, { method: req.method, headers: { ...req.headers, host: u.host, "x-forwarded-for": client } }, (r) => {
+  // The site's own address, so a click between our pages isn't counted as a referral.
+  const site = req.headers["x-forwarded-host"] ?? req.headers.host ?? "";
+  const up = request(u, { method: req.method, headers: { ...req.headers, host: u.host, "x-forwarded-for": client, "x-forwarded-host": site } }, (r) => {
     res.writeHead(r.statusCode ?? 502, r.headers);
     r.pipe(res);
   });
@@ -91,14 +133,31 @@ createServer(async (req, res) => {
       return res.end(`User-agent: *\nDisallow: /v1/\nDisallow: /live/\nDisallow: /demo/\nSitemap: ${site}/sitemap.xml\n`);
     }
     if (url.pathname === "/sitemap.xml") {
-      const pages = [...(await readdir(root)), ...(await readdir(join(root, "ar"))).map((f) => `ar/${f}`)].filter((f) => f.endsWith(".html") && f !== "venue.html");
+      const pages = [...(await readdir(root)), ...(await readdir(join(root, "ar"))).map((f) => `ar/${f}`), ...(await readdir(join(root, "blog")).catch(() => [])).map((f) => `blog/${f}`)].filter((f) => f.endsWith(".html") && f !== "venue.html");
       const urls = pages.map((f) => `  <url><loc>${site}/${f.replace(/(^|\/)index\.html$/, "$1")}</loc></url>`).join("\n");
       res.writeHead(200, { "content-type": "application/xml; charset=utf-8" });
       return res.end(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`);
     }
+    if (url.pathname === "/status.json") return sendJson(res, 200, monitor.view());
+    if (url.pathname === "/ask" && req.method === "POST") {
+      const { ask, available } = await import("./assistant.mjs");
+      if (!available()) return sendJson(res, 503, { error: "assistant_unavailable" });
+      const peer = req.socket.remoteAddress ?? "";
+      const ip = (/^(::1|127\.|::ffff:127\.)/.test(peer) && String(req.headers["x-forwarded-for"] ?? "").split(",").pop()?.trim()) || peer;
+      if (!mayAsk(ip)) return sendJson(res, 429, { error: "too_many_questions" });
+      const body = await readJson(req).catch(() => null);
+      const question = typeof body?.question === "string" ? body.question.trim() : "";
+      if (question.length < 3 || question.length > 500) return sendJson(res, 400, { error: "bad_question" });
+      try {
+        return sendJson(res, 200, await ask(new URL(`file://${root.replace(/\\/g, "/")}/`), question));
+      } catch (e) {
+        console.error("assistant:", e instanceof Error ? e.message : e);
+        return sendJson(res, 502, { error: "assistant_failed" });
+      }
+    }
     if (url.pathname === "/config.json") {
       res.writeHead(200, { "content-type": "application/json", "cache-control": "no-cache" });
-      return res.end(JSON.stringify({ adminUrl: process.env.ADMIN_URL ?? "http://localhost:3000" }));
+      return res.end(JSON.stringify({ adminUrl: process.env.ADMIN_URL ?? "http://localhost:3000", assistant: (await import("./assistant.mjs")).available() }));
     }
     if (url.pathname === "/downloads/manifest.json") {
       res.writeHead(200, { "content-type": "application/json", "cache-control": "no-cache" });
@@ -107,7 +166,7 @@ createServer(async (req, res) => {
     // Public venue pages: /v/<venue> is one page that reads the venue from the URL.
     if (/^\/v\/[a-z0-9-]+\/?$/.test(url.pathname)) url.pathname = "/venue.html";
     let path = normalize(decodeURIComponent(url.pathname)).replace(/^([\\/])+/, "");
-    if (path.includes("..")) throw new Error("bad path");
+    if (path.includes("..") || PRIVATE.test(path)) throw new Error("not served");
     let file = await resolveFile(path);
     // Live admin demo: records created in the demo (a new organization, employee…)
     // have no pre-rendered page; serve the generic "_" page, which reads the id from the URL.
@@ -120,7 +179,7 @@ createServer(async (req, res) => {
     }
     let body = await readFile(file);
     const ext = extname(file);
-    if (ext === ".html") body = Buffer.from(body.toString("utf8").replaceAll("%SITE%", site));
+    if (ext === ".html" || ext === ".xml") body = Buffer.from(body.toString("utf8").replaceAll("%SITE%", site));
     const headers = { "content-type": types[ext] ?? "application/octet-stream", "cache-control": /[\\/]live[\\/].*[\\/](_next|assets)[\\/]/.test(file) ? "public, max-age=31536000, immutable" : "no-cache" };
     if (compressible.has(ext) && /\bgzip\b/.test(String(req.headers["accept-encoding"])) && body.length > 1024) {
       body = gzipSync(body);

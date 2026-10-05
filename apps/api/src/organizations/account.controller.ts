@@ -54,6 +54,23 @@ export class AccountController {
     };
   }
 
+  /** Links a venue shares: its public page, its app, and its referral link (also used on printable posters). */
+  @AnyStaff()
+  @Get("organization/links")
+  async links() {
+    const { slug, displayName: name } = await tx().organization.findFirstOrThrow({ select: { slug: true, displayName: true } });
+    const site = this.cfg.WEBSITE_URL.replace(/\/+$/, "");
+    return { slug, name, venuePage: `${site}/v/${slug}`, app: `${this.cfg.CUSTOMER_APP_URL.replace(/\/+$/, "")}/${slug}`, referral: `${site}/signup.html?ref=${slug}` };
+  }
+
+  /** Venues that signed up through this venue's referral link, and how many earned it a free month. */
+  @RequirePermission("org.billing")
+  @Get("organization/referrals")
+  async referrals() {
+    const [r] = await tx().$queryRaw<Array<{ signed_up: bigint; paying: bigint; rewarded: bigint }>>`SELECT * FROM app.my_referrals()`;
+    return { signedUp: Number(r?.signed_up ?? 0), paying: Number(r?.paying ?? 0), rewarded: Number(r?.rewarded ?? 0), rewardDays: 30 };
+  }
+
   /** "We need a bigger plan": a lead for the ArenaOS sales team. */
   @RequirePermission("org.billing")
   @Post("organization/upgrade-request")

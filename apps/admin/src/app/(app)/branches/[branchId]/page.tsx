@@ -89,9 +89,13 @@ function ZoneForm({ branchId, zone, onDone }: { branchId: string; zone?: Zone; o
 }
 
 function EditBranch({ branch, onDone }: { branch: Branch; onDone: () => void }) {
-  const [form, setForm] = useState({ name: branch.name, city: branch.city ?? "", phone: branch.phone ?? "", status: branch.status });
+  const [form, setForm] = useState({ name: branch.name, addressLine1: branch.addressLine1 ?? "", city: branch.city ?? "", phone: branch.phone ?? "", status: branch.status });
+  const [where, setWhere] = useState(branch.latitude && branch.longitude ? `${Number(branch.latitude)}, ${Number(branch.longitude)}` : "");
   const save = useAction(async () => {
-    await api(`/branches/${branch.id}`, { method: "PATCH", body: { ...form, city: form.city || null, phone: form.phone || null }, action: "Update branch" });
+    // "25.0763, 55.1403" — pasted from any map app.
+    const m = /^\s*(-?\d{1,2}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)\s*$/.exec(where);
+    if (where.trim() && !m) throw new Error("Map location: paste it as latitude, longitude — e.g. 25.0763, 55.1403");
+    await api(`/branches/${branch.id}`, { method: "PATCH", body: { ...form, addressLine1: form.addressLine1 || null, city: form.city || null, phone: form.phone || null, latitude: m ? Number(m[1]) : null, longitude: m ? Number(m[2]) : null }, action: "Update branch" });
     onDone();
   });
   return (
@@ -105,8 +109,14 @@ function EditBranch({ branch, onDone }: { branch: Branch; onDone: () => void }) 
       <Field label="Name" className="sm:col-span-2">
         <Input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
       </Field>
+      <Field label="Address" className="sm:col-span-2">
+        <Input value={form.addressLine1} onChange={(e) => setForm({ ...form, addressLine1: e.target.value })} />
+      </Field>
       <Field label="City">
         <Input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
+      </Field>
+      <Field label="Map location" hint="Latitude, longitude — puts the branch on the website's venue finder.">
+        <Input value={where} onChange={(e) => setWhere(e.target.value)} placeholder="25.0763, 55.1403" />
       </Field>
       <Field label="Phone">
         <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />

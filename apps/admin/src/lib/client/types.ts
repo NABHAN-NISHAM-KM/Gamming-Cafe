@@ -14,6 +14,8 @@ export interface Branch {
   phone?: string | null;
   email?: string | null;
   addressLine1?: string | null;
+  latitude?: string | null;
+  longitude?: string | null;
 }
 
 export const STATUS_TONE = { OPEN: "ok", SETUP: "accent", TEMPORARILY_CLOSED: "warn", CLOSED: "danger" } as const;

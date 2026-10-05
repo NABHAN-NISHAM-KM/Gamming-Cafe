@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en" data-page="security">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Security &amp; privacy — ArenaOS</title>
+  <meta name="description" content="How ArenaOS keeps venues' and players' data safe: isolation between venues in the database, argon2 passwords, two-step sign-in, an audit trail, and a data-processing agreement." />
+  <link rel="canonical" href="%SITE%/security.html" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="ArenaOS" />
+  <meta property="og:title" content="Security &amp; privacy — ArenaOS" />
+  <meta property="og:description" content="How ArenaOS keeps venues' and players' data safe: isolation between venues in the database, argon2 passwords, two-step sign-in, an audit trail, and a data-processing agreement." />
+  <meta property="og:url" content="%SITE%/security.html" />
+  <meta property="og:image" content="%SITE%/assets/og.png" />
+  <meta property="og:locale" content="en_US" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Security &amp; privacy — ArenaOS" />
+  <meta name="twitter:description" content="How ArenaOS keeps venues' and players' data safe: isolation between venues in the database, argon2 passwords, two-step sign-in, an audit trail, and a data-processing agreement." />
+  <meta name="twitter:image" content="%SITE%/assets/og.png" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%226%22 fill=%22%237c5cff%22/%3E%3Ctext x=%2216%22 y=%2223%22 font-size=%2220%22 font-family=%22Arial%22 font-weight=%22900%22 text-anchor=%22middle%22 fill=%22white%22%3EA%3C/text%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/site.css?v=7" />
+  <style>
+    .sec { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 18px; }
+    .sec article { border: 1px solid var(--line); background: var(--panel); padding: 24px; }
+    .sec h3 { margin: 0 0 8px; }
+    .sec p { color: var(--ink-2); margin: 0; font-size: 15px; }
+  </style>
+</head>
+<body>
+  <header id="nav"></header>
+  <main>
+    <section class="hero" style="border-bottom:0;padding-bottom:16px">
+      <div class="hero-grid"></div>
+      <div class="wrap">
+        <span class="eyebrow">Security &amp; privacy</span>
+        <h1 data-split style="font-size:clamp(48px,6.5vw,104px)!important">Your venue's data stays yours.</h1>
+        <p class="lead">Your players' wallets, phone numbers and play history are trusted to you. Here's how ArenaOS protects them, and what we sign with you.</p>
+      </div>
+    </section>
+    <div class="wrap" style="padding-bottom:64px">
+      <div class="sec">
+        <article><h3>Each venue walled off</h3><p>Every row of data carries its venue, and the database itself refuses to return another venue's rows (PostgreSQL row-level security) — not just the app code.</p></article>
+        <article><h3>Passwords done properly</h3><p>Passwords and PINs are stored as argon2id hashes with OWASP's parameters. Sign-in timing doesn't reveal which emails exist, and repeated failures are slowed down.</p></article>
+        <article><h3>Two-step sign-in</h3><p>Staff and owners can turn on authenticator-app codes. Their secret is encrypted at rest with AES-256-GCM.</p></article>
+        <article><h3>Who did what</h3><p>Refunds, discounts, wallet changes and other sensitive actions need a reason and land in an audit log that can't be edited. Money is kept in a double-entry ledger.</p></article>
+        <article><h3>Roles, not shared logins</h3><p>Each staff member signs in as themselves with only the permissions their role needs — cashier, manager, kitchen, owner, or your own roles.</p></article>
+        <article><h3>Encrypted in transit</h3><p>Every connection — stations, the customer app, the admin console — uses HTTPS (TLS). Stations work offline and sync once the line is back.</p></article>
+        <article><h3>Players' rights</h3><p>Venues can export a player's data or erase it on request; erasure removes personal details and keeps only the anonymous money records the law requires.</p></article>
+        <article><h3>Backups</h3><p>The database is backed up before every change we release and on a schedule, kept encrypted and off the server.</p></article>
+        <article><h3>Hosting</h3><p>ArenaOS runs on Amazon Web Services in Singapore (ap-southeast-1). Ask us if your country needs data kept in-region.</p></article>
+        <article><h3>Our own website</h3><p>This site counts page visits without cookies, IP addresses or browser fingerprints, and skips counting when your browser asks not to be tracked.</p></article>
+      </div>
+    </div>
+    <section class="wrap split" style="padding-bottom:96px;align-items:start">
+      <div>
+        <h2>Data-processing agreement</h2>
+        <p class="lead">You're the controller of your players' data; ArenaOS processes it for you. Our DPA sets that out — what we process, why, where, for how long, and how we help you answer requests.</p>
+        <p style="display:flex;gap:10px;flex-wrap:wrap">
+          <a class="btn btn-primary" href="assets/arenaos-dpa.html" target="_blank" rel="noopener">Read the DPA</a>
+          <a class="btn btn-ghost" href="contact.html">Ask for a signed copy</a>
+        </p>
+      </div>
+      <div class="form-card">
+        <h3 style="margin-top:0">Found a security problem?</h3>
+        <p style="color:var(--ink-2)">Please tell us privately before telling anyone else. Use the <a href="contact.html" style="color:var(--accent)">contact form</a> with "Security" in the message and we'll reply within two business days. We won't take action against good-faith research that avoids players' data and service disruption.</p>
+      </div>
+    </section>
+  </main>
+  <footer id="footer"></footer>
+  <script src="assets/site.js?v=7"></script>
+</body>
+</html>

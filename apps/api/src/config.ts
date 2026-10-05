@@ -40,6 +40,8 @@ const Env = z.object({
   CUSTOMER_APP_URL: z.url().default("http://localhost:5175"),
   /** The admin console's address, for "back to ArenaOS" links after paying online. */
   ADMIN_URL: z.url().default("http://localhost:3000"),
+  /** The public website, for venue pages, posters and referral links. */
+  WEBSITE_URL: z.url().default("http://localhost:5180"),
   /** The platform's own Stripe account, for venues paying their ArenaOS plan by card. Without it, invoices are paid offline. */
   BILLING_STRIPE_SECRET_KEY: z.string().optional(),
   /** Where to read Steam's latest public build per appid ("off" to disable; default api.steamcmd.net, off in tests). */

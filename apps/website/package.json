@@ -7,9 +7,13 @@
   "scripts": {
     "dev": "node serve.mjs 5180",
     "start": "node serve.mjs 5180",
-    "build:help": "node scripts/build-help.mjs"
+    "build:help": "node scripts/build-help.mjs",
+    "build:blog": "node scripts/build-blog.mjs"
   },
   "devDependencies": {
     "three": "^0.180.0"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.131.0"
   }
 }

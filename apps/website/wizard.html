@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en" data-page="wizard">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Plan your venue — ArenaOS</title>
+  <meta name="description" content="Tell us your PCs, consoles, VR and kitchen: get the right ArenaOS plan, a hardware and setup checklist, and a quote you can print or send." />
+  <link rel="canonical" href="%SITE%/wizard.html" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="ArenaOS" />
+  <meta property="og:title" content="Plan your venue — ArenaOS" />
+  <meta property="og:description" content="Tell us your PCs, consoles, VR and kitchen: get the right ArenaOS plan, a hardware and setup checklist, and a quote you can print or send." />
+  <meta property="og:url" content="%SITE%/wizard.html" />
+  <meta property="og:image" content="%SITE%/assets/og.png" />
+  <meta property="og:locale" content="en_US" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Plan your venue — ArenaOS" />
+  <meta name="twitter:description" content="Tell us your PCs, consoles, VR and kitchen: get the right ArenaOS plan, a hardware and setup checklist, and a quote you can print or send." />
+  <meta name="twitter:image" content="%SITE%/assets/og.png" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%226%22 fill=%22%237c5cff%22/%3E%3Ctext x=%2216%22 y=%2223%22 font-size=%2220%22 font-family=%22Arial%22 font-weight=%22900%22 text-anchor=%22middle%22 fill=%22white%22%3EA%3C/text%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/site.css?v=7" />
+  <style>
+    .wiz { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 32px; align-items: start; }
+    .wiz .form label { text-transform: none; letter-spacing: 0; font: 500 14px var(--font); color: var(--ink-2); }
+    .opt { display: flex; align-items: center; gap: 10px; color: var(--ink-2); }
+    .opt input { width: 18px; height: 18px; accent-color: var(--accent); }
+    .quote { border: 1px solid var(--line-2); background: var(--panel); padding: clamp(20px, 3vw, 36px); }
+    .quote h2 { font-size: clamp(32px, 4vw, 52px); margin: 0 0 4px; }
+    .quote table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14px; }
+    .quote td { padding: 8px 0; border-bottom: 1px solid var(--line); color: var(--ink-2); }
+    .quote td:last-child { text-align: right; font-family: var(--mono); color: var(--ink); }
+    .quote ul { color: var(--ink-2); padding-left: 20px; line-height: 1.8; font-size: 14px; }
+    @media print { #nav, #footer, .no-print, .hero { display: none !important; } .wiz { grid-template-columns: 1fr; } .quote { border: 0; } body { background: #fff; color: #000; } }
+    @media (max-width: 900px) { .wiz { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header id="nav"></header>
+  <main>
+    <section class="hero" style="border-bottom:0;padding-bottom:16px">
+      <div class="hero-grid"></div>
+      <div class="wrap">
+        <span class="eyebrow">Plan your venue</span>
+        <h1 data-split style="font-size:clamp(48px,6.5vw,104px)!important">What will you run?</h1>
+        <p class="lead">Answer six questions. You get the plan that fits, a hardware and setup checklist, and a quote to print or send to us.</p>
+      </div>
+    </section>
+    <div class="wrap wiz" style="padding-bottom:96px">
+      <form class="form form-card no-print" id="wiz">
+        <div class="row">
+          <label>Branches<input type="number" name="branches" min="1" max="50" value="1" /></label>
+          <label>Gaming PCs<input type="number" name="pcs" min="0" max="1000" value="30" /></label>
+        </div>
+        <div class="row">
+          <label>Consoles (PS5, Xbox…)<input type="number" name="consoles" min="0" max="200" value="4" /></label>
+          <label>VR headsets &amp; simulators<input type="number" name="vr" min="0" max="200" value="0" /></label>
+        </div>
+        <div class="row">
+          <label>Internet / office PCs<input type="number" name="office" min="0" max="500" value="0" /></label>
+          <label>Staff accounts<input type="number" name="staff" min="1" max="500" value="6" /></label>
+        </div>
+        <label class="opt"><input type="checkbox" name="kitchen" /> A kitchen or café menu</label>
+        <label class="opt"><input type="checkbox" name="tournaments" /> Tournaments and events</label>
+        <label class="opt"><input type="checkbox" name="printing" /> Printing for customers</label>
+        <hr style="border:0;border-top:1px solid var(--line);margin:8px 0" />
+        <p style="color:var(--ink-3);font-size:14px;margin:0">Want us to set it up with you? Leave your details and we'll send this quote with a call time.</p>
+        <div class="row">
+          <label>Your name<input name="name" autocomplete="name" /></label>
+          <label>Work email<input type="email" name="email" autocomplete="email" /></label>
+        </div>
+        <label>Venue name<input name="venue" /></label>
+        <label class="hp" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off" /></label>
+        <button class="btn btn-primary btn-lg" type="submit">Send me this quote <span data-icon="arrow" data-size="16"></span></button>
+        <div class="ok-msg" id="ok" role="status">Sent — we'll reply within one business day.</div>
+      </form>
+      <article class="quote" id="quote" aria-live="polite"></article>
+    </div>
+  </main>
+  <footer id="footer"></footer>
+  <script src="assets/site.js?v=7"></script>
+  <script src="assets/forms.js?v=1"></script>
+  <script>
+    // Mirrors the plans seeded on the server (apps/api/scripts/seed.ts) and the pricing page.
+    const PLANS = [
+      { code: "starter", name: "Starter", price: 199, b: 1, d: 30, e: 10 },
+      { code: "pro", name: "Pro", price: 599, b: 5, d: 250, e: 100 },
+      { code: "enterprise", name: "Enterprise", price: 1999, b: Infinity, d: Infinity, e: Infinity },
+    ];
+    const form = document.getElementById("wiz");
+    const n = (k) => Math.max(0, Number(form.elements[k].value) || 0);
+    const on = (k) => form.elements[k].checked;
+
+    function plan() {
+      const stations = n("pcs") + n("consoles") + n("vr") + n("office");
+      let p = PLANS.find((x) => n("branches") <= x.b && stations <= x.d && n("staff") <= x.e) ?? PLANS[2];
+      // Restaurant and tournaments start on Pro.
+      if (p.code === "starter" && (on("kitchen") || on("tournaments") || n("vr") > 0)) p = PLANS[1];
+      return { p, stations };
+    }
+
+    function checklist() {
+      const items = [];
+      if (n("pcs") + n("office")) items.push(`${n("pcs") + n("office")} × Windows 10/11 PCs on wired network — install the ArenaOS station on each (one enrolment code per branch)`);
+      if (n("consoles")) items.push(`${n("consoles")} × consoles — run agentless; optional smart plugs or a TV display per console to show time left`);
+      if (n("vr")) items.push(`${n("vr")} × VR / simulators — agentless stations with a cleaning step between sessions`);
+      items.push(`1 × counter PC or tablet for the admin console${n("branches") > 1 ? " per branch" : ""} (any browser)`);
+      items.push("A receipt printer is optional — receipts print from the browser");
+      if (on("kitchen")) items.push("1 × tablet in the kitchen for the kitchen display; menu with prices and photos");
+      if (on("printing")) items.push("A Windows printer shared to the internet PCs; set a per-page price");
+      if (on("tournaments")) items.push("A screen at the front for brackets (optional)");
+      items.push("Staff list with roles; your hourly rates, packages and happy hours");
+      return items;
+    }
+
+    function render() {
+      const { p, stations } = plan();
+      const yearly = Math.round(p.price * 10);
+      document.getElementById("quote").innerHTML = `
+        <span class="eyebrow">Your quote</span>
+        <h2>${p.name}</h2>
+        <p style="color:var(--ink-2);margin:0">Covers ${n("branches")} branch${n("branches") === 1 ? "" : "es"}, ${stations} stations and ${n("staff")} staff${on("kitchen") ? ", the kitchen" : ""}${on("tournaments") ? ", tournaments" : ""}.</p>
+        <table>
+          <tr><td>${p.name} plan, monthly</td><td>$${p.price.toLocaleString("en-US")}</td></tr>
+          <tr><td>…or yearly (2 months free)</td><td>$${yearly.toLocaleString("en-US")}</td></tr>
+          <tr><td>Setup and migration help</td><td>Included</td></tr>
+          <tr><td>Free trial</td><td>14 days</td></tr>
+        </table>
+        <h3 style="margin:20px 0 6px">What you'll need</h3>
+        <ul>${checklist().map((x) => `<li>${x}</li>`).join("")}</ul>
+        <p style="color:var(--ink-3);font-size:13px">Prices in USD, excluding taxes. Hardware isn't sold by ArenaOS.</p>
+        <div class="no-print" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
+          <button class="btn btn-ghost" type="button" onclick="window.arenaTrack?.('quote_made');print()">Print or save as PDF</button>
+          <a class="btn btn-primary" href="signup.html">Start free trial</a>
+        </div>`;
+    }
+    form.addEventListener("input", render);
+    render();
+
+    arenaForm(form, "/v1/public/leads", () => {
+      form.querySelector("button[type=submit]").style.display = "none";
+      document.getElementById("ok").style.display = "block";
+      window.arenaTrack?.("quote_made");
+    }, (v) => {
+      const { p, stations } = plan();
+      const extras = ["kitchen", "tournaments", "printing"].filter(on).join(", ");
+      return {
+        name: v.name, email: v.email, venue: v.venue || null, plan: p.code, branches: n("branches") || null, stations: stations || null, source: "wizard", website: v.website,
+        notes: `Plan your venue: ${n("pcs")} PCs, ${n("consoles")} consoles, ${n("vr")} VR/sims, ${n("office")} internet PCs, ${n("staff")} staff${extras ? `; ${extras}` : ""}. Suggested: ${p.name}.`,
+      };
+    });
+  </script>
+</body>
+</html>

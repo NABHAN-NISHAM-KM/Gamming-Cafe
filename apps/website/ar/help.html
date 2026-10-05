@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="ar" dir="rtl" data-page="help" data-base="../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>مركز المساعدة — ArenaOS</title>
+  <meta name="description" content="أدلة ArenaOS للمالكين والموظفين: الأجهزة والجلسات والأسعار ونقطة البيع والمطبخ والحجوزات والتقارير. ابحث أو اسأل المساعد." />
+  <link rel="canonical" href="%SITE%/ar/help.html" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="ArenaOS" />
+  <meta property="og:title" content="مركز المساعدة — ArenaOS" />
+  <meta property="og:description" content="أدلة ArenaOS للمالكين والموظفين: الأجهزة والجلسات والأسعار ونقطة البيع والمطبخ والحجوزات والتقارير. ابحث أو اسأل المساعد." />
+  <meta property="og:url" content="%SITE%/ar/help.html" />
+  <meta property="og:image" content="%SITE%/assets/og.png" />
+  <meta property="og:locale" content="ar_AE" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="مركز المساعدة — ArenaOS" />
+  <meta name="twitter:description" content="أدلة ArenaOS للمالكين والموظفين: الأجهزة والجلسات والأسعار ونقطة البيع والمطبخ والحجوزات والتقارير. ابحث أو اسأل المساعد." />
+  <meta name="twitter:image" content="%SITE%/assets/og.png" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%226%22 fill=%22%237c5cff%22/%3E%3Ctext x=%2216%22 y=%2223%22 font-size=%2220%22 font-family=%22Arial%22 font-weight=%22900%22 text-anchor=%22middle%22 fill=%22white%22%3EA%3C/text%3E%3C/svg%3E" />
+  <script type="application/ld+json">{"@context": "https://schema.org", "@type": "WebSite", "name": "ArenaOS", "url": "%SITE%/", "potentialAction": {"@type": "SearchAction", "target": "%SITE%/ar/help.html?q={query}", "query-input": "required name=query"}}</script>
+  <link rel="alternate" hreflang="en" href="%SITE%/help.html" />
+  <link rel="alternate" hreflang="ar" href="%SITE%/ar/help.html" />
+  <link rel="alternate" hreflang="x-default" href="%SITE%/help.html" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@400;600;800&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../assets/site.css?v=7" />
+  <style>
+    .help { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 48px; padding-bottom: 96px; }
+    .help aside { position: sticky; top: 90px; align-self: start; max-height: calc(100vh - 110px); overflow: auto; font-size: 14px; }
+    .help aside h4 { font: 500 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); margin: 18px 0 6px; }
+    .help aside a { display: block; color: var(--ink-2); padding: 3px 0; }
+    .help aside a.on, .help aside a:hover { color: var(--accent); }
+    .search { width: 100%; background: var(--panel); border: 1px solid var(--line-2); color: var(--ink); padding: 16px 18px; font-size: 18px; margin-top: 24px; }
+    .search:focus { outline: none; border-color: var(--accent); }
+    .hit { display: block; padding: 18px 0; border-bottom: 1px solid var(--line); color: var(--ink-2); }
+    .hit b { color: var(--ink); display: block; font-size: 18px; }
+    .hit small { font: 12px var(--mono); color: var(--ink-3); }
+    .hit mark { background: none; color: var(--accent); }
+    article.doc h2 { font-size: clamp(32px, 4vw, 52px); margin: 6px 0 20px; }
+    article.doc table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 14px; }
+    article.doc td { border-bottom: 1px solid var(--line); padding: 8px 10px 8px 0; vertical-align: top; color: var(--ink-2); }
+    article.doc p, article.doc li { color: var(--ink-2); line-height: 1.7; }
+    article.doc blockquote { border-left: 2px solid var(--accent); margin: 16px 0; padding: 4px 16px; color: var(--ink-2); }
+    .pager { display: flex; justify-content: space-between; gap: 16px; margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--line); }
+    .pager a { color: var(--accent); }
+    .ask { display: flex; gap: 10px; margin-top: 12px; }
+    .ask input { flex: 1; background: var(--panel); border: 1px solid var(--line-2); color: var(--ink); padding: 12px 14px; font: inherit; }
+    .answer { border: 1px solid var(--accent); background: var(--panel); padding: 20px 22px; margin-bottom: 32px; white-space: pre-wrap; color: var(--ink-2); line-height: 1.7; }
+    .answer .src { white-space: normal; margin-top: 12px; font-size: 13px; color: var(--ink-3); }
+    .answer .src a { color: var(--accent); margin-right: 12px; }
+    @media (max-width: 900px) { .help { grid-template-columns: 1fr; } .help aside { position: static; max-height: none; } }
+  </style>
+</head>
+<body>
+  <header id="nav"></header>
+  <main>
+    <section class="hero" style="border-bottom:0;padding-bottom:16px">
+      <div class="hero-grid"></div>
+      <div class="wrap">
+        <span class="eyebrow">مركز المساعدة</span>
+        <h1 style="font-size:clamp(48px,6vw,96px)!important;margin:8px 0 0">كيف نساعدك؟</h1>
+        <input class="search" id="q" type="search" placeholder="ابحث بالإنجليزية — مثل happy hour أو refund أو kitchen display" aria-label="ابحث في مركز المساعدة" autocomplete="off" />
+        <form class="ask" id="ask" hidden><input name="question" maxlength="500" placeholder="أو اطرح سؤالاً — مثل: كيف أمنح عميلاً وقتاً مجانياً؟" aria-label="اسأل مساعد المساعدة" /><button class="btn btn-primary" type="submit">اسأل</button></form>
+      </div>
+    </section>
+    <div class="wrap help">
+      <aside id="toc" aria-label="المواضيع"><p class="dim" style="font-size:13px">المقالات متوفرة بالإنجليزية حالياً؛ والمساعد يجيب بالعربية.</p></aside>
+      <div><div id="answer" aria-live="polite"></div><div id="view" aria-live="polite"></div></div>
+    </div>
+  </main>
+  <footer id="footer"></footer>
+  <script src="../assets/site.js?v=7"></script>
+  <script>
+    let A = [];
+    const view = document.getElementById("view");
+    const q = document.getElementById("q");
+    const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+
+    function toc(active) {
+      const byDoc = new Map();
+      for (const a of A) (byDoc.get(a.doc) ?? byDoc.set(a.doc, []).get(a.doc)).push(a);
+      document.getElementById("toc").innerHTML = `<p class="dim" style="font-size:13px">المقالات متوفرة بالإنجليزية حالياً؛ والمساعد يجيب بالعربية.</p>` + [...byDoc].map(([doc, list]) =>
+        `<h4>${esc(doc)}</h4>${list.map((a) => `<a href="#${a.id}" class="${a.id === active ? "on" : ""}">${esc(a.title)}</a>`).join("")}`).join("");
+    }
+
+    function show(id) {
+      const i = A.findIndex((a) => a.id === id);
+      const a = A[i] ?? A[0];
+      toc(a.id);
+      const prev = A[i - 1], next = A[i + 1];
+      view.innerHTML = `<article class="doc"><span class="eyebrow">${esc(a.doc)}</span><h2>${esc(a.title)}</h2>${a.html}
+        <div class="pager">${prev ? `<a href="#${prev.id}">→ ${esc(prev.title)}</a>` : "<span></span>"}${next ? `<a href="#${next.id}">${esc(next.title)} ←</a>` : ""}</div></article>`;
+    }
+
+    function search(text) {
+      const words = text.toLowerCase().split(/\s+/).filter((w) => w.length > 1);
+      if (!words.length) return show(location.hash.slice(1));
+      const scored = A.map((a) => {
+        const t = a.title.toLowerCase(), b = a.text.toLowerCase();
+        let s = 0;
+        for (const w of words) {
+          if (!t.includes(w) && !b.includes(w)) return { a, s: 0 };
+          s += (t.includes(w) ? 10 : 0) + Math.min(5, b.split(w).length - 1);
+        }
+        return { a, s };
+      }).filter((x) => x.s).sort((x, y) => y.s - x.s).slice(0, 25);
+      const re = new RegExp(`(${words.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})`, "gi");
+      const snippet = (b) => {
+        const at = Math.max(0, b.toLowerCase().indexOf(words[0]) - 60);
+        return esc((at ? "…" : "") + b.slice(at, at + 200) + "…").replace(re, "<mark>$1</mark>");
+      };
+      view.innerHTML = scored.length
+        ? `<p class="dim">${scored.length} نتيجة</p>` + scored.map(({ a }) => `<a class="hit" href="#${a.id}"><small>${esc(a.doc)}</small><b>${esc(a.title).replace(re, "<mark>$1</mark>")}</b>${snippet(a.text)}</a>`).join("")
+        : `<p class="dim">لم نجد شيئاً. جرّب كلمات أقل، أو <a href="contact.html" style="color:var(--accent)">اسألنا</a>.</p>`;
+    }
+
+    fetch("../assets/help.json").then((r) => r.json()).then((data) => {
+      A = data;
+      const initial = new URLSearchParams(location.search).get("q");
+      if (initial) { q.value = initial; search(initial); } else show(location.hash.slice(1));
+    });
+    q.addEventListener("input", () => search(q.value));
+
+    // The assistant answers from these articles only (AI-written; links to its sources).
+    const askForm = document.getElementById("ask");
+    const answer = document.getElementById("answer");
+    fetch("../config.json").then((r) => r.json()).then((c) => { askForm.hidden = !c.assistant; }).catch(() => {});
+    askForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const question = askForm.question.value.trim();
+      if (question.length < 3) return;
+      const btn = askForm.querySelector("button");
+      btn.disabled = true;
+      answer.innerHTML = `<div class="answer">نبحث في مركز المساعدة…</div>`;
+      window.arenaTrack?.("help_asked");
+      const r = await fetch("../ask", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ question }) }).catch(() => null);
+      const data = await r?.json().catch(() => null);
+      btn.disabled = false;
+      if (!r?.ok || !data) {
+        answer.innerHTML = `<div class="answer">${r?.status === 429 ? "أسئلة كثيرة — حاول مجدداً بعد دقائق." : "المساعد غير متاح الآن. جرّب البحث أعلاه أو تواصل معنا."}</div>`;
+        return;
+      }
+      answer.innerHTML = `<div class="answer">${esc(data.answer)}${data.sources.length ? `<div class="src">المصادر: ${data.sources.map((s) => `<a href="#${s.id}">${esc(s.title)}</a>`).join("")}</div>` : ""}<div class="src">كتبه الذكاء الاصطناعي من المقالات — راجع المقالة عند الحاجة.</div></div>`;
+    });
+    addEventListener("hashchange", () => (answer.innerHTML = ""));
+    addEventListener("hashchange", () => { q.value = ""; show(location.hash.slice(1)); scrollTo({ top: 0 }); });
+  </script>
+</body>
+</html>

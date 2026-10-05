@@ -36,6 +36,10 @@ const Contact = z
     stations: z.coerce.number().int().min(1).max(100_000).nullish(),
     notes: optional(2000),
     source: optional(80),
+    /** A partner (installer, reseller) applying, rather than a venue asking for a walkthrough. */
+    kind: z.enum(["CONTACT", "PARTNER"]).default("CONTACT"),
+    /** The referring venue's code, from a ?ref= link. */
+    ref: z.string().trim().toLowerCase().regex(/^[a-z0-9-]{2,64}$/).nullish(),
     /** Honeypot: people never see this field; bots fill it in. */
     website: z.string().max(200).optional(),
   })
@@ -51,9 +55,19 @@ const Trial = z
     password: z.string().min(10).max(128),
     venueType: optional(40),
     phone: optional(30),
+    ref: z.string().trim().toLowerCase().regex(/^[a-z0-9-]{2,64}$/).nullish(),
     website: z.string().max(200).optional(),
   })
   .strip();
+const Hit = z
+  .object({
+    path: z.string().max(200).regex(/^\/[\w\-./]*$/),
+    referrer: z.string().max(300).nullish(),
+    event: z.enum(["view", "trial_started", "trial_done", "contact_sent", "demo_booked", "partner_sent", "quote_made", "venue_booked", "help_asked"]).default("view"),
+  })
+  .strip();
+/** Crawlers and monitors aren't visitors. */
+const BOT = /bot|crawl|spider|slurp|preview|monitor|headless|lighthouse|curl|wget|python|node-fetch|go-http/i;
 
 const SLOT_MIN = 30;
 const DAY_MS = 86_400_000;
@@ -77,6 +91,7 @@ export class PlatformPublicController {
   private readonly log = new Logger("Leads");
   private readonly leadLimit = new Throttle(5, 60 * 60_000);
   private readonly trialLimit = new Throttle(3, 24 * 60 * 60_000);
+  private readonly hitLimit = new Throttle(120, 60_000);
 
   constructor(
     @Inject(PDB) private readonly db: PlatformClient,
@@ -99,8 +114,8 @@ export class PlatformPublicController {
   @HttpCode(201)
   async contact(@Body(new ZodPipe(Contact)) body: z.infer<typeof Contact>, @Req() req: Request) {
     this.gate(req, this.leadLimit, body.website);
-    const { website: _w, ...data } = body;
-    const lead = await this.db.lead.create({ data: { ...data, kind: "CONTACT", branches: data.branches ?? null, stations: data.stations ?? null, ip: req.ip ?? null } });
+    const { website: _w, ref, kind, ...data } = body;
+    const lead = await this.db.lead.create({ data: { ...data, kind, referrerOrgId: await this.referrer(ref), branches: data.branches ?? null, stations: data.stations ?? null, ip: req.ip ?? null } });
     await this.notify(lead);
     return { ok: true };
   }
@@ -137,9 +152,9 @@ export class PlatformPublicController {
     this.gate(req, this.leadLimit, body.website);
     const at = new Date(body.demoAt).toISOString();
     if (!(await this.freeSlots(21)).includes(at)) throw new ConflictException({ error: "slot_taken" });
-    const { website: _w, demoAt: _d, ...data } = body;
+    const { website: _w, demoAt: _d, ref, kind: _k, ...data } = body;
     try {
-      const lead = await this.db.lead.create({ data: { ...data, kind: "DEMO", demoAt: new Date(at), branches: data.branches ?? null, stations: data.stations ?? null, ip: req.ip ?? null } });
+      const lead = await this.db.lead.create({ data: { ...data, kind: "DEMO", referrerOrgId: await this.referrer(ref), demoAt: new Date(at), branches: data.branches ?? null, stations: data.stations ?? null, ip: req.ip ?? null } });
       await this.notify(lead);
       return { ok: true, demoAt: at };
     } catch (e) {
@@ -161,9 +176,39 @@ export class PlatformPublicController {
       displayName: body.venueName, slug: body.slug, countryCode: body.countryCode, planId: plan.id, trialDays: 14,
       ownerEmail: body.email, ownerName: body.ownerName, ownerPassword: body.password, sampleVenue: true,
     });
-    const lead = await this.db.lead.create({ data: { kind: "TRIAL", name: body.ownerName, email: body.email, phone: body.phone, venue: body.venueName, country: body.countryCode, venueType: body.venueType, plan: plan.code, trialOrgId: r.organization.id, ip: req.ip ?? null } });
+    const lead = await this.db.lead.create({ data: { kind: "TRIAL", name: body.ownerName, email: body.email, phone: body.phone, venue: body.venueName, country: body.countryCode, venueType: body.venueType, plan: plan.code, trialOrgId: r.organization.id, referrerOrgId: await this.referrer(body.ref), ip: req.ip ?? null } });
     await this.notify(lead);
     return { organization: r.organization, trialDays: 14 };
+  }
+
+  /** The venue behind a referral code, if it's a real, active venue. */
+  private async referrer(ref: string | null | undefined) {
+    if (!ref) return null;
+    return (await this.db.organization.findFirst({ where: { slug: ref, status: { in: ["ACTIVE", "PAST_DUE"] } }, select: { id: true } }))?.id ?? null;
+  }
+
+  /**
+   * One website page view or funnel step. Counted per day, page, referring
+   * site and event — no IP address, cookie or user agent is kept.
+   */
+  @PlatformPublic()
+  @Post("events")
+  @HttpCode(204)
+  async hit(@Body(new ZodPipe(Hit)) body: z.infer<typeof Hit>, @Req() req: Request) {
+    if (BOT.test(String(req.headers["user-agent"] ?? "")) || !this.hitLimit.take(req.ip ?? "?")) return;
+    let referrer = "";
+    try {
+      const host = body.referrer ? new URL(body.referrer).hostname.replace(/^www\./, "").slice(0, 100) : "";
+      // Moving between our own pages isn't a referral.
+      const own = String(req.headers["x-forwarded-host"] ?? req.headers.host ?? "").split(":")[0]!.replace(/^www\./, "");
+      if (host && (!own || !host.endsWith(own))) referrer = host;
+    } catch {
+      /* not a URL: no referrer */
+    }
+    const day = new Date(new Date().toISOString().slice(0, 10));
+    await this.db.$executeRaw`
+      INSERT INTO "SiteStat" ("day", "path", "referrer", "event", "count") VALUES (${day}::date, ${body.path}, ${referrer}, ${body.event}, 1)
+      ON CONFLICT ("day", "path", "referrer", "event") DO UPDATE SET "count" = "SiteStat"."count" + 1`;
   }
 
   /** The current stable client builds, for the downloads page. */

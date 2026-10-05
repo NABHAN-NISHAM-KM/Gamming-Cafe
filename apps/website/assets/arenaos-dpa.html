@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ArenaOS Data-Processing Agreement</title>
+  <meta name="robots" content="noindex" />
+  <style>
+    body { font: 15px/1.65 Georgia, "Times New Roman", serif; color: #111; background: #fff; max-width: 780px; margin: 40px auto; padding: 0 20px; }
+    h1 { font-size: 26px; } h2 { font-size: 18px; margin-top: 28px; }
+    .note { border: 1px solid #c9a227; background: #fff8e1; padding: 12px 16px; font-family: system-ui, sans-serif; font-size: 13px; }
+    table { border-collapse: collapse; width: 100%; } td, th { border: 1px solid #bbb; padding: 6px 8px; text-align: left; vertical-align: top; }
+    .sign { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 32px; } .sign div { border-top: 1px solid #333; padding-top: 6px; }
+    @media print { .note { display: none; } }
+  </style>
+</head>
+<body>
+  <p class="note">Template — to be reviewed by your and our legal advisers before signing. Print or save as PDF to sign; <a href="../contact.html">contact us</a> for a countersigned copy.</p>
+  <h1>Data-Processing Agreement</h1>
+  <p>Between <b>the venue operator</b> named below ("Controller") and <b>ArenaOS</b> ("Processor"), as part of the Controller's ArenaOS subscription ("Agreement").</p>
+
+  <h2>1. Subject and duration</h2>
+  <p>The Processor processes personal data only to provide ArenaOS to the Controller, for as long as the subscription runs and the period in section 9.</p>
+
+  <h2>2. What is processed</h2>
+  <table>
+    <tr><th>Data subjects</th><td>The Controller's players and customers; the Controller's staff.</td></tr>
+    <tr><th>Personal data</th><td>Names, usernames, phone numbers, email addresses, date of birth where the venue enables age rules, wallet and membership balances, bookings, play sessions, orders, receipts, loyalty and tournament records; staff sign-in records and audit entries.</td></tr>
+    <tr><th>Purpose</th><td>Running the venue: sessions, bookings, sales, wallets, loyalty, reports and support.</td></tr>
+    <tr><th>Special categories</th><td>None are required. The Controller should not enter them.</td></tr>
+  </table>
+
+  <h2>3. Processor's duties</h2>
+  <p>The Processor will: process the data only on the Controller's documented instructions (using ArenaOS as configured counts as instructions); keep it confidential and bind its personnel to confidentiality; apply the security measures in section 5; help the Controller answer data-subject requests (export and erasure tools are built in); notify the Controller without undue delay, and within 72 hours, after becoming aware of a personal-data breach; and make available the information needed to show compliance.</p>
+
+  <h2>4. Sub-processors</h2>
+  <table>
+    <tr><th>Sub-processor</th><th>Purpose</th><th>Location</th></tr>
+    <tr><td>Amazon Web Services</td><td>Hosting, database, backups</td><td>Singapore</td></tr>
+    <tr><td>Payment provider chosen by the Controller (e.g. Stripe)</td><td>Card payments, when enabled</td><td>As stated by the provider</td></tr>
+    <tr><td>Messaging provider chosen by the Controller</td><td>SMS / WhatsApp / email notices, when enabled</td><td>As stated by the provider</td></tr>
+  </table>
+  <p>The Processor will give 30 days' notice of new sub-processors; the Controller may object on reasonable grounds.</p>
+
+  <h2>5. Security measures</h2>
+  <p>Tenant isolation enforced in the database (row-level security); passwords hashed with argon2id; optional two-step sign-in with encrypted secrets; role-based access; tamper-evident audit log for sensitive actions; TLS for all traffic; encrypted off-server backups; least-privilege access for the Processor's staff.</p>
+
+  <h2>6. International transfers</h2>
+  <p>Where data leaves the Controller's country, the parties rely on the transfer safeguards required by the applicable law (for example standard contractual clauses).</p>
+
+  <h2>7. Audits</h2>
+  <p>Once a year, or after a breach, the Controller may ask for a written report on the measures in section 5, and on reasonable notice audit them at its own cost.</p>
+
+  <h2>8. Liability</h2>
+  <p>As set out in the Agreement.</p>
+
+  <h2>9. End of processing</h2>
+  <p>After the subscription ends, the Controller may export its data for 30 days. The Processor then deletes it, except where law requires keeping it, and removes it from backups as they expire (within 90 days).</p>
+
+  <h2>10. Governing law</h2>
+  <p>The law that governs the Agreement.</p>
+
+  <div class="sign">
+    <div>Controller: ______________________<br />Name, title, date</div>
+    <div>ArenaOS: ______________________<br />Name, title, date</div>
+  </div>
+</body>
+</html>
