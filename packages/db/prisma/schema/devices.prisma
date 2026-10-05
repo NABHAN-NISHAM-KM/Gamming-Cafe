@@ -168,7 +168,7 @@ model DeviceAccessory {
   serialNumber    String?
   status          AccessoryStatus @default(OK)
   inventoryItemId String?         @db.Uuid
-  /// Windows PnP instance id for peripherals the agent detects (null = added by staff).
+  /// Detected peripherals: "VID_xxxx&PID_xxxx:TYPE" (one row per physical device; null = added by staff).
   hardwareId      String?
   connected       Boolean         @default(true)
   lastSeenAt      DateTime?       @db.Timestamptz(3)

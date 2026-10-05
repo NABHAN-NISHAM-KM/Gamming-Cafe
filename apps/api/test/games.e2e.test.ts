@@ -327,6 +327,14 @@ describe.skipIf(!HAS_DB)("Games & station tools (e2e)", () => {
       expect(tools.peripherals.find((p: any) => p.type === "MOUSE")).toMatchObject({ connected: false, vendor: "Razer" });
       a.send({ type: "peripherals", items: [mouse, keyboard] });
       await until(async () => !(await alertsOf(a)).includes("PERIPHERAL_MISSING"));
+
+      // The same receiver in another USB port (new instance path) is still one device, and a laptop's built-in touchpad isn't listed.
+      const moved = { ...mouse, hardwareId: "HID\\VID_1532&PID_0098\\9&ABC&1&0000" };
+      const touchpad = { hardwareId: "HID\\ELAN1203&COL01\\5&24E1E2DB&0&0000", type: "MOUSE", name: "HID-compliant mouse" };
+      a.send({ type: "peripherals", items: [moved, touchpad, keyboard] });
+      await until(async () => (await call(techT, "GET", `/devices/${a.identity!.deviceId}/tools`)).body.peripherals.every((p: any) => p.connected));
+      const list = (await call(techT, "GET", `/devices/${a.identity!.deviceId}/tools`)).body.peripherals;
+      expect(list.map((p: any) => p.label).sort()).toEqual(["Logitech G915", "Razer DeathAdder V3"]);
     });
 
     it("internet loss is flagged, and cleared when the link recovers", async () => {

@@ -9,6 +9,21 @@ import { LiveBus, type Connection } from "../devices/live.js";
 
 /** Peripherals a station can't be used without; losing one raises an alert. */
 const ESSENTIAL = new Set(["MOUSE", "KEYBOARD", "HEADSET"]);
+/**
+ * A peripheral's identity: vendor + product + kind, not the Windows instance path.
+ * The path changes when the same receiver is plugged into another USB port, which
+ * would otherwise list it twice — once connected, once "missing". Null for devices
+ * built into the PC (a laptop's I2C touchpad or keyboard has no USB vendor id).
+ */
+export function peripheralKey(hardwareId: string, type: string): string | null {
+  const id = hardwareId.toUpperCase();
+  const usb = /VID_([0-9A-F]{4})&PID_([0-9A-F]{4})/.exec(id);
+  if (usb) return `VID_${usb[1]}&PID_${usb[2]}:${type}`;
+  const bt = /VID&[0-9A-F]{4}([0-9A-F]{4})_PID&([0-9A-F]{4})/.exec(id); // Bluetooth HID
+  if (bt) return `VID_${bt[1]}&PID_${bt[2]}:${type}`;
+  return id.startsWith("HID\\") ? null : `${id}:${type}`;
+}
+
 const PERSIST_NETWORK_MS = 5 * 60_000;
 const HELP_COOLDOWN_MS = 60_000;
 
@@ -57,12 +72,15 @@ export class StationReportsService implements OnModuleInit {
     await this.asDevice(c, async (t) => {
       const now = new Date();
       const seen = new Set<string>();
+      const present = new Set<string>();
       for (const p of items) {
-        if (seen.has(p.hardwareId)) continue;
-        seen.add(p.hardwareId);
+        const key = peripheralKey(p.hardwareId, p.type);
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+        present.add(p.type);
         await t.deviceAccessory.upsert({
-          where: { deviceId_hardwareId: { deviceId: c.deviceId, hardwareId: p.hardwareId } },
-          create: { organizationId: c.organizationId, deviceId: c.deviceId, hardwareId: p.hardwareId, type: p.type, label: p.name, vendor: p.vendor ?? null, connected: true, lastSeenAt: now },
+          where: { deviceId_hardwareId: { deviceId: c.deviceId, hardwareId: key } },
+          create: { organizationId: c.organizationId, deviceId: c.deviceId, hardwareId: key, type: p.type, label: p.name, vendor: p.vendor ?? null, connected: true, lastSeenAt: now },
           update: { type: p.type, label: p.name, vendor: p.vendor ?? null, connected: true, lastSeenAt: now },
         });
       }
@@ -70,7 +88,6 @@ export class StationReportsService implements OnModuleInit {
       if (gone.length) await t.deviceAccessory.updateMany({ where: { id: { in: gone.map((g) => g.id) } }, data: { connected: false } });
 
       // Alert if an essential kind is now missing entirely (a second mouse still counts as "has a mouse").
-      const present = new Set<string>(items.map((i) => i.type));
       const known = await t.deviceAccessory.findMany({ where: { deviceId: c.deviceId, hardwareId: { not: null }, type: { in: [...ESSENTIAL] as any } }, select: { type: true, label: true, connected: true } });
       const missing = [...new Set(known.filter((k) => !k.connected && !present.has(k.type)).map((k) => k.type))];
       if (missing.length) {
