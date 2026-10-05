@@ -18,7 +18,13 @@ const THRESHOLDS = {
   gpuTempWarn: 88,
   gpuTempCrit: 95,
   diskWarn: 92,
+  /** An open alert stays open until the value drops this far below the warning level (stops open/resolve flapping). */
+  tempClear: 8,
+  diskClear: 2,
 };
+
+/** Phone tethering and VPN adapters use random, locally administered MACs that change on every connect. */
+const stableMac = (mac?: string | null) => !!mac && !(parseInt(mac.slice(0, 2), 16) & 0x02);
 
 export const DEVICE_FIELDS = {
   id: true, name: true, kind: true, platform: true, status: true, isEnabled: true, zoneId: true, branchId: true,
@@ -102,8 +108,8 @@ export class DeviceRuntimeService implements OnModuleInit, OnModuleDestroy {
 
     // Alert conditions are evaluated on every heartbeat, in memory; the DB is
     // touched only when an alert must open, change severity or resolve.
-    const wanted = this.evaluate(m);
     const synced = c.alerts;
+    const wanted = this.evaluate(m, synced);
     const changed = !synced || wanted.size !== synced.size || [...wanted].some(([k, v]) => synced.get(k) !== v);
     const persist = now - c.lastPersistAt >= PERSIST_EVERY_MS;
     if (!changed && !persist) return;
@@ -121,19 +127,26 @@ export class DeviceRuntimeService implements OnModuleInit, OnModuleDestroy {
           else if (!synced || synced.has(type)) await this.resolveAlert(tx, type, c.deviceId);
         }
         c.alerts = wanted;
+      } else {
+        // Keep open alerts' titles current ("Disk 97% full", not the value from when it opened).
+        for (const [type, sev] of wanted) await this.openAlert(tx, c, type, sev, this.title(type, m), { metrics: m });
       }
     });
   }
 
   /** Desired alert state for one sample (with hysteresis against the current state). */
-  private evaluate(m: DeviceMetrics) {
+  private evaluate(m: DeviceMetrics, current: Map<string, "WARNING" | "CRITICAL"> | null) {
     const out = new Map<string, "WARNING" | "CRITICAL">();
-    const t = (v: number | null | undefined, warn: number, crit: number, type: string) => {
-      if (v != null && v >= warn) out.set(type, v >= crit ? "CRITICAL" : "WARNING");
+    const t = (v: number | null | undefined, warn: number, crit: number, clear: number, type: string) => {
+      if (v == null) return;
+      const open = current?.get(type);
+      if (v >= crit) out.set(type, "CRITICAL");
+      else if (v >= warn) out.set(type, "WARNING");
+      else if (open && v > warn - clear) out.set(type, open === "CRITICAL" ? "WARNING" : open);
     };
-    t(m.cpuTempC, THRESHOLDS.cpuTempWarn, THRESHOLDS.cpuTempCrit, "HIGH_CPU_TEMP");
-    t(m.gpuTempC, THRESHOLDS.gpuTempWarn, THRESHOLDS.gpuTempCrit, "HIGH_GPU_TEMP");
-    if (m.diskPct != null && m.diskPct >= THRESHOLDS.diskWarn) out.set("LOW_DISK", "WARNING");
+    t(m.cpuTempC, THRESHOLDS.cpuTempWarn, THRESHOLDS.cpuTempCrit, THRESHOLDS.tempClear, "HIGH_CPU_TEMP");
+    t(m.gpuTempC, THRESHOLDS.gpuTempWarn, THRESHOLDS.gpuTempCrit, THRESHOLDS.tempClear, "HIGH_GPU_TEMP");
+    t(m.diskPct, THRESHOLDS.diskWarn, Infinity, THRESHOLDS.diskClear, "LOW_DISK");
     return out;
   }
 
@@ -148,7 +161,7 @@ export class DeviceRuntimeService implements OnModuleInit, OnModuleDestroy {
     const stable = {
       cpu: snap.cpu, cpuCores: snap.cpuCores, gpu: snap.gpu, gpuVramMb: snap.gpuVramMb, ramMb: snap.ramMb, motherboard: snap.motherboard,
       disks: (snap.disks ?? []).map((d) => ({ model: d.model, serial: d.serial, sizeGb: d.sizeGb })),
-      nics: (snap.nics ?? []).map((n) => ({ mac: n.mac })),
+      nics: (snap.nics ?? []).filter((n) => stableMac(n.mac)).map((n) => ({ mac: n.mac })),
     };
     const hardwareHash = createHash("sha256").update(canonicalize(stable)).digest("hex");
     await this.asDevice(c, async (tx) => {
@@ -174,10 +187,15 @@ export class DeviceRuntimeService implements OnModuleInit, OnModuleDestroy {
         },
       });
       if (current) {
-        const changes = (["cpu", "gpu", "ramMb", "motherboard"] as const)
+        const changes: { field: string; before: unknown; after: unknown }[] = (["cpu", "gpu", "ramMb", "motherboard"] as const)
           .filter((k) => (current as any)[k] !== ((snap as any)[k] ?? null))
           .map((k) => ({ field: k, before: (current as any)[k], after: (snap as any)[k] ?? null }));
-        await this.openAlert(tx, c, "HARDWARE_CHANGED", "WARNING", "Unexpected hardware change", { changes, diskOrNicChanged: changes.length === 0 });
+        const list = (xs: string[]) => xs.sort().join(", ") || null;
+        const disks = (ds: unknown) => list(((ds ?? []) as { model?: string; sizeGb?: number }[]).map((d) => `${d.model} (${d.sizeGb} GB)`));
+        const nics = (ns: unknown) => list(((ns ?? []) as { mac?: string; name?: string }[]).filter((n) => stableMac(n.mac)).map((n) => `${n.name} ${n.mac}`));
+        if (disks(current.disks) !== disks(snap.disks)) changes.push({ field: "disks", before: disks(current.disks), after: disks(snap.disks) });
+        if (nics(current.nics) !== nics(snap.nics)) changes.push({ field: "network adapters", before: nics(current.nics), after: nics(snap.nics) });
+        if (changes.length) await this.openAlert(tx, c, "HARDWARE_CHANGED", "WARNING", "Unexpected hardware change", { changes });
       }
     });
   }
@@ -216,7 +234,10 @@ export class DeviceRuntimeService implements OnModuleInit, OnModuleDestroy {
       return;
     }
     if (existing) {
-      if (existing.severity !== severity) await tx.alert.update({ where: { id: existing.id }, data: { severity, title, detail } });
+      if (existing.severity !== severity || existing.title !== title) {
+        const alert = await tx.alert.update({ where: { id: existing.id }, data: { severity, title, detail } });
+        this.bus.publish(c.organizationId, c.branchId, { type: "alert", alert });
+      }
       return;
     }
     const alert = await tx.alert.create({

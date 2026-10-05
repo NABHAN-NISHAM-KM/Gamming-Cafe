@@ -103,7 +103,7 @@ function Analytics({ branches }: { branches: Branch[] }) {
   const t = useT();
   const [days, setDays] = useState(30);
   const [branchId, setBranchId] = useState("");
-  const o = useApi<Overview>(`/analytics/overview?days=${days}${branchId ? `&branchId=${branchId}` : ""}`);
+  const o = useApi<Overview>(`/analytics/overview?days=${days}${branchId ? `&branchId=${branchId}` : ""}`, 30_000);
   if (o.error) return null; // no report access at any branch → the dashboard just skips it
   if (!o.data) return <Spinner />;
   const d = o.data;

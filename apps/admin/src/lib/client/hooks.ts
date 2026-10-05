@@ -3,17 +3,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError } from "./api";
 
-/** Minimal data hook: loads on mount / path change, exposes reload(). */
-export function useApi<T>(path: string | null) {
+/**
+ * Minimal data hook: loads on mount / path change, exposes reload().
+ * `refreshMs` keeps a live screen current: refetches quietly (no spinner) on that interval
+ * while the tab is visible, and straight away when the tab comes back into view.
+ */
+export function useApi<T>(path: string | null, refreshMs?: number) {
   const [data, setData] = useState<T | undefined>(undefined);
   const [error, setError] = useState<ApiError | null>(null);
   const [loading, setLoading] = useState(!!path);
   const seq = useRef(0);
 
-  const reload = useCallback(async () => {
+  const reload = useCallback(async (quiet = false) => {
     if (!path) return;
     const mine = ++seq.current;
-    setLoading(true);
+    if (!quiet) setLoading(true);
     try {
       const d = await api<T>(path);
       if (mine === seq.current) {
@@ -30,6 +34,14 @@ export function useApi<T>(path: string | null) {
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  useEffect(() => {
+    if (!refreshMs || !path) return;
+    const tick = () => { if (document.visibilityState === "visible") void reload(true); };
+    const t = setInterval(tick, refreshMs);
+    document.addEventListener("visibilitychange", tick);
+    return () => { clearInterval(t); document.removeEventListener("visibilitychange", tick); };
+  }, [reload, refreshMs, path]);
 
   return { data, error, loading, reload, setData };
 }

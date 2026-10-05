@@ -59,7 +59,7 @@ export default function RestaurantPage() {
 
 function Tables({ branchId }: { branchId: string }) {
   const can = useCan();
-  const tables = useApi<TableRow[]>(`/branches/${branchId}/tables`);
+  const tables = useApi<TableRow[]>(`/branches/${branchId}/tables`, 15_000);
   const [open, setOpen] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const table = tables.data?.find((t) => t.id === open) ?? null;

@@ -52,7 +52,7 @@ const Icon = ({ kind }: { kind: string }) => (kind === "VR_HEADSET" ? <Glasses c
 export default function ConsolesPage() {
   const can = useCan();
   const { branches, branchId, setBranchId } = useBranch();
-  const list = useApi<Listing>(branchId ? `/branches/${branchId}/stations` : null);
+  const list = useApi<Listing>(branchId ? `/branches/${branchId}/stations` : null, 15_000);
   const zones = useApi<Array<{ id: string; name: string; type: string }>>(branchId && can("zone.view", branchId) ? `/branches/${branchId}/zones` : null);
   const [editing, setEditing] = useState<Station | "new" | null>(null);
   const [checking, setChecking] = useState<Station | null>(null);

@@ -54,7 +54,7 @@ export function summaryText(d: DaySummary) {
 /** End-of-day numbers for one branch, ready to send to the owner's phone. */
 export function DaySummaryCard({ branchId }: { branchId: string }) {
   const [date, setDate] = useState(localToday);
-  const d = useApi<DaySummary>(`/branches/${branchId}/day-summary?date=${date}`);
+  const d = useApi<DaySummary>(`/branches/${branchId}/day-summary?date=${date}`, 60_000);
   if (d.error) return null;
   const text = d.data ? summaryText(d.data) : "";
   const copy = async () => {

@@ -137,7 +137,7 @@ function FloorCards({ branchId }: { branchId: string }) {
 
 function FoodWaiting({ branchId }: { branchId: string }) {
   const t = useT();
-  const board = useApi<{ tickets: Ticket[] }>(`/branches/${branchId}/kitchen`);
+  const board = useApi<{ tickets: Ticket[] }>(`/branches/${branchId}/kitchen`, 15_000);
   useLiveReload(["kitchen", "order"], () => void board.reload());
   const waiting = (board.data?.tickets ?? []).filter((x) => x.status !== "SERVED");
   return (
@@ -163,7 +163,7 @@ function FoodWaiting({ branchId }: { branchId: string }) {
 
 function HandoverNotes({ branchId }: { branchId: string }) {
   const t = useT();
-  const notes = useApi<Note[]>(`/branches/${branchId}/handover-notes`);
+  const notes = useApi<Note[]>(`/branches/${branchId}/handover-notes`, 60_000);
   const [text, setText] = useState("");
   const add = useAction(async () => {
     await api(`/branches/${branchId}/handover-notes`, { method: "POST", body: { body: text.trim() } });
@@ -221,7 +221,7 @@ function HandoverNotes({ branchId }: { branchId: string }) {
 
 function LowStockCard({ branchId }: { branchId: string }) {
   const t = useT();
-  const o = useApi<LowStock>(`/inventory/overview?branchId=${branchId}`);
+  const o = useApi<LowStock>(`/inventory/overview?branchId=${branchId}`, 60_000);
   if (o.error) return null;
   const rows = o.data?.alerts ?? [];
   return (

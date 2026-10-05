@@ -189,6 +189,27 @@ describe.skipIf(!HAS_DB)("Devices, commands & Live Floor (e2e)", () => {
       await until(async () => (await device(a.identity!.deviceId)).alerts.some((x: any) => x.type === "HARDWARE_CHANGED"));
     });
 
+    it("a temperature alert stays open while hovering near the limit, then resolves; a tethered phone is not a hardware change", async () => {
+      const a = sim();
+      await a.enroll(await newCode(1));
+      await a.connect();
+      const temp = async () => (await device(a.identity!.deviceId)).alerts.find((x: any) => x.type === "HIGH_CPU_TEMP");
+      a.heartbeat({ cpuTempC: 98 });
+      await until(async () => (await temp())?.severity === "CRITICAL");
+      a.heartbeat({ cpuTempC: 85 });
+      await until(async () => (await temp())?.severity === "WARNING");
+      a.heartbeat({ cpuTempC: 75 });
+      await until(async () => !(await temp()));
+
+      const snap = { cpu: "Intel Core i5-12400F", cpuCores: 6, gpu: "NVIDIA GeForce GTX 1650", ramMb: 16384 };
+      a.send({ type: "hardware", snapshot: { ...snap, nics: [{ name: "Ethernet", mac: "00:1A:2B:3C:4D:5E" }] } });
+      await new Promise((r) => setTimeout(r, 300));
+      const before = (await device(a.identity!.deviceId)).alerts.filter((x: any) => x.type === "HARDWARE_CHANGED").length;
+      a.send({ type: "hardware", snapshot: { ...snap, nics: [{ name: "Ethernet", mac: "00:1A:2B:3C:4D:5E" }, { name: "Ethernet 3", mac: "F6:C7:A7:0C:74:48" }] } });
+      await new Promise((r) => setTimeout(r, 300));
+      expect((await device(a.identity!.deviceId)).alerts.filter((x: any) => x.type === "HARDWARE_CHANGED").length).toBe(before);
+    });
+
     it("streams live floor events over SSE", async () => {
       const ctrl = new AbortController();
       const res = await fetch(`${base}/v1/branches/${dxb1}/floor/events`, { headers: { authorization: `Bearer ${owner}` }, signal: ctrl.signal });

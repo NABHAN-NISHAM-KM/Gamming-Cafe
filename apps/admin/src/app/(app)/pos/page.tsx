@@ -64,8 +64,8 @@ export default function PosPage() {
 function Sell({ branchId, shiftOpen }: { branchId: string; shiftOpen: boolean }) {
   const can = useCan();
   const menu = useApi<Menu>(`/branches/${branchId}/menu`);
-  const floor = useApi<{ devices: FloorDevice[] }>(can("station.view", branchId) ? `/branches/${branchId}/floor` : null);
-  const tables = useApi<TableRow[]>(can("restaurant.order", branchId) ? `/branches/${branchId}/tables` : null);
+  const floor = useApi<{ devices: FloorDevice[] }>(can("station.view", branchId) ? `/branches/${branchId}/floor` : null, 15_000);
+  const tables = useApi<TableRow[]>(can("restaurant.order", branchId) ? `/branches/${branchId}/tables` : null, 15_000);
   const [type, setType] = useState<OrderType>("COUNTER");
   const [target, setTarget] = useState("");
   const [lines, setLines] = useState<CartLine[]>([]);
@@ -199,7 +199,7 @@ function Sell({ branchId, shiftOpen }: { branchId: string; shiftOpen: boolean })
 }
 
 function OpenBills({ branchId }: { branchId: string }) {
-  const bills = useApi<BillView[]>(`/branches/${branchId}/bills?open=1`);
+  const bills = useApi<BillView[]>(`/branches/${branchId}/bills?open=1`, 15_000);
   const [open, setOpen] = useState<string | null>(null);
   if (!bills.data) return bills.error ? <ErrorNote>{bills.error.message}</ErrorNote> : <Spinner />;
   if (!bills.data.length) return <Empty icon={<Receipt className="size-8" />} title="No open bills">Everything's paid.</Empty>;

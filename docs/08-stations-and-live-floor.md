@@ -74,17 +74,21 @@ Heartbeats arrive every 10 seconds and carry:
 - CPU temperature (ACPI, where the board exposes it);
 - ping to the router, and uptime.
 
-Alerts are evaluated on **every** heartbeat, in memory. The database is touched only when an alert opens, changes or resolves.
+Alerts are evaluated on **every** heartbeat, in memory. The database is touched only when an alert opens, changes or resolves, and every 30 seconds to keep an open alert's title current ("Disk 96% full", not the value from when it opened).
 
 | Alert | Rule |
 |---|---|
-| HIGH_CPU_TEMP | ≥ 90 °C warning, ≥ 97 °C critical (clears 5 °C below) |
-| HIGH_GPU_TEMP | ≥ 88 °C warning, ≥ 95 °C critical |
-| LOW_DISK | system disk ≥ 92 % |
-| HARDWARE_CHANGED | CPU, GPU, RAM, board, disk serials or network cards differ from the stored inventory |
+| HIGH_CPU_TEMP | ≥ 90 °C warning, ≥ 97 °C critical; stays open until below 82 °C |
+| HIGH_GPU_TEMP | ≥ 88 °C warning, ≥ 95 °C critical; stays open until below 80 °C |
+| LOW_DISK | system disk ≥ 92 %; stays open until below 90 % |
+| HARDWARE_CHANGED | CPU, GPU, RAM, board, disks or network cards differ from the stored inventory. The alert lists what changed. Network adapters with a random (locally administered) MAC — phone tethering, VPNs, Wi-Fi MAC randomisation — are ignored, as they change on every connect |
+
+The gap between opening and clearing stops an alert flapping open and shut when a laptop CPU swings around 90 °C.
 | CLIENT_OFFLINE | disconnected for more than 2 minutes (auto-resolves on reconnect) |
 
 Heartbeats are stored every 30 seconds (time-series, for reports later). Live values are streamed only.
+
+The Live Floor is pushed over a live stream. The other screens staff keep open refresh themselves while the tab is visible, and straight away when it comes back into view: the dashboard every 30 seconds; the counter's kitchen board, consoles, restaurant tables and the POS (stations, tables, open bills) every 15 seconds; handover notes, low stock and the day summary every minute (`useApi(path, refreshMs)` in the admin app).
 
 ## Live Floor
 
