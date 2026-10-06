@@ -71,7 +71,7 @@ flowchart TB
 | Realtime | Socket.IO (staff/customer UI), raw WSS + mTLS (device agents) |
 | Object storage | S3-compatible (MinIO locally) |
 | Windows client | .NET 8: **Agent** = Worker Service (LocalSystem); **Shell** = WPF (WinUI 3 optional) |
-| Infra | Docker · Nginx · GitHub Actions · AWS or Azure |
+| Infra | Docker · Caddy · GitHub Actions · AWS or Azure |
 
 **Why a modular monolith and not microservices:** a single deployable keeps transactions local. That matters because "end session → finalize bill → release license → post journal" must be atomic. The edge server can also run the exact same build. Modules talk to each other through exported services and domain events (outbox) and never reach into each other's tables. Any module can be split out later behind the same event contracts.
 

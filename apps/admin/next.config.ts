@@ -38,7 +38,7 @@ const config: NextConfig = {
         pageExtensions: ["tsx"],
       }
     : {
-        // Security headers here, not only in Nginx, so a missed proxy setting can't drop them.
+        // Security headers here, not only in the proxy, so a missed proxy setting can't drop them.
         async headers() {
           const h = [
             { key: "X-Content-Type-Options", value: "nosniff" },

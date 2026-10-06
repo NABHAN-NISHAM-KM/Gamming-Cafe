@@ -12,7 +12,7 @@ export async function createApp(config: AppConfig = loadConfig()) {
     rawBody: true, // payment webhooks are verified against the exact bytes received
     logger: config.NODE_ENV === "test" ? (process.env["TEST_LOGS"] ? ["error"] : false) : undefined,
   });
-  app.set("trust proxy", 1); // behind Nginx: req.ip = client address
+  app.set("trust proxy", 1); // behind the reverse proxy (Caddy): req.ip = client address
   app.disable("x-powered-by");
   app.use(securityHeaders(config.NODE_ENV === "production"));
   // Room for an uploaded Shell wallpaper + logo (see WALLPAPER_DATA_MAX / LOGO_DATA_MAX).

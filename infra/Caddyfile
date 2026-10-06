@@ -1,0 +1,14 @@
+# Production reverse proxy (/etc/caddy/Caddyfile). Caddy gets the TLS certificates itself.
+# After editing: sudo caddy validate --config /etc/caddy/Caddyfile && sudo systemctl reload caddy
+arena-prod.duckdns.org {
+	encode gzip
+	# The website only sends HSTS itself when NODE_ENV=production, which pm2 doesn't pass to it.
+	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	reverse_proxy localhost:5180
+}
+app.arena-prod.duckdns.org {
+	reverse_proxy localhost:3000
+}
+api.arena-prod.duckdns.org {
+	reverse_proxy localhost:4000
+}

@@ -28,8 +28,21 @@ The DB integration tests seed with `row_security = off`, which the production ow
 - **Environment:** `NODE_ENV=production` (turns off demo payments and makes cookies `Secure`). Set `CORS_ORIGINS`, `ADMIN_URL`, `WEBSITE_URL` and `CUSTOMER_APP_URL` to the real HTTPS addresses.
 - **Secrets:** generate `JWT_*`, `MFA_ENCRYPTION_KEY_B64` and `COMMAND_KEK_B64` once and keep them in the secret manager. Losing the MFA or command keys locks out every authenticator and station.
 - **Super Admin:** seed with `SUPER_ADMIN_EMAIL` and `SUPER_ADMIN_PASSWORD` (12+ characters); the seed refuses anything weaker in production.
-- **Processes:** run `pm2 reload ecosystem.config.cjs` (API and platform service) behind Nginx with TLS. The API trusts one proxy hop (`trust proxy 1`), so Nginx must set `X-Forwarded-For`. Sign-in throttles are per client address.
-- **Headers:** the apps set `X-Content-Type-Options: nosniff`, `X-Frame-Options` and `Referrer-Policy` themselves, plus HSTS when `NODE_ENV=production` (API and platform: `common/security-headers.ts`; admin: `next.config.ts`; website: `serve.mjs`). The website uses `SAMEORIGIN` because it frames its own live demos; everything else is `DENY`. Nginx may repeat them.
+- **Proxy:** [Caddy](../infra/Caddyfile) terminates TLS (certificates are automatic) and routes three hosts: the website (`:5180`) on the bare domain, the admin console (`:3000`) on `app.`, the API (`:4000`) on `api.`. Caddy sends `X-Forwarded-For` by default; the API trusts exactly one proxy hop (`trust proxy 1`) and sign-in throttles are per client address, so don't put a second proxy in front without raising that.
+- **Processes:** pm2 runs four: `api` and `platform` (from `ecosystem.config.cjs`), `admin` (`npm run start -w @arena/admin`) and `website` (`apps/website/serve.mjs`).
+- **Headers:** the apps set `X-Content-Type-Options: nosniff`, `X-Frame-Options` and `Referrer-Policy` themselves, plus HSTS when `NODE_ENV=production` (API and platform: `common/security-headers.ts`; admin: `next.config.ts`; website: `serve.mjs`). The website uses `SAMEORIGIN` because it frames its own live demos; everything else is `DENY`. pm2 doesn't pass `NODE_ENV` to the website process, so Caddy adds its HSTS.
+
+**Deploying an update** (on the server, in the checkout pm2 runs from). Back up first (§3), then:
+
+```bash
+git pull --ff-only origin main
+set -a && . ./.env && set +a
+npm run generate -w @arena/db && npm run migrate:deploy -w @arena/db
+npm run build -w @arena/api && npm run build -w @arena/admin
+for p in api platform admin website; do pm2 reload $p; done
+```
+
+`pm2 reload` takes one process per call: `pm2 reload api platform` reloads only `api`. Check `GET /health` on the API afterwards. Downloads (`apps/website/downloads/*.exe`, `*.apk`) aren't in git: copy new builds there with `scp`; the downloads page reads sizes and checksums from the files.
 
 ## 3. Backups and restore
 

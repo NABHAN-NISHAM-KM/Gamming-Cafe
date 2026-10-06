@@ -50,7 +50,7 @@ The nav and footer come from `assets/site.js`. Pages under `ar/` get Arabic labe
 
 The server's own files (`serve.mjs`, `assistant.mjs`, `status.mjs`, `status-data.json`, `package*.json`, `scripts/`, `posts/`, `node_modules/`) are never served.
 
-Forwarding means the browser never needs CORS. Behind Nginx, forward `/v1/public/` and `/v1/app/` the same way and keep `X-Forwarded-For`, because both services throttle per IP.
+Forwarding means the browser never needs CORS. Behind a reverse proxy (production uses Caddy), forward `/v1/public/` and `/v1/app/` the same way and keep `X-Forwarded-For`, because both services throttle per IP.
 
 ## Leads, calls and trials (platform service)
 

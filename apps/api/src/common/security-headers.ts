@@ -1,4 +1,4 @@
-/** Security headers set by the app itself, not only by Nginx, so a missed proxy setting can't drop them. */
+/** Security headers set by the app itself, not only by the proxy, so a missed proxy setting can't drop them. */
 export function securityHeaders(production: boolean) {
   return (_req: unknown, res: { setHeader(k: string, v: string): void }, next: () => void) => {
     res.setHeader("X-Content-Type-Options", "nosniff");
