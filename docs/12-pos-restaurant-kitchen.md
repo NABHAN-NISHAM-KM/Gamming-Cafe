@@ -57,9 +57,12 @@ payments, refunds, kitchen tickets, tables, shifts, cash movements), so there is
   - As cash from the refunding cashier's drawer.
   - Or as wallet credit.
   - Partial refunds are allowed up to what was paid.
-  - A refund on a settled bill is a return: the bill stays settled (nothing is
-    owed again) and the refund shows under refunds in the reports. Before a bill
-    is settled, a refund gives the tender back and that amount is due again.
+  - A refund on a settled bill, or one that names the items given back (unused
+    gaming time), is a return: nothing is owed again and it shows under refunds
+    in the reports. Before a bill is settled, a plain refund gives the tender
+    back and that amount is due again.
+  - Refunds made by the system (unused time) have no employee, so they don't
+    count toward anyone's refunds in the staff report or anomaly checks.
 
 ## Kitchen (KDS)
 

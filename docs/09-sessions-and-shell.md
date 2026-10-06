@@ -37,9 +37,10 @@ A pure module with no database access. It is unit-tested in `test/pricing.test.t
 - **One rate per session:** the rate in force when a session starts applies to
   the whole session and its extensions. A session started in happy hour keeps
   the happy-hour rate after happy hour ends; it is not split at the boundary.
-- **VAT:** gaming charges carry the branch's tax (`GAMING` or `ALL` rates),
-  taken out of the price already quoted. Prepaid time is taxed when it's sold,
-  so sessions paid from the time balance (charged 0) aren't taxed again.
+- **VAT:** gaming charges carry the branch's tax (`GAMING` or `ALL` rates). Where
+  prices include tax (UAE) it's inside the rate; where they don't, it's added on
+  top of the quote as its own line. Prepaid time is taxed when it's sold, so
+  sessions paid from the time balance (charged 0) aren't taxed again.
 
 ## Sessions (`sessions.service.ts`)
 
@@ -48,7 +49,7 @@ A pure module with no database access. It is unit-tested in `test/pricing.test.t
 | Start | GamingSession, Bill + Order + OrderItem (`SYS-GAMING-TIME`), Payment (CASH/CARD) or a TIME_BALANCE ledger debit, station → IN_USE, audit, signed START_SESSION (sent after commit) |
 | Extend | SessionExtension + charge/payment, new `expiresAt`, signed EXTEND_SESSION |
 | Move | Old PC gets END (lock), new PC gets START with the **same** end time |
-| End / expire | Billing finalised (postpaid charge; unused minutes **from the time balance** go back to it), bill settled, station → AVAILABLE/CLEANING, signed END_SESSION. Time paid with cash, card or wallet is not refunded automatically when a session ends early; staff refund it from the bill (`pos.refund`) if they choose |
+| End / expire | Billing finalised (postpaid charge; unused minutes from the time balance go back to it), bill settled, station → AVAILABLE/CLEANING, signed END_SESSION. **Ended early after paying with cash, card or wallet:** the unused share of what was paid for the time goes to the customer's wallet, whoever ends it (staff, expiry, the player). Used time counts after the rate's minimum and rounding; passes and guest sessions (no account) get nothing back automatically. It's a Refund that names the gaming lines (a return), with no employee on it |
 
 - **Idempotency:** start, extend and time sales take an `Idempotency-Key`. A
   retry returns the first result and charges once.

@@ -327,7 +327,7 @@ export async function staff(t: TenantTx, s: ReportScope, p: Period) {
         AND ${inPeriod(p, Prisma.sql`COALESCE(pay."capturedAt", pay."createdAt")`, Prisma.sql`br."timezone"`)} GROUP BY 1
     ), ref AS (
       SELECT r."requestedById" AS eid, COUNT(*) AS n, SUM(r."amount") AS v FROM "Refund" r JOIN "Payment" pay ON pay."id" = r."paymentId" JOIN "Branch" br ON br."id" = pay."branchId"
-      WHERE r."status" = 'SUCCEEDED' AND ${inScope(s, Prisma.sql`pay."branchId"`)} AND ${inPeriod(p, Prisma.sql`r."processedAt"`, Prisma.sql`br."timezone"`)} GROUP BY 1
+      WHERE r."status" = 'SUCCEEDED' AND r."requestedById" IS NOT NULL AND ${inScope(s, Prisma.sql`pay."branchId"`)} AND ${inPeriod(p, Prisma.sql`r."processedAt"`, Prisma.sql`br."timezone"`)} GROUP BY 1
     ), vd AS (
       SELECT i."voidedById" AS eid, COUNT(*) AS n, SUM(i."lineTotal") AS v FROM "OrderItem" i JOIN "Order" o ON o."id" = i."orderId" JOIN "Branch" br ON br."id" = o."branchId"
       WHERE i."status" = 'VOIDED' AND i."voidedById" IS NOT NULL AND ${inScope(s, Prisma.sql`o."branchId"`)} AND ${inPeriod(p, Prisma.sql`i."updatedAt"`, Prisma.sql`br."timezone"`)} GROUP BY 1

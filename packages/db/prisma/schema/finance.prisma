@@ -100,7 +100,7 @@ model Refund {
   status         RefundStatus      @default(REQUESTED)
   providerRef    String?
   orderItemIds   String[]          @db.Uuid
-  requestedById  String            @db.Uuid
+  requestedById  String?           @db.Uuid // null: refunded by the system (unused time when a session ends early)
   approvedById   String?           @db.Uuid
   shiftId        String?           @db.Uuid
   idempotencyKey String
@@ -108,7 +108,7 @@ model Refund {
   createdAt      DateTime          @default(now()) @db.Timestamptz(3)
   updatedAt      DateTime          @updatedAt @db.Timestamptz(3)
   payment        Payment           @relation(fields: [paymentId, organizationId], references: [id, organizationId])
-  requestedBy    Employee          @relation("RefundRequestedBy", fields: [requestedById, organizationId], references: [id, organizationId])
+  requestedBy    Employee?         @relation("RefundRequestedBy", fields: [requestedById, organizationId], references: [id, organizationId])
   approvedBy     Employee?         @relation("RefundApprovedBy", fields: [approvedById, organizationId], references: [id, organizationId], onDelete: Restrict)
   shift          Shift?            @relation(fields: [shiftId, organizationId], references: [id, organizationId], onDelete: Restrict)
 

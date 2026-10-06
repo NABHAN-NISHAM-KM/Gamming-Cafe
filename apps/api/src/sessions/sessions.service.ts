@@ -5,7 +5,9 @@ import { auditAs } from "../common/audit.service.js";
 import { CommandsService } from "../devices/commands.service.js";
 import { DEVICE_FIELDS, DeviceRuntimeService } from "../devices/device-runtime.service.js";
 import { DeviceHub, LiveBus } from "../devices/live.js";
-import { PricingError, extensionQuote, postpaidCharge, quote, selectPlans, type Discount, type PlanDef, type Quote, type QuoteRequest, type StationClass } from "./pricing.js";
+import { PricingError, billableMinutes, extensionQuote, postpaidCharge, quote, selectPlans, type Discount, type PlanDef, type Quote, type QuoteRequest, type StationClass } from "./pricing.js";
+import { moveMoney } from "../wallet/wallet.js";
+import { reverseForRefund } from "../loyalty/points.js";
 import { StationControlService } from "../devices/station-control.service.js";
 import { earnForSession } from "../loyalty/points.js";
 import { refreshStats } from "../customers/stats.js";
@@ -13,7 +15,7 @@ import { challengesFor } from "../loyalty/challenges.js";
 import { PushService } from "../push/push.service.js";
 import { PromotionsService, type Evaluation } from "../promotions/promotions.service.js";
 import { CrmService } from "../crm/crm.service.js";
-import { recomputeBill, recordPayment, taxWithin } from "../pos/bills.js";
+import { chargeWithTax, recomputeBill, recordPayment, taxWithin } from "../pos/bills.js";
 import { adjustTime, timeBalance } from "./time-balance.js";
 import { activeRestrictions, assertMayPlay, playerLimits } from "../customers/restrictions.js";
 
@@ -166,6 +168,13 @@ export class SessionsService {
     };
   }
 
+  /** Branches whose prices exclude tax: add it on top of the quote, as its own line. */
+  private async withTax(t: TenantTx, q: Quote, branchId: string, unit: number): Promise<Quote> {
+    const charge = await chargeWithTax(t, branchId, "GAMING", q.totalMinor);
+    if (charge === q.totalMinor) return q;
+    return { ...q, totalMinor: charge, lines: [...q.lines, `Tax +${fromMinor(charge - q.totalMinor, unit)} ${q.currency}`] };
+  }
+
   /** Price preview for the staff "start session" form. */
   async quote(t: TenantTx, deviceId: string, input: { customerId?: string | null; planId?: string | null; request?: QuoteRequest; discount?: Discount | null; players?: number; promoCode?: string | null }) {
     const c = await this.context(t, deviceId, input.customerId);
@@ -177,6 +186,7 @@ export class SessionsService {
       try {
         q = quote(plan, input.request, c.ctx, { membershipDiscountPct: c.customer?.discountPct, discount: input.discount ?? undefined, players: input.players });
         q = (await this.withPromotions(t, q, { branchId: c.ctx.branchId, zoneId: c.ctx.zoneId, stationClass: c.ctx.stationClass, customerId: c.customer?.id ?? null }, input.promoCode)).q;
+        q = await this.withTax(t, q, c.ctx.branchId, c.unit);
       } catch (e) {
         if (e instanceof ConflictException) error = ((e.getResponse() as { hint?: string; error?: string }).hint ?? (e.getResponse() as { error?: string }).error) ?? "promo_error";
         else if (!(e instanceof PricingError)) throw e;
@@ -240,6 +250,7 @@ export class SessionsService {
       }
       if (q.paymentTiming === "POSTPAID" && input.payment.method !== "PAY_LATER") throw new ConflictException({ error: "open_session_is_pay_later" });
       ({ q, ev: promo } = await this.withPromotions(t, q, { branchId: ctx.branchId, zoneId: ctx.zoneId, stationClass: ctx.stationClass, customerId: customer?.id ?? null }, input.promoCode));
+      q = await this.withTax(t, q, ctx.branchId, unit);
       // ponytail: the daily limit is checked when time is sold; an open (pay-later) session isn't cut off mid-game.
       if (customer?.minutesLeftToday != null && q.minutes !== null && q.minutes > customer.minutesLeftToday) throw new ForbiddenException({ error: customer.limitReason === "curfew" ? "curfew_soon" : "daily_limit_reached", minutesLeft: customer.minutesLeftToday, message: customer.limitReason === "curfew" ? `Only ${customer.minutesLeftToday} min until the under-age curfew.` : `Only ${customer.minutesLeftToday} min of play left today.` });
     }
@@ -354,12 +365,12 @@ export class SessionsService {
       const pkg = snap.plan?.packages.find((p) => p.id === input.packageId && p.isActive);
       if (!pkg) throw new ConflictException({ error: "package_not_found" });
       minutes = pkg.durationMinutes + pkg.bonusMinutes;
-      amountMinor = pkg.priceMinor;
+      amountMinor = await chargeWithTax(t, s.branchId, "GAMING", pkg.priceMinor);
     } else {
       minutes = input.minutes ?? 0;
       if (!Number.isInteger(minutes) || minutes < 1 || minutes > 720) throw new HttpException({ error: "bad_minutes" }, 400);
       if (!snap.plan || !["PER_MINUTE", "PER_HOUR"].includes(snap.plan.billingMode)) throw new ConflictException({ error: "extend_with_package", hint: "This rate is sold in packages — extend with a package" });
-      amountMinor = extensionQuote(snap.plan, minutes, s.players);
+      amountMinor = await chargeWithTax(t, s.branchId, "GAMING", extensionQuote(snap.plan, minutes, s.players));
     }
 
     // Extend from the later of now and the current expiry (never "give back" lost time).
@@ -430,7 +441,8 @@ export class SessionsService {
 
     // Postpaid: charge the time actually used.
     if (s.paymentTiming === "POSTPAID" && snap.plan && s.bill) {
-      const c = postpaidCharge(snap.plan, usedSeconds, 0, s.players);
+      const used = postpaidCharge(snap.plan, usedSeconds, 0, s.players);
+      const c = { ...used, totalMinor: await chargeWithTax(t, s.branchId, "GAMING", used.totalMinor) };
       await t.gamingSession.update({ where: { id: s.id }, data: { amountDue: fromMinor(c.totalMinor, unit) } });
       if (c.totalMinor > 0) {
         await this.addCharge(t, { session: s, bill: s.bill, unit, deviceName: s.device.name, amountMinor: c.totalMinor, discountMinor: 0, description: `Gaming — ${c.minutes} min used · ${s.device.name}`, minutes: c.minutes, paymentState: "ON_BILL", employeeId: null });
@@ -445,6 +457,10 @@ export class SessionsService {
       }
     }
     if (s.bill) await this.recomputeBill(t, s.bill.id);
+    // Prepaid with money and ended early (by staff, expiry or the player): the unused share goes back to the wallet.
+    if (["CASH", "CARD", "WALLET"].includes(snap.fundedBy) && s.customerId && s.bill && s.allocatedMinutes && snap.plan && !snap.plan.billingMode.endsWith("_PASS")) {
+      await this.refundUnused(t, { ...s, customerId: s.customerId, billId: s.bill.id, allocatedMinutes: s.allocatedMinutes }, snap.plan, usedSeconds, unit);
+    }
 
     await t.gameLicense.updateMany({ where: { assignedSessionId: s.id }, data: { status: "AVAILABLE", assignedSessionId: null, assignedDeviceId: null, releasedAt: endedAt } });
     await t.customerSession.updateMany({ where: { gamingSessionId: s.id, endedAt: null }, data: { endedAt } });
@@ -600,6 +616,38 @@ export class SessionsService {
   private async pay(t: TenantTx, p: { bill: { id: string; branchId: string; currency: string }; method: "CASH" | "CARD" | "WALLET"; amountMinor: number; unit: number; key: string; customerId: string | null; employeeId: string | null; reference?: string | null }) {
     // Shared with the POS: cash lands in the cashier's open shift (if any), wallet debits the customer.
     return recordPayment(t, p);
+  }
+
+  /**
+   * Unused share of the money paid for this session's time, back to the customer's wallet as a
+   * return of those minutes (a Refund naming the gaming lines, so the bill never owes it again).
+   * Minutes used count after the plan's minimum and rounding.
+   * ponytail: pro rata over all allocated minutes; a session extended from the time balance
+   * dilutes the per-minute money. Split by funding source if mixed sessions become common.
+   */
+  private async refundUnused(t: TenantTx, s: { id: string; organizationId: string; branchId: string; customerId: string; billId: string; allocatedMinutes: number; device: { name: string } }, plan: PlanDef, usedSeconds: number, unit: number) {
+    const unused = s.allocatedMinutes - billableMinutes(plan, Math.ceil(usedSeconds / 60));
+    if (unused <= 0) return;
+    const items = await t.orderItem.findMany({ where: { gamingSessionId: s.id, productType: "GAMING_TIME", status: { notIn: ["VOIDED", "REFUNDED"] }, order: { paymentState: "PAID" } }, select: { id: true, lineTotal: true } });
+    let left = Math.round((items.reduce((a, i) => a + toMinor(i.lineTotal, unit), 0) * unused) / s.allocatedMinutes);
+    const reason = `Unused time — ${unused} min · ${s.device.name}`;
+    const pays = await t.payment.findMany({ where: { billId: s.billId, status: "CAPTURED", method: { in: ["CASH", "CARD", "WALLET"] } }, orderBy: { createdAt: "desc" }, select: { id: true, amount: true, refundedAmount: true, currency: true } });
+    const billTotal = toMinor((await t.bill.findUniqueOrThrow({ where: { id: s.billId }, select: { total: true } })).total, unit);
+    for (const p of pays) {
+      const amount = Math.min(left, toMinor(p.amount, unit) - toMinor(p.refundedAmount, unit));
+      if (amount <= 0) continue;
+      const refund = await t.refund.create({
+        data: {
+          organizationId: s.organizationId, paymentId: p.id, amount: fromMinor(amount, unit), currency: p.currency, destination: "WALLET", reason, status: "SUCCEEDED",
+          orderItemIds: items.map((i) => i.id), idempotencyKey: `session:${s.id}:unused:${p.id}`, processedAt: new Date(),
+        },
+      });
+      await t.payment.update({ where: { id: p.id }, data: { refundedAmount: { increment: fromMinor(amount, unit) } } });
+      await moveMoney(t, { customerId: s.customerId, bucket: "CASH", deltaMinor: amount, type: "REFUND", reason, branchId: s.branchId, referenceType: "REFUND", referenceId: refund.id, paymentId: p.id, idempotencyKey: `session:${s.id}:unused:${p.id}:wallet` });
+      await reverseForRefund(t, s.billId, amount, billTotal, refund.id);
+      left -= amount;
+      if (left <= 0) break;
+    }
   }
 
   private recomputeBill(t: TenantTx, billId: string) {

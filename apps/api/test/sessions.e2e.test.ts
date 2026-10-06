@@ -162,6 +162,24 @@ describe.skipIf(!HAS_DB)("Sessions, pricing & expiry (e2e)", () => {
       expect((await call(ownerT, "GET", `/devices/${a.identity!.deviceId}`)).body.status).toBe("AVAILABLE");
     });
 
+    it("ended early after paying with money: the unused share goes back to the wallet, the bill stays settled", async () => {
+      const a = await newStation();
+      const cust = (await call(cashierT, "POST", "/customers", { username: `u${randomUUID().slice(0, 8)}`, displayName: "Early Leaver", password: "secret123" })).body;
+      await call(cashierT, "POST", `/customers/${cust.id}/wallet/topup`, { branchId: dxb1, amount: "20", payment: { method: "CARD" }, idempotencyKey: randomUUID() });
+      const s = (await call(cashierT, "POST", `/devices/${a.identity!.deviceId}/sessions`, { customerId: cust.id, planId: regularPlan, request: { kind: "minutes", minutes: 60 }, payment: { method: "WALLET" }, idempotencyKey: randomUUID() })).body;
+      expect((await call(ownerT, "GET", `/customers/${cust.id}/wallet`)).body.cash).toBe("5.00"); // 20 − 15.00 for the hour
+      await owner.query(`UPDATE "GamingSession" SET "startedAt" = now() - interval '20 minutes' WHERE id = $1`, [s.id]);
+      const e = (await call(cashierT, "POST", `/sessions/${s.id}/end`, {})).body;
+      expect(e.bill).toMatchObject({ status: "SETTLED" });
+      const w = (await call(ownerT, "GET", `/customers/${cust.id}/wallet`)).body;
+      expect(["14.75", "15.00"]).toContain(w.cash); // 5.00 + 39/60 of 15.00 (21 min billed), or 40/60 if the clock lands exactly on 20 min
+      const refunds = await owner.query(`SELECT "requestedById", "orderItemIds" FROM "Refund" r JOIN "Payment" p ON p.id = r."paymentId" WHERE p."billId" = $1`, [e.bill.id]);
+      expect(refunds.rows).toHaveLength(1);
+      expect(refunds.rows[0].requestedById).toBeNull();
+      expect((await call(cashierT, "POST", `/sessions/${s.id}/end`, {})).body.status).toBe("ENDED"); // ending again refunds nothing more
+      expect((await call(ownerT, "GET", `/customers/${cust.id}/wallet`)).body.cash).toBe(w.cash);
+    });
+
     it("pay-later open session: nothing charged up front, billed for time used", async () => {
       const a = await newStation();
       const r = await call(cashierT, "POST", `/devices/${a.identity!.deviceId}/sessions`, { planId: payg, request: { kind: "open" }, payment: { method: "PAY_LATER" }, idempotencyKey: randomUUID() });

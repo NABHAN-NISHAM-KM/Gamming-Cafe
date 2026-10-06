@@ -116,6 +116,7 @@ describe.skipIf(!HAS_DB)("Loyalty, promotions, tournaments & CRM (e2e)", () => {
       const s = await startSession(pc.identity!.deviceId, { customerId: c.id });
       expect(s.status, JSON.stringify(s.body)).toBe(201);
       expect(await points(c.id)).toBe(0); // the bill stays open while the session runs
+      await owner.query(`UPDATE "GamingSession" SET "startedAt" = now() - make_interval(mins => "allocatedMinutes") WHERE id = $1`, [s.body.id]); // played it all: no unused time back
       await call(cashierT, "POST", `/sessions/${s.body.id}/end`, { reason: "done" });
       expect(await points(c.id)).toBe(15); // AED 15 of gaming
       const o = await call(cashierT, "POST", `/branches/${dxb1}/orders`, { type: "COUNTER", customerId: c.id, lines: [{ productId: burgerId, quantity: 1 }], payments: [{ method: "CARD" }], idempotencyKey: key() });

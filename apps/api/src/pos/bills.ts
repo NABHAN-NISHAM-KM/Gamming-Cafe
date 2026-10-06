@@ -24,10 +24,18 @@ export async function branchTaxProfile(t: TenantTx, branchId: string): Promise<T
 }
 
 /**
- * Tax inside an amount already charged (gaming time, memberships): the price
- * was quoted and paid, so tax is taken out of it, never added on top.
- * ponytail: tax-exclusive (US-style) branches are treated as inclusive here; quote
- * gaming with tax on top if such a venue signs up.
+ * What to charge for a rate-card price (gaming time, memberships): the price itself where
+ * prices include tax; price + tax where they don't (US style).
+ */
+export async function chargeWithTax(t: TenantTx, branchId: string, cls: TaxClass, priceMinor: number) {
+  const profile = await branchTaxProfile(t, branchId);
+  if (priceMinor <= 0 || !profile || profile.pricesIncludeTax) return priceMinor;
+  return priceOrder([{ unitMinor: priceMinor, quantity: 1, modifiers: [], taxClass: cls }], profile).totalMinor;
+}
+
+/**
+ * Tax inside an amount already charged (gaming time, memberships). Charges come from
+ * `chargeWithTax`, so they always include tax and it is taken out of them.
  */
 export async function taxWithin(t: TenantTx, branchId: string, cls: TaxClass, grossMinor: number, discountMinor = 0) {
   if (grossMinor - discountMinor <= 0) return { taxMinor: 0, taxes: [] as PricedLine["taxes"] };
@@ -47,9 +55,13 @@ export async function recomputeBill(t: TenantTx, billId: string) {
   const { closedAt } = await t.bill.findUniqueOrThrow({ where: { id: billId }, select: { closedAt: true } });
   const sum = (xs: Prisma.Decimal[]) => xs.reduce((a, b) => a.add(b), new Prisma.Decimal(0));
   const total = sum(orders.map((o) => o.total));
-  // Before settling, a refund gives a tender back, so it is owed again. After settling it is a
-  // return (reported under refunds): the bill stays settled on what was taken, and keeps its day.
-  const paid = closedAt ? sum(pays.map((p) => p.amount)) : sum(pays.map((p) => p.amount.sub(p.refundedAmount)));
+  // A refund for items given back (unused time, a return) never makes them owed again; neither
+  // does any refund once the bill is settled (it's reported under refunds, and the bill keeps its
+  // day). Before settling, a plain refund gives a tender back, so that amount is owed again.
+  const returned = closedAt
+    ? null
+    : (await t.refund.aggregate({ where: { payment: { billId }, status: "SUCCEEDED", NOT: { orderItemIds: { isEmpty: true } } }, _sum: { amount: true } }))._sum.amount ?? new Prisma.Decimal(0);
+  const paid = returned === null ? sum(pays.map((p) => p.amount)) : sum(pays.map((p) => p.amount.sub(p.refundedAmount))).add(returned);
   const live = await t.gamingSession.count({ where: { billId, status: { in: [...LIVE_SESSION] } } });
   const status = live > 0 ? (paid.gt(0) && paid.lt(total) ? "PARTIALLY_PAID" : "OPEN") : paid.gte(total) ? "SETTLED" : paid.gt(0) ? "PARTIALLY_PAID" : "OPEN";
   const settled = status === "SETTLED" && live === 0;

@@ -84,11 +84,11 @@ export class InsightsController {
   async anomalies(@Param("branchId") branchId: string, @Query(new ZodPipe(Days)) q: z.infer<typeof Days>) {
     const b = await branchOf(branchId);
     const since = new Date(Date.now() - q.days * 86_400_000);
-    const refunds = await tx().refund.groupBy({ by: ["requestedById"], where: { createdAt: { gte: since }, payment: { branchId } }, _count: { _all: true }, _sum: { amount: true } });
+    const refunds = await tx().refund.groupBy({ by: ["requestedById"], where: { requestedById: { not: null }, createdAt: { gte: since }, payment: { branchId } }, _count: { _all: true }, _sum: { amount: true } });
     const voids = await tx().orderItem.groupBy({ by: ["voidedById"], where: { voidedById: { not: null }, status: "VOIDED", updatedAt: { gte: since }, order: { branchId } }, _count: { _all: true } });
     const shifts = await tx().shift.findMany({ where: { branchId, closedAt: { gte: since }, variance: { not: null } }, select: { id: true, closedAt: true, variance: true, employee: { select: { id: true, displayName: true } } } });
     const offline = await tx().alert.groupBy({ by: ["deviceId"], where: { type: "CLIENT_OFFLINE", openedAt: { gte: since }, device: { branchId } }, _count: { _all: true } });
-    const people = new Map((await tx().employee.findMany({ where: { id: { in: [...refunds.map((r) => r.requestedById), ...voids.map((v) => v.voidedById!)] } }, select: { id: true, displayName: true } })).map((e) => [e.id, e.displayName]));
+    const people = new Map((await tx().employee.findMany({ where: { id: { in: [...refunds.map((r) => r.requestedById!), ...voids.map((v) => v.voidedById!)] } }, select: { id: true, displayName: true } })).map((e) => [e.id, e.displayName]));
     const devices = new Map((await tx().device.findMany({ where: { id: { in: offline.map((o) => o.deviceId!).filter(Boolean) } }, select: { id: true, name: true } })).map((d) => [d.id, d.name]));
     const unit = (await tx().currency.findUnique({ where: { code: b.currency }, select: { minorUnit: true } }))?.minorUnit ?? 2;
     // ponytail: a fixed tolerance of 5 in any currency; make it a branch setting if venues differ a lot.
@@ -100,7 +100,7 @@ export class InsightsController {
       const med = median(rows.map((r) => r.count));
       for (const r of rows) if (r.count >= 3 && r.count >= 3 * Math.max(1, med) && rows.length > 1) findings.push({ kind: what, severity: "warning", title: `${people.get(r.id) ?? "Someone"}: ${r.count} ${what}`, detail: `The median for other staff is ${med}.${r.amount ? ` Total ${r.amount} ${b.currency}.` : ""}`, ref: r.id });
     };
-    flag(refunds.map((r) => ({ id: r.requestedById, count: r._count._all, amount: (r._sum.amount ?? new Prisma.Decimal(0)).toFixed(unit) })), "refunds");
+    flag(refunds.map((r) => ({ id: r.requestedById!, count: r._count._all, amount: (r._sum.amount ?? new Prisma.Decimal(0)).toFixed(unit) })), "refunds");
     flag(voids.map((v) => ({ id: v.voidedById!, count: v._count._all })), "voided items");
     for (const s of shifts) {
       if (s.variance!.abs().lte(tolerance)) continue;

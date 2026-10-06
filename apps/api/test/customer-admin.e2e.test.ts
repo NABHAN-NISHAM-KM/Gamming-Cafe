@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { INestApplication } from "@nestjs/common";
 import type { AddressInfo } from "node:net";
 import { randomUUID } from "node:crypto";
+import pg from "pg";
 import { createApp } from "../src/main.js";
 import { loadConfig } from "../src/config.js";
 import { seed, DEMO_PASSWORD } from "../scripts/seed.js";
@@ -26,6 +27,7 @@ const until = async (fn: () => Promise<boolean> | boolean, ms = 8000) => {
 const key = () => randomUUID();
 
 describe.skipIf(!HAS_DB)("Customer admin (e2e)", () => {
+  const owner = new pg.Pool({ connectionString: process.env["DATABASE_URL"] });
   let app: INestApplication;
   let base: string;
   const agents: SimAgent[] = [];
@@ -79,6 +81,7 @@ describe.skipIf(!HAS_DB)("Customer admin (e2e)", () => {
   afterAll(async () => {
     await Promise.all(agents.map((a) => a.disconnect()));
     await app?.close();
+    await owner.end();
   });
 
   it("a ban blocks sign-in and sessions; lifting it (or it running out) restores the account", async () => {
@@ -157,6 +160,7 @@ describe.skipIf(!HAS_DB)("Customer admin (e2e)", () => {
     await call(ownerT, "POST", `/customers/${dup.id}/wallet/adjust`, { branchId: dxb1, bucket: "TIME", amount: 90, reason: "goodwill", idempotencyKey: key() }, "goodwill");
     await call(cashierT, "POST", `/customers/${dup.id}/notes`, { body: "old account" });
     const s = await start(await station(), dup.id);
+    await owner.query(`UPDATE "GamingSession" SET "startedAt" = now() - make_interval(mins => "allocatedMinutes") WHERE id = $1`, [s.body.id]); // played it all: no unused time back
     await call(cashierT, "POST", `/sessions/${s.body.id}/end`, { reason: "t" });
     const pointsBefore = (await call(ownerT, "GET", `/customers/${dup.id}/insights`)).status;
     expect(pointsBefore).toBe(200);

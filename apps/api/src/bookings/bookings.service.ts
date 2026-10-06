@@ -9,6 +9,7 @@ import { earnEvent } from "../loyalty/points.js";
 import { quote, selectPlans } from "../sessions/pricing.js";
 import { LIVE_STATUSES, SessionsService, stationClassFor, toPlanDef, type PaymentMethodInput } from "../sessions/sessions.service.js";
 import { fromMinor, moveMoney } from "../wallet/wallet.js";
+import { chargeWithTax } from "../pos/bills.js";
 
 export type BookingActor = { type: "EMPLOYEE"; id: string } | { type: "CUSTOMER"; id: string } | { type: "SYSTEM"; id: null };
 
@@ -233,7 +234,7 @@ export class BookingsService implements OnModuleInit, OnModuleDestroy {
       const plans = selectPlans((await t.pricingPlan.findMany({ where: { isActive: true, currency: a.currency }, include: { pricingPackages: true } })).map((p) => toPlanDef(p, unit)), ctx);
       const plan = plans.find((p) => p.billingMode === "PER_HOUR" || p.billingMode === "PER_MINUTE") ?? plans[0];
       if (!plan) return 0;
-      return quote(plan, { kind: "minutes", minutes: a.minutes }, ctx, { membershipDiscountPct: Number(c?.membershipTier?.gamingDiscountPct ?? 0) }).totalMinor;
+      return await chargeWithTax(t, a.branchId, "GAMING", quote(plan, { kind: "minutes", minutes: a.minutes }, ctx, { membershipDiscountPct: Number(c?.membershipTier?.gamingDiscountPct ?? 0) }).totalMinor);
     } catch {
       return 0;
     }
