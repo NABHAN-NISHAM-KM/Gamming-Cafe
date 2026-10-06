@@ -8,7 +8,7 @@ Multi-tenant SaaS for **gaming cafés, esports arenas, internet cafés, console 
 - a unified POS, restaurant and KDS;
 - inventory, bookings, tournaments, loyalty, CRM and accounting.
 
-Everything syncs in real time and keeps working at the branch when the internet is down.
+Everything syncs in real time. If a PC loses its connection, its station agent keeps the running session timed and locks the PC when time runs out. The offline branch server (POS, KDS and Live Floor without internet) is designed but **not built yet**; it is Phase 13.
 
 > **Status:** Phases 1–11 are complete: database, security and tenancy; API and admin; Windows station agent and Live Floor (verified on real hardware); sessions, pricing and the Gaming Shell; games and station tools; customers, wallet, bookings and the customer app; POS, restaurant, kitchen display, in-seat ordering and cash shifts; inventory, recipes, purchasing and suppliers; consoles, VR, simulators, TV station displays and internet-café printing; loyalty, promotions, tournaments and CRM; **a self-keeping general ledger, reports and dashboard analytics**. Phase 12 (Super Admin, subscriptions, SaaS billing) is next. See [docs/06-roadmap.md](docs/06-roadmap.md).
 
@@ -38,6 +38,7 @@ Everything syncs in real time and keeps working at the branch when the internet 
 | [20 · End-to-end walkthrough](docs/20-end-to-end-walkthrough.md) | Super Admin → Owner builds a venue from zero → Customer → every staff role, on the real system |
 | [21 · Website](docs/21-website.md) | Marketing site, leads and call booking, self-serve trials, public venue pages and booking, venue finder, plan-your-venue quotes, referrals, partners, status page, site analytics, blog, help assistant, Arabic, SEO |
 | [22 · Operations & growth](docs/22-operations-and-growth.md) | Waitlist, rota, insights, billing by card, support sign-in, releases, announcements, season passes, find a team, spending limits, receipts, table QR, curfew |
+| [23 · Production](docs/23-production.md) | Database roles, deploy, backups and restore, outage alerts, known limits |
 
 ## Repository
 

@@ -47,6 +47,8 @@ flowchart TB
   KDS <--> EDGE
 ```
 
+> **Not built yet (Phase 13).** Today every device talks to the cloud API directly; only the station agent keeps working offline (session timer and fail-safe lock). The edge design below is the target.
+
 - **Floor devices only talk to the branch edge server over the LAN.** Session timers, lock/unlock, POS, KDS and the Live Floor keep working if the internet drops.
 - **The edge runs the same API build** in `EDGE` mode with a local PostgreSQL holding the branch's slice of data. That slice is active sessions, pricing, station state, the menu, cached customer balances, and POS orders and payments.
 - **Sync (Phase 13):**

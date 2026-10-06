@@ -14,7 +14,7 @@
 | 10 | Tournaments, loyalty, promotions engine, CRM | ✅ **Done** |
 | 11 | Reports, accounting, analytics | ✅ **Done** |
 | 12 | Super Admin, subscriptions, SaaS billing, organization management | Next |
-| 13 | Offline branch edge + sync, hardening, monitoring, backups, DR, load and chaos tests | |
+| 13 | Offline branch edge + sync, hardening, monitoring, backups, DR, load and chaos tests | Started: production roles, backups, outage alerts, sign-in hardening ([23-production](23-production.md)) |
 
 ## Phase 1 deliverables
 

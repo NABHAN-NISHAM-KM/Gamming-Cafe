@@ -19,6 +19,13 @@ export function services() {
 
 const empty = () => ({ days: {}, incidents: [], last: {} });
 
+/** Tells a person: ALERT_WEBHOOK_URL gets `{ text }` (Slack, Teams, Discord-compatible relays…). */
+function alert(text) {
+  const url = process.env.ALERT_WEBHOOK_URL;
+  console.log(`[status] ${text}`);
+  if (url) fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text }), signal: AbortSignal.timeout(10_000) }).catch((e) => console.error(`[status] alert failed: ${e.message}`));
+}
+
 export function createMonitor(file) {
   let state = empty();
   let checks = 0;
@@ -40,7 +47,15 @@ export function createMonitor(file) {
         state.last[s.key] = { ok, at: now.toISOString(), ms: Date.now() - started };
         const open = state.incidents.find((i) => i.service === s.key && !i.end);
         if (!ok && !open) state.incidents.unshift({ service: s.key, start: now.toISOString(), end: null });
-        if (ok && open) open.end = now.toISOString();
+        // Alert on the second failed check in a row, so one slow answer doesn't page anyone.
+        if (!ok && open && !open.alerted) {
+          open.alerted = true;
+          alert(`🔴 ${s.name} is DOWN since ${open.start} (${s.url})`);
+        }
+        if (ok && open) {
+          open.end = now.toISOString();
+          if (open.alerted) alert(`✅ ${s.name} is back up after ${Math.max(1, Math.round((Date.parse(open.end) - Date.parse(open.start)) / 60_000))} min`);
+        }
       }),
     );
     for (const d of Object.keys(state.days)) if (Date.parse(d) < Date.now() - KEEP_DAYS * 86_400_000) delete state.days[d];
