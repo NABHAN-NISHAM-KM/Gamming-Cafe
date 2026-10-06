@@ -81,10 +81,13 @@ try {
 
     Write-Host "Building the APK (the first run downloads Gradle; takes a few minutes)..." -ForegroundColor Cyan
     Push-Location android
+    # Gradle prints warnings (e.g. "SDK XML version 4") on stderr; Windows PowerShell turns
+    # redirected stderr into errors, which "Stop" would treat as fatal. The exit code decides.
+    $ErrorActionPreference = "Continue"
     try {
         .\gradlew.bat assembleDebug --no-daemon -q
         if ($LASTEXITCODE) { throw "Gradle build failed" }
-    } finally { Pop-Location }
+    } finally { Pop-Location; $ErrorActionPreference = "Stop" }
 
     $apk = "android\app\build\outputs\apk\debug\app-debug.apk"
     if ($Api) {
