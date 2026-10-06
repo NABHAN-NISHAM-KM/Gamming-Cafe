@@ -76,11 +76,15 @@ describe.skipIf(!HAS_DB)("Platform service (e2e)", () => {
   });
 
   it("requires the authenticator code once enrolled, and rejects a reused code", async () => {
+    const failures = async () => (await owner.query(`SELECT "failedLogins" FROM "User" WHERE email = $1`, [adminEmail])).rows[0].failedLogins as number;
+    const before = await failures();
     const r = await http.post("/v1/platform/auth/login").send({ email: adminEmail, password: PASSWORD });
     expect(r.body).toMatchObject({ mfaRequired: true });
     expect(r.body.secret).toBeUndefined();
     const bad = await http.post("/v1/platform/auth/mfa/verify").send({ mfaToken: r.body.mfaToken, code: "000000" });
     expect(bad.status).toBe(401);
+    // That miss counts toward the lockout until a full sign-in clears it.
+    expect(await failures()).toBe(before + 1);
   });
 
   it("keeps platform and staff tokens apart", async () => {
@@ -146,5 +150,13 @@ describe.skipIf(!HAS_DB)("Platform service (e2e)", () => {
 
     await http.post("/v1/platform/auth/logout").send({ refreshToken: readonly.refreshToken });
     expect((await as(readonly.accessToken).get("/v1/platform/overview")).status).toBe(401);
+  });
+
+  // Last: it blocks this test client's address for the rest of the window.
+  it("refuses an address after too many failed sign-ins, whichever accounts it tries", async () => {
+    const statuses: number[] = [];
+    for (let i = 0; i < 12; i++) statuses.push((await http.post("/v1/platform/auth/login").send({ email: `spray-${i}-${run}@platform.test`, password: "wrong-wrong" })).status);
+    expect(statuses).toContain(429);
+    expect((await http.post("/v1/platform/auth/login").send({ email: adminEmail, password: PASSWORD })).status).toBe(429);
   });
 });

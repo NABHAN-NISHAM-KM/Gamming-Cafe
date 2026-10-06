@@ -34,15 +34,10 @@ export class PlatformAuthService {
       throw new HttpException({ error: "account_locked", retryAfter: user.lockedUntil.toISOString() }, 423);
     }
     if (!(await verifySecret(user.passwordHash, input.password))) {
-      const failures = user.failedLogins + 1;
-      const lock = failures >= this.cfg.LOGIN_MAX_FAILURES;
-      await this.db.user.update({
-        where: { id: user.id },
-        data: lock ? { failedLogins: 0, lockedUntil: new Date(Date.now() + this.cfg.LOGIN_LOCK_MINUTES * 60_000) } : { failedLogins: failures },
-      });
+      await this.recordFailure(user.id, user.failedLogins);
       throw INVALID();
     }
-    await this.db.user.update({ where: { id: user.id }, data: { failedLogins: 0, lockedUntil: null } });
+    // The failure count is cleared only after the code step, so re-entering the password can't reset code guesses.
     if ((await this.roles(user.id)).length === 0) throw new ForbiddenException({ error: "not_platform_admin" });
 
     const mfaToken = await this.tokens.signChallenge(user.id);
@@ -60,10 +55,17 @@ export class PlatformAuthService {
     const confirmed = await this.confirmedTotp(userId);
     const factor = confirmed ?? (await this.db.mfaFactor.findFirst({ where: { userId, type: "TOTP", confirmedAt: null }, orderBy: { createdAt: "desc" } }));
     if (!factor) throw new UnauthorizedException({ error: "invalid_mfa_token" });
+    const user = await this.db.user.findUniqueOrThrow({ where: { id: userId }, select: { failedLogins: true, lockedUntil: true } });
+    if (user.lockedUntil && user.lockedUntil > new Date()) {
+      throw new HttpException({ error: "account_locked", retryAfter: user.lockedUntil.toISOString() }, 423);
+    }
 
     const step = verifyTotp(unseal(factor.secretEnc, this.cfg.MFA_ENCRYPTION_KEY_B64), input.code);
     const lastStep = factor.lastUsedAt ? Math.floor(factor.lastUsedAt.getTime() / 30_000) : -1;
-    if (step === null || step <= lastStep) throw new UnauthorizedException({ error: "invalid_mfa_code" });
+    if (step === null || step <= lastStep) {
+      await this.recordFailure(userId, user.failedLogins);
+      throw new UnauthorizedException({ error: "invalid_mfa_code" });
+    }
     // Conditional update: the same code can't be spent twice by concurrent requests.
     const claimed = await this.db.mfaFactor.updateMany({
       where: { id: factor.id, lastUsedAt: factor.lastUsedAt },
@@ -74,7 +76,7 @@ export class PlatformAuthService {
 
     const roles = await this.roles(userId);
     if (roles.length === 0) throw new ForbiddenException({ error: "not_platform_admin" });
-    await this.db.user.update({ where: { id: userId }, data: { lastLoginAt: new Date() } });
+    await this.db.user.update({ where: { id: userId }, data: { failedLogins: 0, lockedUntil: null, lastLoginAt: new Date() } });
     const pair = await this.issue(userId, meta);
     await this.audit(userId, roles[0]!, meta, { action: "platform.login", entityType: "User", entityId: userId });
     return pair;
@@ -104,6 +106,16 @@ export class PlatformAuthService {
   async logout(refreshToken: string) {
     const row = await this.db.refreshToken.findUnique({ where: { tokenHash: sha256(refreshToken) }, select: { familyId: true, organizationId: true } });
     if (row && row.organizationId === null) await this.revokeFamily(row.familyId, "logout");
+  }
+
+  /** One more wrong password or code; locks the account at LOGIN_MAX_FAILURES. */
+  private async recordFailure(userId: string, failedLogins: number) {
+    const failures = failedLogins + 1;
+    const lock = failures >= this.cfg.LOGIN_MAX_FAILURES;
+    await this.db.user.update({
+      where: { id: userId },
+      data: lock ? { failedLogins: 0, lockedUntil: new Date(Date.now() + this.cfg.LOGIN_LOCK_MINUTES * 60_000) } : { failedLogins: failures },
+    });
   }
 
   roles(userId: string): Promise<PlatformRole[]> {

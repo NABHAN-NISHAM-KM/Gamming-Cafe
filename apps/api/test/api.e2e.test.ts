@@ -181,6 +181,23 @@ describe.skipIf(!HAS_DB)("ArenaOS API (e2e)", () => {
       const again = await http.post("/v1/auth/mfa/verify").send({ mfaToken: step1.mfaToken, code });
       expect(again.status).toBe(401);
     });
+
+    it("wrong MFA codes lock the account, and signing in again doesn't reset the count", async () => {
+      const s = await newStaff("cashier", dxb1);
+      const token = (await login(s.email, s.password)).body.accessToken;
+      const setup = (await as(token).post("/v1/auth/mfa/totp/setup")).body;
+      await as(token).post("/v1/auth/mfa/totp/confirm", { code: totpAt(setup.secret, Date.now()) }).expect(200);
+      const valid = new Set([-30_000, 0, 30_000].map((d) => totpAt(setup.secret, Date.now() + d)));
+      const wrong = ["000000", "111111", "222222", "333333", "444444"].find((c) => !valid.has(c))!;
+      const guess = (mfaToken: string, code = wrong) => http.post("/v1/auth/mfa/verify").send({ mfaToken, code });
+
+      let step1 = (await login(s.email, s.password)).body;
+      for (let i = 0; i < 4; i++) expect((await guess(step1.mfaToken)).status).toBe(401);
+      step1 = (await login(s.email, s.password)).body; // the password is right, but the 4 misses still count
+      expect((await guess(step1.mfaToken)).status).toBe(401); // 5th miss locks
+      expect((await guess(step1.mfaToken, totpAt(setup.secret, Date.now()))).status).toBe(423);
+      expect((await login(s.email, s.password)).status).toBe(423);
+    });
   });
 
   describe("tenant isolation through the API", () => {

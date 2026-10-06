@@ -1,4 +1,4 @@
-import { Body, Controller, ForbiddenException, Get, HttpCode, Inject, Post, Req } from "@nestjs/common";
+import { Body, Controller, ForbiddenException, Get, HttpCode, HttpException, Inject, Post, Req } from "@nestjs/common";
 import type { Request } from "express";
 import { z } from "zod";
 import { PERMISSIONS } from "@arena/rbac";
@@ -7,6 +7,7 @@ import { principal, tx } from "../common/request-state.js";
 import { auditAs } from "../common/audit.service.js";
 import { hashSecret } from "./crypto.js";
 import { ZodPipe } from "../common/zod.pipe.js";
+import { Throttle } from "../customer-app/customer-auth.js";
 import { AuthService, type ClientMeta } from "./auth.service.js";
 
 const Login = z.object({
@@ -26,20 +27,36 @@ const meta = (req: Request): ClientMeta => ({ ip: req.ip ?? null, userAgent: req
 
 @Controller("auth")
 export class AuthController {
+  // Failed attempts per IP, on top of the per-account lockout: stops one address spraying passwords across many accounts.
+  // Generous, since a venue's staff share one address. ponytail: in-memory, per instance; move to Redis when the API runs on several.
+  private readonly byIp = new Throttle(30, 15 * 60_000);
+
   constructor(@Inject(AuthService) private readonly auth: AuthService) {}
+
+  /** Refuses an address with too many recent failures; counts this attempt only if it fails. */
+  private async throttled<T>(req: Request, attempt: () => Promise<T>): Promise<T> {
+    const ip = req.ip ?? "?";
+    if (this.byIp.full(ip)) throw new HttpException({ error: "too_many_attempts" }, 429);
+    try {
+      return await attempt();
+    } catch (e) {
+      if (e instanceof HttpException && [401, 423].includes(e.getStatus())) this.byIp.hit(ip);
+      throw e;
+    }
+  }
 
   @Public()
   @Post("login")
   @HttpCode(200)
   login(@Body(new ZodPipe(Login)) body: z.infer<typeof Login>, @Req() req: Request) {
-    return this.auth.login(body, meta(req));
+    return this.throttled(req, () => this.auth.login(body, meta(req)));
   }
 
   @Public()
   @Post("mfa/verify")
   @HttpCode(200)
   verifyMfa(@Body(new ZodPipe(MfaVerify)) body: z.infer<typeof MfaVerify>, @Req() req: Request) {
-    return this.auth.verifyMfa(body, meta(req));
+    return this.throttled(req, () => this.auth.verifyMfa(body, meta(req)));
   }
 
   @Public()

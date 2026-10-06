@@ -59,23 +59,18 @@ export class AuthService {
     }
 
     if (!(await verifySecret(user.passwordHash, input.password))) {
-      const failures = user.failedLogins + 1;
-      const lock = failures >= this.cfg.LOGIN_MAX_FAILURES;
-      await this.db.global.user.update({
-        where: { id: user.id },
-        data: lock
-          ? { failedLogins: 0, lockedUntil: new Date(Date.now() + this.cfg.LOGIN_LOCK_MINUTES * 60_000) }
-          : { failedLogins: failures },
-      });
+      await this.recordFailure(user.id, user.failedLogins);
       throw INVALID();
     }
-    await this.db.global.user.update({ where: { id: user.id }, data: { failedLogins: 0, lockedUntil: null, lastLoginAt: new Date() } });
 
     const membership = await this.pickMembership(user.id, input.organizationSlug);
     const factor = await this.confirmedTotp(user.id);
+    // The failure count is only cleared once the second step passes too, so wrong codes
+    // can't be reset by signing in with the password again.
     if (factor) {
       return { mfaRequired: true as const, mfaToken: await this.tokens.signMfaChallenge(user.id, membership.organization_id) };
     }
+    await this.clearFailures(user.id);
     return this.issue(user.id, membership, meta, { mfaSetupRequired: user.mfaRequired });
   }
 
@@ -83,16 +78,25 @@ export class AuthService {
     const { userId, organizationId } = await this.tokens.verifyMfaChallenge(input.mfaToken);
     const factor = await this.confirmedTotp(userId);
     if (!factor) throw new UnauthorizedException({ error: "invalid_mfa_token" });
+    const user = await this.db.global.user.findUniqueOrThrow({ where: { id: userId }, select: { failedLogins: true, lockedUntil: true } });
+    if (user.lockedUntil && user.lockedUntil > new Date()) {
+      throw new HttpException({ error: "account_locked", retryAfter: user.lockedUntil.toISOString() }, 423);
+    }
 
     const step = verifyTotp(unseal(factor.secretEnc, this.cfg.MFA_ENCRYPTION_KEY_B64), input.code);
     const lastStep = factor.lastUsedAt ? Math.floor(factor.lastUsedAt.getTime() / 30_000) : -1;
-    if (step === null || step <= lastStep) throw new UnauthorizedException({ error: "invalid_mfa_code" });
+    if (step === null || step <= lastStep) {
+      // Wrong codes count toward the same lockout as wrong passwords: no unlimited guessing.
+      await this.recordFailure(userId, user.failedLogins);
+      throw new UnauthorizedException({ error: "invalid_mfa_code" });
+    }
     // Conditional update: two concurrent requests with the same code can't both win.
     const claimed = await this.db.global.mfaFactor.updateMany({
       where: { id: factor.id, lastUsedAt: factor.lastUsedAt },
       data: { lastUsedAt: new Date(step * 30_000) },
     });
     if (claimed.count !== 1) throw new UnauthorizedException({ error: "invalid_mfa_code" });
+    await this.clearFailures(userId);
 
     const membership = await this.membershipById(userId, organizationId);
     return this.issue(userId, membership, meta, { mfaSetupRequired: false });
@@ -183,16 +187,11 @@ export class AuthService {
     }
     if (user.lockedUntil && user.lockedUntil > new Date()) throw new HttpException({ error: "account_locked", retryAfter: user.lockedUntil.toISOString() }, 423);
     if (!(await verifySecret(employee.pinHash, pin))) {
-      const failures = user.failedLogins + 1;
-      const lock = failures >= this.cfg.LOGIN_MAX_FAILURES;
-      await this.db.global.user.update({
-        where: { id: user.id },
-        data: lock ? { failedLogins: 0, lockedUntil: new Date(Date.now() + this.cfg.LOGIN_LOCK_MINUTES * 60_000) } : { failedLogins: failures },
-      });
+      await this.recordFailure(user.id, user.failedLogins);
       throw INVALID();
     }
     if (user.mfaRequired || (await this.confirmedTotp(user.id))) throw new ForbiddenException({ error: "full_sign_in_required" });
-    await this.db.global.user.update({ where: { id: user.id }, data: { failedLogins: 0, lockedUntil: null, lastLoginAt: new Date() } });
+    await this.clearFailures(user.id);
     const membership = await this.membershipById(user.id, current.organizationId);
     await this.revokeFamily(current.sessionId, "pin_switch");
     return this.issue(user.id, membership, meta, { mfaSetupRequired: false });
@@ -230,6 +229,20 @@ export class AuthService {
     const m = (await this.memberships(userId)).find((x) => x.organization_id === organizationId);
     if (!m) throw new ForbiddenException({ error: "no_membership" });
     return m;
+  }
+
+  /** One more wrong password, PIN or code; locks the account at LOGIN_MAX_FAILURES. */
+  private async recordFailure(userId: string, failedLogins: number) {
+    const failures = failedLogins + 1;
+    const lock = failures >= this.cfg.LOGIN_MAX_FAILURES;
+    await this.db.global.user.update({
+      where: { id: userId },
+      data: lock ? { failedLogins: 0, lockedUntil: new Date(Date.now() + this.cfg.LOGIN_LOCK_MINUTES * 60_000) } : { failedLogins: failures },
+    });
+  }
+
+  private clearFailures(userId: string) {
+    return this.db.global.user.update({ where: { id: userId }, data: { failedLogins: 0, lockedUntil: null, lastLoginAt: new Date() } });
   }
 
   private confirmedTotp(userId: string) {

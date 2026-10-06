@@ -144,6 +144,7 @@ export function describeError(status: number, body: any): string {
     code_taken: "That code is already used.",
     invalid_credentials: "Email or password is incorrect.",
     account_locked: "Too many failed attempts. The account is temporarily locked.",
+    too_many_attempts: "Too many failed sign-ins from this network. Wait 15 minutes and try again.",
     invalid_mfa_code: "That code is not valid. Wait for the next code and try again.",
     invalid_current_password: "Your current password isn't right.",
     same_password: "Pick a new password that's different from the current one.",

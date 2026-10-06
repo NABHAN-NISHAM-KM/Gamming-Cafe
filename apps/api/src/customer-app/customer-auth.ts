@@ -23,6 +23,14 @@ export class Throttle {
     this.hits.set(key, recent);
     return true;
   }
+  /** Records an attempt without refusing it (count failures only, check with `full`). */
+  hit(key: string) {
+    this.take(key);
+  }
+  full(key: string): boolean {
+    const now = Date.now();
+    return (this.hits.get(key) ?? []).filter((t) => now - t < this.windowMs).length >= this.max;
+  }
   clear(key: string) {
     this.hits.delete(key);
   }
