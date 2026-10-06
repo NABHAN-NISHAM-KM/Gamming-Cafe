@@ -133,7 +133,7 @@ export function PageHeader({ title, subtitle, actions, eyebrow }: { title: strin
         <h1 className="text-[1.75rem] font-semibold leading-tight">{title}</h1>
         {subtitle && <p className="mt-1.5 text-sm text-ink-2">{subtitle}</p>}
       </div>
-      {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
+      {actions && <div className="flex min-w-0 max-w-full flex-wrap gap-2">{actions}</div>}
     </header>
   );
 }

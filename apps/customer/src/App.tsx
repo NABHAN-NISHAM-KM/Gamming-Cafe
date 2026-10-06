@@ -202,15 +202,15 @@ function HomeScreen({ me, venue, bookings, go, unread, addTime, toast }: { me: M
   const next = bookings.filter((b) => ["CONFIRMED", "CHECKED_IN"].includes(b.status) && new Date(b.endsAt) > new Date()).sort((a, b) => a.startsAt.localeCompare(b.startsAt))[0];
   const tier = me.membershipTier;
   const tiles: Array<[Tab, string, typeof Home, string, number?]> = [
-    ["events", "Tournaments", Trophy, "text-warn"],
-    ["inbox", "Inbox", Inbox, "text-glow", unread],
-    ["games", "Games", Gamepad2, "text-glow-2"],
-    ["friends", "Friends", Users, "text-good"],
-    ["wallet", "Wallet", Wallet, "text-glow-2"],
-    ["screenshots", "Screenshots", Camera, "text-good"],
+    ["events", "Tournaments", Trophy, "text-glow"],
+    ["inbox", "Inbox", Inbox, "text-glow-2", unread],
+    ["games", "Games", Gamepad2, "text-glow"],
+    ["friends", "Friends", Users, "text-glow-2"],
+    ["wallet", "Wallet", Wallet, "text-glow"],
+    ["screenshots", "Screenshots", Camera, "text-glow-2"],
     ["stats", "My stats", BarChart3, "text-glow"],
-    ["help", "Help", LifeBuoy, "text-warn"],
-    ["season", "Season pass", Medal, "text-warn"],
+    ["help", "Help", LifeBuoy, "text-glow-2"],
+    ["season", "Season pass", Medal, "text-glow-2"],
     ["teams", "Find a team", Swords, "text-glow"],
   ];
   return (

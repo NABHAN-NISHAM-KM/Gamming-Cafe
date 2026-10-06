@@ -188,7 +188,7 @@ export default function GamesPage() {
       {note && <p className="rounded-lg border border-accent/30 bg-accent/10 px-4 py-2 text-sm text-accent">{note}</p>}
       <ErrorNote>{scan.error ?? schedule.error ?? setSetting.error ?? cancel.error}</ErrorNote>
 
-      <div className="flex gap-1 border-b border-line">
+      <div className="flex gap-1 overflow-x-auto overflow-y-hidden border-b border-line">
         {([["library", "Library", Gamepad2], ["found", "Found on PCs", Radar], ["updates", "Updates", Download], ["apps", "Apps", AppWindow]] as const).map(([id, label, Icon]) => (
           <button key={id} onClick={() => setTab(id)} className={cx("flex items-center gap-2 border-b-2 px-4 py-2 text-sm", tab === id ? "border-accent text-accent" : "border-transparent text-ink-2 hover:text-ink")}>
             <Icon className="size-4" /> {label}

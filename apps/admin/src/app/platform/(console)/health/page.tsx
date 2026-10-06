@@ -9,7 +9,7 @@ interface Venue { id: string; slug: string; name: string; status: string; plan: 
 
 /** Every venue at a glance — and the ones that need a call: trials that never connected a PC, venues gone quiet, stations dropping off. */
 export default function HealthPage() {
-  const { data, error } = usePlatform<{ venues: Venue[]; attention: number }>("/health");
+  const { data, error } = usePlatform<{ venues: Venue[]; attention: number }>("/health", 60_000);
   const [onlyFlagged, setOnlyFlagged] = useState(true);
   const rows = (data?.venues ?? []).filter((v) => !onlyFlagged || v.flags.length);
   return (

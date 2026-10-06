@@ -24,7 +24,7 @@ For the forms and venue pages to work, the API (4000) and the platform service (
 | `help.html` | Searchable help centre built from the docs, with the help assistant |
 | `venue.html` | A venue's public page, served at `/v/<venue code>`, with booking without the app |
 | `wizard.html` | **Plan your venue**: PCs, consoles, VR, internet PCs, staff, kitchen, tournaments, printing → the plan that fits, a hardware and setup checklist, and a quote to print or send (a `CONTACT` lead with source `wizard`) |
-| `finder.html` | **Find a venue**: every published venue on a map (Leaflet + OpenStreetMap) and in a list, filtered by city and by PCs / consoles / VR / simulators, with free stations per branch |
+| `finder.html` | **Find a venue**: every published venue on a map (Leaflet + OpenStreetMap) and in a list, filtered by city and by PCs / consoles / VR / simulators, with free stations per branch (refreshed every minute while the page is open) |
 | `stories.html` | Customer stories from `assets/stories.json` (empty until real, approved stories are added) and a "share your story" form |
 | `partners.html` | Installers and resellers apply (a `PARTNER` lead) |
 | `status.html` | Live status and 90-day uptime per service, and recent outages (from `/status.json`) |

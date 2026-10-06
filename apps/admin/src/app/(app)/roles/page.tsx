@@ -136,7 +136,7 @@ function RoleForm({ role, roles, catalog, onDone }: { role?: Role; roles: Role[]
                 aria-pressed={on}
                 className={cx("flex items-start gap-2.5 rounded-lg border p-3 text-left transition disabled:opacity-40", on ? "border-accent bg-accent-soft" : "border-line hover:border-line-strong")}
               >
-                <span className={cx("mt-0.5 grid size-4 shrink-0 place-items-center rounded border", on ? "border-accent bg-accent text-white" : "border-line-strong")}>{on && <Check className="size-3" />}</span>
+                <span className={cx("mt-0.5 grid size-4 shrink-0 place-items-center rounded border", on ? "border-accent bg-accent text-accent-ink" : "border-line-strong")}>{on && <Check className="size-3" />}</span>
                 <span className="min-w-0">
                   <span className="block text-sm font-medium">{t.name}</span>
                   {t.description && <span className="block text-xs text-ink-3">{t.description}</span>}

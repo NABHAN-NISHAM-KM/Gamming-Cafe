@@ -61,7 +61,7 @@ export default function LeadsPage() {
         title="Leads"
         subtitle="Walkthrough requests, booked calls, free trials, upgrade requests and partner applications. “To do today” shows follow-ups that are due and calls in the next 24 hours."
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <label className="flex items-center gap-2 whitespace-nowrap text-sm"><input type="checkbox" checked={due} onChange={(e) => setDue(e.target.checked)} /> To do today</label>
             <Select value={kind} onChange={(e) => setKind(e.target.value)} aria-label="Type">
               <option value="">All types</option><option value="CONTACT">Walkthrough</option><option value="DEMO">Call booked</option><option value="TRIAL">Trial</option><option value="UPGRADE">Upgrade</option><option value="PARTNER">Partner</option>

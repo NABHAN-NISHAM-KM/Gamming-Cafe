@@ -83,7 +83,7 @@ function Rating({ labels, onDone }: { labels: { title: string; comment: string; 
               aria-checked={rating === n}
               aria-label={`${n} / 5`}
               onClick={() => setRating(n)}
-              className={`press grid size-12 place-items-center rounded-xl text-3xl transition ${n <= rating ? "text-amber-300" : "text-rim hover:text-dim"}`}
+              className={`press grid size-12 place-items-center rounded-xl text-3xl transition ${n <= rating ? "text-warn" : "text-rim hover:text-dim"}`}
             >
               ★
             </button>

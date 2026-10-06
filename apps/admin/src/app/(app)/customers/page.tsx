@@ -446,7 +446,7 @@ export default function CustomersPage() {
         title="Customers"
         subtitle="Accounts for the PCs and the customer app: wallet, prepaid time and membership."
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {can("customer.export") && (
               <Button onClick={() => setBulk("export")}>
                 <Download className="size-4" /> Export

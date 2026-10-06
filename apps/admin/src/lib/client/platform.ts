@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, describeError } from "./api";
+import { useRefresh } from "./hooks";
 
 const PLATFORM_ERRORS: Record<string, string> = {
   not_platform_admin: "This account isn't a platform administrator.",
@@ -50,15 +51,16 @@ export async function platformSession(action: "login" | "mfa" | "logout", body?:
   return { status: res.status, data };
 }
 
-export function usePlatform<T>(path: string | null) {
+/** `refreshMs`: quiet refetch while visible (see useApi). */
+export function usePlatform<T>(path: string | null, refreshMs?: number) {
   const [data, setData] = useState<T | undefined>(undefined);
   const [error, setError] = useState<PlatformError | null>(null);
   const [loading, setLoading] = useState(!!path);
   const seq = useRef(0);
-  const reload = useCallback(async () => {
+  const reload = useCallback(async (quiet = false) => {
     if (!path) return;
     const mine = ++seq.current;
-    setLoading(true);
+    if (!quiet) setLoading(true);
     try {
       const d = await platformApi<T>(path);
       if (mine === seq.current) {
@@ -74,6 +76,7 @@ export function usePlatform<T>(path: string | null) {
   useEffect(() => {
     void reload();
   }, [reload]);
+  useRefresh(path ? reload : null, refreshMs);
   return { data, error, loading, reload, setData };
 }
 

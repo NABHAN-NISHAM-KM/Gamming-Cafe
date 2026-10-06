@@ -30,7 +30,7 @@
     .help { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 48px; padding-bottom: 96px; }
     .help aside { position: sticky; top: 90px; align-self: start; max-height: calc(100vh - 110px); overflow: auto; font-size: 14px; }
     .help aside h4 { font: 500 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); margin: 18px 0 6px; }
-    .help aside a { display: block; color: var(--ink-2); padding: 3px 0; }
+    .help aside a { display: block; overflow-wrap: anywhere; color: var(--ink-2); padding: 3px 0; }
     .help aside a.on, .help aside a:hover { color: var(--accent); }
     .search { width: 100%; background: var(--panel); border: 1px solid var(--line-2); color: var(--ink); padding: 16px 18px; font-size: 18px; margin-top: 24px; }
     .search:focus { outline: none; border-color: var(--accent); }
@@ -40,17 +40,18 @@
     .hit mark { background: none; color: var(--accent); }
     article.doc h2 { font-size: clamp(32px, 4vw, 52px); margin: 6px 0 20px; }
     article.doc table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 14px; }
+    article.doc code { overflow-wrap: anywhere; }
     article.doc td { border-bottom: 1px solid var(--line); padding: 8px 10px 8px 0; vertical-align: top; color: var(--ink-2); }
     article.doc p, article.doc li { color: var(--ink-2); line-height: 1.7; }
     article.doc blockquote { border-left: 2px solid var(--accent); margin: 16px 0; padding: 4px 16px; color: var(--ink-2); }
     .pager { display: flex; justify-content: space-between; gap: 16px; margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--line); }
     .pager a { color: var(--accent); }
     .ask { display: flex; gap: 10px; margin-top: 12px; }
-    .ask input { flex: 1; background: var(--panel); border: 1px solid var(--line-2); color: var(--ink); padding: 12px 14px; font: inherit; }
+    .ask input { flex: 1; min-width: 0; background: var(--panel); border: 1px solid var(--line-2); color: var(--ink); padding: 12px 14px; font: inherit; }
     .answer { border: 1px solid var(--accent); background: var(--panel); padding: 20px 22px; margin-bottom: 32px; white-space: pre-wrap; color: var(--ink-2); line-height: 1.7; }
     .answer .src { white-space: normal; margin-top: 12px; font-size: 13px; color: var(--ink-3); }
     .answer .src a { color: var(--accent); margin-right: 12px; }
-    @media (max-width: 900px) { .help { grid-template-columns: 1fr; } .help aside { position: static; max-height: none; } }
+    @media (max-width: 900px) { article.doc table { display: block; overflow-x: auto; } .help { grid-template-columns: minmax(0, 1fr); } .help aside { position: static; max-height: none; } }
   </style>
 </head>
 <body>

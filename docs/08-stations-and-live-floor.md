@@ -88,7 +88,7 @@ The gap between opening and clearing stops an alert flapping open and shut when 
 
 Heartbeats are stored every 30 seconds (time-series, for reports later). Live values are streamed only.
 
-The Live Floor is pushed over a live stream. The other screens staff keep open refresh themselves while the tab is visible, and straight away when it comes back into view: the dashboard every 30 seconds; the counter's kitchen board, consoles, restaurant tables and the POS (stations, tables, open bills) every 15 seconds; handover notes, low stock and the day summary every minute (`useApi(path, refreshMs)` in the admin app).
+The Live Floor is pushed over a live stream. The other screens staff keep open refresh themselves while the tab is visible, and straight away when it comes back into view: the dashboard every 30 seconds; the counter's kitchen board, consoles, restaurant tables and the POS (stations, tables, open bills) every 15 seconds; handover notes, low stock and the day summary every minute; and in Super Admin, the overview and venue health every minute (`useApi(path, refreshMs)` / `usePlatform(path, refreshMs)` in the admin app).
 
 ## Live Floor
 

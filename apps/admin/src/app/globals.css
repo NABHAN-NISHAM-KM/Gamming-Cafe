@@ -6,6 +6,11 @@
    console, the Gaming Shell and the customer app read as one product. */
 
 @layer base {
+  /* A wide table or chart inside a grid scrolls in its own box instead of
+     stretching the page sideways on a phone (grid items default to min-width: auto). */
+  main .grid > * {
+    min-width: 0;
+  }
   body {
     background:
       radial-gradient(1200px 600px at 100% -10%, color-mix(in oklab, var(--color-accent) 7%, transparent), transparent 60%),

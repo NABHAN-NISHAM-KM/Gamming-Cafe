@@ -35,15 +35,20 @@ export function useApi<T>(path: string | null, refreshMs?: number) {
     void reload();
   }, [reload]);
 
+  useRefresh(path ? reload : null, refreshMs);
+
+  return { data, error, loading, reload, setData };
+}
+
+/** Calls `reload(true)` every `refreshMs` while the tab is visible, and as soon as it becomes visible again. */
+export function useRefresh(reload: ((quiet: boolean) => unknown) | null, refreshMs?: number) {
   useEffect(() => {
-    if (!refreshMs || !path) return;
+    if (!refreshMs || !reload) return;
     const tick = () => { if (document.visibilityState === "visible") void reload(true); };
     const t = setInterval(tick, refreshMs);
     document.addEventListener("visibilitychange", tick);
     return () => { clearInterval(t); document.removeEventListener("visibilitychange", tick); };
-  }, [reload, refreshMs, path]);
-
-  return { data, error, loading, reload, setData };
+  }, [reload, refreshMs]);
 }
 
 /** Wraps an async action with pending + error state for buttons and forms. */

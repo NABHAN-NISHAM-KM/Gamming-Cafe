@@ -43,7 +43,7 @@ export default function RestaurantPage() {
           </Select>
         )}
       />
-      <div className="flex gap-1 border-b border-line">
+      <div className="flex gap-1 overflow-x-auto overflow-y-hidden border-b border-line">
         {tabs.map((t) => (
           <button key={t} onClick={() => setTab(t)} className={cx("-mb-px border-b-2 px-4 py-2 text-sm", tab === t ? "border-accent text-ink" : "border-transparent text-ink-3 hover:text-ink")}>
             {t === "tables" ? "Tables" : "Menu"}

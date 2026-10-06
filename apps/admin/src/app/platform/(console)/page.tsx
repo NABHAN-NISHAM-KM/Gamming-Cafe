@@ -59,7 +59,7 @@ function Signups({ rows }: { rows: Overview["signups"] }) {
 
 export default function PlatformOverview() {
   const me = usePlatformMe();
-  const { data, error } = usePlatform<Overview>("/overview");
+  const { data, error } = usePlatform<Overview>("/overview", 60_000);
 
   return (
     <>

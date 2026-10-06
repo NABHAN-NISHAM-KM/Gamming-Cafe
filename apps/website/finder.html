@@ -30,7 +30,7 @@
     .finder { display: grid; grid-template-columns: minmax(0, 380px) minmax(0, 1fr); gap: 20px; }
     #map { height: 560px; border: 1px solid var(--line); background: var(--panel); }
     .filters { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
-    .filters select, .filters input { background: var(--panel); color: var(--ink); border: 1px solid var(--line-2); padding: 10px 12px; font: inherit; }
+    .filters select, .filters input { max-width: 100%; min-width: 0; background: var(--panel); color: var(--ink); border: 1px solid var(--line-2); padding: 10px 12px; font: inherit; }
     .list { display: flex; flex-direction: column; gap: 10px; max-height: 560px; overflow: auto; }
     .vcard { border: 1px solid var(--line); background: var(--panel); padding: 14px 16px; display: block; color: inherit; text-decoration: none; }
     .vcard:hover, .vcard:focus-visible { border-color: var(--accent); }
@@ -84,7 +84,7 @@
     const layer = map ? L.layerGroup().addTo(map) : null;
     const free = new Map();
 
-    function render() {
+    function render(fit = true) {
       const q = document.getElementById("q").value.trim().toLowerCase();
       const city = document.getElementById("city").value;
       const kind = document.getElementById("kind").value;
@@ -101,7 +101,7 @@
       layer.clearLayers();
       const pts = rows.filter(({ b }) => b.lat != null && b.lng != null).map(({ v, b }) =>
         L.marker([b.lat, b.lng]).bindPopup(`<b>${esc(v.name)}</b><br>${esc(b.name)}<br><a href="${base}v/${encodeURIComponent(v.slug)}">${L10N.open}</a>`).addTo(layer).getLatLng());
-      if (pts.length) map.fitBounds(L.latLngBounds(pts).pad(0.3), { maxZoom: 13 });
+      if (fit && pts.length) map.fitBounds(L.latLngBounds(pts).pad(0.3), { maxZoom: 13 });
     }
 
     fetch("/v1/app/venues").then((r) => (r.ok ? r.json() : [])).catch(() => []).then((venues) => {
@@ -109,15 +109,19 @@
       const cities = [...new Set(venues.flatMap((v) => v.branches.map((b) => b.city)).filter(Boolean))].sort();
       document.getElementById("city").append(...cities.map((c) => new Option(c, c)));
       render();
-      // Free stations right now, per branch (the same counts the venue's page shows).
-      for (const v of venues.slice(0, 40))
-        fetch(`/v1/app/${encodeURIComponent(v.slug)}/public`).then((r) => r.ok && r.json()).then((p) => {
-          if (!p) return;
-          for (const b of p.branches) free.set(b.id, b.zones.reduce((t, z) => t + z.free, 0));
-          render();
-        }).catch(() => {});
+      // Free stations right now, per branch (the same counts the venue's page shows), kept current every minute.
+      const counts = (fit) => {
+        for (const v of venues.slice(0, 40))
+          fetch(`/v1/app/${encodeURIComponent(v.slug)}/public`).then((r) => r.ok && r.json()).then((p) => {
+            if (!p) return;
+            for (const b of p.branches) free.set(b.id, b.zones.reduce((t, z) => t + z.free, 0));
+            render(fit);
+          }).catch(() => {});
+      };
+      counts(true);
+      setInterval(() => { if (document.visibilityState === "visible") counts(false); }, 60_000);
     });
-    for (const id of ["q", "city", "kind"]) document.getElementById(id).addEventListener("input", render);
+    for (const id of ["q", "city", "kind"]) document.getElementById(id).addEventListener("input", () => render());
   </script>
 </body>
 </html>
