@@ -5,6 +5,7 @@ import type { NestExpressApplication } from "@nestjs/platform-express";
 import { AppModule } from "./app.module.js";
 import { DeviceGateway } from "./devices/device-gateway.js";
 import { loadConfig, type AppConfig } from "./config.js";
+import { securityHeaders } from "./common/security-headers.js";
 
 export async function createApp(config: AppConfig = loadConfig()) {
   const app = await NestFactory.create<NestExpressApplication>(AppModule.forRoot(config), {
@@ -13,6 +14,7 @@ export async function createApp(config: AppConfig = loadConfig()) {
   });
   app.set("trust proxy", 1); // behind Nginx: req.ip = client address
   app.disable("x-powered-by");
+  app.use(securityHeaders(config.NODE_ENV === "production"));
   // Room for an uploaded Shell wallpaper + logo (see WALLPAPER_DATA_MAX / LOGO_DATA_MAX).
   app.useBodyParser("json", { limit: "640kb" });
   app.setGlobalPrefix("v1", { exclude: ["/", "health"] });

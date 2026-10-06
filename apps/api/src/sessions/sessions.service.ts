@@ -13,7 +13,7 @@ import { challengesFor } from "../loyalty/challenges.js";
 import { PushService } from "../push/push.service.js";
 import { PromotionsService, type Evaluation } from "../promotions/promotions.service.js";
 import { CrmService } from "../crm/crm.service.js";
-import { recomputeBill, recordPayment } from "../pos/bills.js";
+import { recomputeBill, recordPayment, taxWithin } from "../pos/bills.js";
 import { adjustTime, timeBalance } from "./time-balance.js";
 import { activeRestrictions, assertMayPlay, playerLimits } from "../customers/restrictions.js";
 
@@ -578,19 +578,21 @@ export class SessionsService {
   ) {
     const productId = await this.gamingProduct(t, a.session.organizationId, a.bill.currency);
     const amount = fromMinor(a.amountMinor, a.unit);
+    const tax = await taxWithin(t, a.session.branchId, "GAMING", a.amountMinor + a.discountMinor, a.discountMinor);
     const order = await t.order.create({
       data: {
         organizationId: a.session.organizationId, branchId: a.session.branchId, number: code("G"), channel: "SYSTEM", type: "GAMING_SEAT", status: "COMPLETED",
         paymentState: a.paymentState, billId: a.bill.id, customerId: a.session.customerId, deviceId: a.session.deviceId, gamingSessionId: a.session.id,
         employeeId: a.employeeId, deliverTo: a.deviceName, subtotal: fromMinor(a.amountMinor + a.discountMinor, a.unit), discountTotal: fromMinor(a.discountMinor, a.unit),
-        total: amount, currency: a.bill.currency, placedAt: new Date(), completedAt: new Date(),
+        taxTotal: fromMinor(tax.taxMinor, a.unit), total: amount, currency: a.bill.currency, placedAt: new Date(), completedAt: new Date(),
       },
     });
     await t.orderItem.create({
       data: {
         organizationId: a.session.organizationId, orderId: order.id, productId, nameSnapshot: a.description, productType: "GAMING_TIME", quantity: Math.max(1, a.minutes),
         unitPrice: a.minutes > 0 ? fromMinor(Math.round((a.amountMinor + a.discountMinor) / a.minutes), a.unit) : amount,
-        discountAmount: fromMinor(a.discountMinor, a.unit), lineTotal: amount, status: "SERVED", gamingSessionId: a.session.id,
+        discountAmount: fromMinor(a.discountMinor, a.unit), taxAmount: fromMinor(tax.taxMinor, a.unit), taxBreakdown: tax.taxes as unknown as Prisma.InputJsonValue,
+        lineTotal: amount, status: "SERVED", gamingSessionId: a.session.id,
       },
     });
   }

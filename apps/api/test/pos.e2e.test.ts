@@ -222,6 +222,8 @@ describe.skipIf(!HAS_DB)("POS, kitchen, tables, in-seat ordering & shifts (e2e)"
   it("an unpaid counter order moves onto a playing PC's bill; a paid one can't", async () => {
     const a = await newStation();
     const s = (await call(cashierT, "POST", `/devices/${a.identity!.deviceId}/sessions`, { planId: regularPlan, request: { kind: "minutes", minutes: 30 }, payment: { method: "CARD" }, idempotencyKey: key() })).body;
+    // Gaming time carries VAT like everything else: 7.50 incl. 5 % → 0.36.
+    expect((await call(cashierT, "GET", `/bills/${s.bill.id}`)).body).toMatchObject({ total: "7.50", taxTotal: "0.36" });
     const o = (await call(cashierT, "POST", `/branches/${dxb1}/orders`, { type: "TAKEAWAY", lines: [{ productId: P["BRG-CLASSIC"].id, quantity: 1 }], idempotencyKey: key() })).body;
     const moved = await call(cashierT, "POST", `/orders/${o.id}/move-to-seat`, { deviceId: a.identity!.deviceId });
     expect(moved.status, JSON.stringify(moved.body)).toBe(200);
@@ -262,7 +264,18 @@ describe.skipIf(!HAS_DB)("POS, kitchen, tables, in-seat ordering & shifts (e2e)"
       const mshift = await ensureShift(managerT, "100");
       expect((await call(managerT, "POST", `/payments/${payment.id}/refund`, { amount: "5", destination: "CASH", reason: "another flat", idempotencyKey: key() }, "flat")).status).toBe(201);
       expect(Number((await call(managerT, "GET", `/shifts/${mshift.id}`)).body.expectedCash)).toBe(95);
-      expect((await call(cashierT, "GET", `/bills/${o.bill.id}`)).body).toMatchObject({ paidTotal: "10.00", status: "PARTIALLY_PAID" });
+      // A refund after settling is a return: the bill stays settled, nothing is owed again, the refund is reported as such.
+      expect((await call(cashierT, "GET", `/bills/${o.bill.id}`)).body).toMatchObject({ paidTotal: "20.00", status: "SETTLED", due: "0.00" });
+    });
+
+    it("two tills paying the same bill at once: one payment, the other is told it's paid", async () => {
+      const o = (await order(cashierT, { type: "COUNTER", lines: [{ productId: P["DRK-COLA"].id, quantity: 1 }] })).body;
+      const pay = () => call(cashierT, "POST", `/bills/${o.bill.id}/pay`, { payments: [{ method: "CARD" }], idempotencyKey: key() });
+      const results = await Promise.all([pay(), pay(), pay()]);
+      expect(results.map((r) => r.status).sort()).toEqual([200, 409, 409]);
+      const pays = await owner.query(`SELECT amount FROM "Payment" WHERE "billId" = $1`, [o.bill.id]);
+      expect(pays.rows).toHaveLength(1);
+      expect((await call(cashierT, "GET", `/bills/${o.bill.id}`)).body).toMatchObject({ paidTotal: "8.00", status: "SETTLED" });
     });
   });
 
@@ -291,6 +304,7 @@ describe.skipIf(!HAS_DB)("POS, kitchen, tables, in-seat ordering & shifts (e2e)"
       const o = (await order(waiterT, { type: "DINE_IN", tableId: t6.id, lines: [{ productId: P["DRK-COLA"].id, quantity: 1 }] })).body;
       expect((await call(rivalT, "GET", `/bills/${o.bill.id}`)).status).toBe(404);
       expect((await call(rivalT, "GET", `/orders/${o.id}`)).status).toBe(404);
+      for (const path of ["/bills/abc", "/orders/abc", "/customers/abc", "/shifts/not-a-uuid"]) expect((await call(ownerT, "GET", path)).status, path).toBe(404);
       expect((await call(rivalT, "POST", `/bills/${o.bill.id}/pay`, { payments: [{ method: "CARD" }], idempotencyKey: key() })).status).toBe(404);
       expect((await call(rivalT, "GET", `/branches/${dxb1}/kitchen`)).status).toBe(404);
       expect((await call(rivalT, "POST", `/branches/${dxb1}/orders`, { type: "COUNTER", lines: [{ productId: P["DRK-COLA"].id, quantity: 1 }], idempotencyKey: key() })).status).toBe(404);

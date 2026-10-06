@@ -50,9 +50,16 @@ const NOT_REVENUE = new Set(["WALLET_TOPUP", "GIFT_CARD"]);
 
 // ── sales ───────────────────────────────────────────────────────────────────
 
+/**
+ * Money taken in on a bill: cash and card. Wallet payments are left out, because the
+ * top-up that funded them was already taken in (same rule as customer spend).
+ */
+export const takenOn = (billId: Prisma.Sql) =>
+  Prisma.sql`(SELECT COALESCE(SUM(p."amount"), 0) FROM "Payment" p WHERE p."billId" = ${billId} AND p."status" = 'CAPTURED' AND p."method" <> 'WALLET')`;
+
 /** Settled bills in the period (the CTE every sales query starts from). */
 const settledBills = (s: ReportScope, p: Period) => Prisma.sql`
-  SELECT b."id", b."branchId", br."code" AS "branch", b."total", b."taxTotal", b."discountTotal",
+  SELECT b."id", b."branchId", br."code" AS "branch", b."total", b."taxTotal", b."discountTotal", ${takenOn(Prisma.sql`b."id"`)} AS "taken",
          (b."closedAt" AT TIME ZONE br."timezone")::date AS "day", EXTRACT(HOUR FROM b."closedAt" AT TIME ZONE br."timezone")::int AS "hour",
          EXTRACT(ISODOW FROM b."closedAt" AT TIME ZONE br."timezone")::int AS "dow"
   FROM "Bill" b JOIN "Branch" br ON br."id" = b."branchId"
@@ -91,7 +98,7 @@ interface Line {
 
 export async function sales(t: TenantTx, s: ReportScope, p: Period) {
   const { currency, f } = await money(t);
-  const bills = await t.$queryRaw<Array<{ branch: string; day: Date; hour: number; dow: number; total: Prisma.Decimal; taxTotal: Prisma.Decimal; discountTotal: Prisma.Decimal }>>`${settledBills(s, p)}`;
+  const bills = await t.$queryRaw<Array<{ branch: string; day: Date; hour: number; dow: number; total: Prisma.Decimal; taxTotal: Prisma.Decimal; discountTotal: Prisma.Decimal; taken: Prisma.Decimal }>>`${settledBills(s, p)}`;
   const lines = await t.$queryRaw<Line[]>`${soldLines(s, p)}`;
   const refunds = await t.$queryRaw<Array<{ destination: string; n: bigint; amount: Prisma.Decimal }>>`
     SELECT r."destination"::text AS "destination", COUNT(*) AS n, SUM(r."amount") AS "amount"
@@ -122,7 +129,8 @@ export async function sales(t: TenantTx, s: ReportScope, p: Period) {
   };
   const revenueLines = lines.filter((l) => !NOT_REVENUE.has(l.productType));
   const revenue = revenueLines.reduce((a, l) => a + num(l.lineTotal) - num(l.taxAmount), 0);
-  const takings = bills.reduce((a, b) => a + num(b.total), 0);
+  const takings = bills.reduce((a, b) => a + num(b.taken), 0);
+  const billed = bills.reduce((a, b) => a + num(b.total), 0);
   const refunded = refunds.reduce((a, r) => a + num(r.amount), 0);
 
   const byDay = new Map<string, { bills: number; total: number; tax: number }>();
@@ -142,7 +150,7 @@ export async function sales(t: TenantTx, s: ReportScope, p: Period) {
     byBranch.set(b.branch, x);
   }
   const heat = Array.from({ length: 7 }, () => Array.from({ length: 24 }, () => 0));
-  for (const b of bills) heat[b.dow - 1]![b.hour]! += num(b.total);
+  for (const b of bills) heat[b.dow - 1]![b.hour]! += num(b.taken);
 
   const products = [...group((l) => l.productId as string)].map(([id, g]) => {
     const l = lines.find((x) => x.productId === id)!;
@@ -153,13 +161,13 @@ export async function sales(t: TenantTx, s: ReportScope, p: Period) {
     from: p.from, to: p.to, currency,
     summary: {
       bills: bills.length,
-      takings: f(takings), // everything customers paid for, incl. top-ups
+      takings: f(takings), // cash and card taken in, incl. top-ups (wallet-paid bills were taken in at the top-up)
       discounts: f(bills.reduce((a, b) => a + num(b.discountTotal), 0)),
       tax: f(bills.reduce((a, b) => a + num(b.taxTotal), 0)),
       revenue: f(revenue), // net of VAT, excluding top-ups / gift cards
       costOfGoods: f(revenueLines.reduce((a, l) => a + num(l.cost), 0)),
       refunds: f(refunded),
-      averageBill: f(bills.length ? takings / bills.length : 0),
+      averageBill: f(bills.length ? billed / bills.length : 0),
     },
     byDay: [...byDay].sort(([a], [b]) => a.localeCompare(b)).map(([day, x]) => ({ day, bills: x.bills, total: f(x.total), tax: f(x.tax), net: f(x.total - x.tax) })),
     byBranch: [...byBranch].map(([branch, x]) => ({ branch, bills: x.bills, total: f(x.total) })).sort((a, b) => num(b.total) - num(a.total)),

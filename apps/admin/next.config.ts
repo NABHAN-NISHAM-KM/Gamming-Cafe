@@ -37,7 +37,18 @@ const config: NextConfig = {
         images: { unoptimized: true },
         pageExtensions: ["tsx"],
       }
-    : {}),
+    : {
+        // Security headers here, not only in Nginx, so a missed proxy setting can't drop them.
+        async headers() {
+          const h = [
+            { key: "X-Content-Type-Options", value: "nosniff" },
+            { key: "X-Frame-Options", value: "DENY" },
+            { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          ];
+          if (process.env["NODE_ENV"] === "production") h.push({ key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" });
+          return [{ source: "/:path*", headers: h }];
+        },
+      }),
 };
 
 export default config;

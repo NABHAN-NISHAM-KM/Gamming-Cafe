@@ -26,8 +26,17 @@ export class ErrorsFilter implements ExceptionFilter {
       if (err.code === "P2002") return send(409, { error: "conflict", fields: (err.meta as any)?.target ?? null });
       if (err.code === "P2003") return send(409, { error: "invalid_reference" });
     }
+    // A malformed id in the URL (`/customers/abc`) can't match any row: same answer as a missing one.
+    if (isBadUuid(err)) return send(404, { error: "not_found" });
     if (err instanceof TenantContextMissingError) this.log.error("Tenant context missing — programming error", err.stack);
     else this.log.error(err instanceof Error ? err.stack : String(err));
     return send(500, { error: "internal_error" });
   }
+}
+
+/** Prisma (P2023) or raw SQL (22P02) refusing a string that isn't a UUID. */
+export function isBadUuid(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : "";
+  if (err instanceof Prisma.PrismaClientKnownRequestError && (err.code === "P2023" || err.code === "P2010")) return /uuid/i.test(msg);
+  return /invalid input syntax for type uuid/i.test(msg);
 }

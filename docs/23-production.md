@@ -29,7 +29,7 @@ The DB integration tests seed with `row_security = off`, which the production ow
 - **Secrets:** generate `JWT_*`, `MFA_ENCRYPTION_KEY_B64` and `COMMAND_KEK_B64` once and keep them in the secret manager. Losing the MFA or command keys locks out every authenticator and station.
 - **Super Admin:** seed with `SUPER_ADMIN_EMAIL` and `SUPER_ADMIN_PASSWORD` (12+ characters); the seed refuses anything weaker in production.
 - **Processes:** run `pm2 reload ecosystem.config.cjs` (API and platform service) behind Nginx with TLS. The API trusts one proxy hop (`trust proxy 1`), so Nginx must set `X-Forwarded-For`. Sign-in throttles are per client address.
-- **Headers:** set HSTS, `X-Content-Type-Options: nosniff` and `X-Frame-Options: DENY` in Nginx for the admin console and website.
+- **Headers:** the apps set `X-Content-Type-Options: nosniff`, `X-Frame-Options` and `Referrer-Policy` themselves, plus HSTS when `NODE_ENV=production` (API and platform: `common/security-headers.ts`; admin: `next.config.ts`; website: `serve.mjs`). The website uses `SAMEORIGIN` because it frames its own live demos; everything else is `DENY`. Nginx may repeat them.
 
 ## 3. Backups and restore
 

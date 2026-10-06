@@ -122,6 +122,11 @@ async function resolveFile(path) {
 }
 
 createServer(async (req, res) => {
+  // SAMEORIGIN, not DENY: the site frames its own live demos (/live/…).
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  if (process.env.NODE_ENV === "production") res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   try {
     const url = new URL(req.url ?? "/", "http://x");
     const up = upstreams.find(([prefix]) => url.pathname.startsWith(prefix));

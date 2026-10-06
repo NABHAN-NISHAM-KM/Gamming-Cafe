@@ -34,6 +34,12 @@ A pure module with no database access. It is unit-tested in `test/pricing.test.t
   needs `pos.discount`.
 - **Quotes are snapshotted** onto the session (`rateSnapshot`). Later rate edits
   never change a running session's price.
+- **One rate per session:** the rate in force when a session starts applies to
+  the whole session and its extensions. A session started in happy hour keeps
+  the happy-hour rate after happy hour ends; it is not split at the boundary.
+- **VAT:** gaming charges carry the branch's tax (`GAMING` or `ALL` rates),
+  taken out of the price already quoted. Prepaid time is taxed when it's sold,
+  so sessions paid from the time balance (charged 0) aren't taxed again.
 
 ## Sessions (`sessions.service.ts`)
 
@@ -42,7 +48,7 @@ A pure module with no database access. It is unit-tested in `test/pricing.test.t
 | Start | GamingSession, Bill + Order + OrderItem (`SYS-GAMING-TIME`), Payment (CASH/CARD) or a TIME_BALANCE ledger debit, station → IN_USE, audit, signed START_SESSION (sent after commit) |
 | Extend | SessionExtension + charge/payment, new `expiresAt`, signed EXTEND_SESSION |
 | Move | Old PC gets END (lock), new PC gets START with the **same** end time |
-| End / expire | Billing finalised (postpaid charge; unused prepaid minutes refunded to the balance), bill settled, station → AVAILABLE/CLEANING, signed END_SESSION |
+| End / expire | Billing finalised (postpaid charge; unused minutes **from the time balance** go back to it), bill settled, station → AVAILABLE/CLEANING, signed END_SESSION. Time paid with cash, card or wallet is not refunded automatically when a session ends early; staff refund it from the bill (`pos.refund`) if they choose |
 
 - **Idempotency:** start, extend and time sales take an `Idempotency-Key`. A
   retry returns the first result and charges once.

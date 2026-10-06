@@ -2,7 +2,7 @@ import { ConflictException, Injectable, NotFoundException } from "@nestjs/common
 import { randomBytes } from "node:crypto";
 import type { TenantTx } from "@arena/db";
 import { auditAs } from "../common/audit.service.js";
-import { openShiftOf } from "../pos/bills.js";
+import { openShiftOf, taxWithin } from "../pos/bills.js";
 import { PricingError, quote } from "../sessions/pricing.js";
 import { toPlanDef } from "../sessions/sessions.service.js";
 import { adjustTime } from "../sessions/time-balance.js";
@@ -60,18 +60,21 @@ export class CommerceService {
     const stamp = `${now.toISOString().slice(2, 10).replace(/-/g, "")}-${randomBytes(3).toString("hex").toUpperCase()}`;
     const netMinor = s.grossMinor - s.discountMinor;
     const amount = fromMinor(netMinor, unit);
+    // A top-up is money held for the customer (a liability), not a sale: no tax until it's spent.
+    const { taxMinor } = s.type === "WALLET_TOPUP" ? { taxMinor: 0 } : await taxWithin(t, branch.id, s.type === "GAMING_TIME" ? "GAMING" : "SERVICE", s.grossMinor, s.discountMinor);
+    const taxTotal = fromMinor(taxMinor, unit);
     const bill = await t.bill.create({ data: { organizationId, branchId: branch.id, number: `${branch.code}-${stamp}`, customerId: s.customerId, currency: branch.currency, openedById: employeeId } });
     const order = await t.order.create({
       data: {
         organizationId, branchId: branch.id, number: `A-${stamp}`, channel: s.actor.type === "CUSTOMER" ? "WEB" : "POS", type: "COUNTER", status: "COMPLETED", paymentState: "PAID",
-        billId: bill.id, customerId: s.customerId, employeeId, subtotal: fromMinor(s.grossMinor, unit), discountTotal: fromMinor(s.discountMinor, unit), total: amount,
+        billId: bill.id, customerId: s.customerId, employeeId, subtotal: fromMinor(s.grossMinor, unit), discountTotal: fromMinor(s.discountMinor, unit), taxTotal, total: amount,
         currency: branch.currency, placedAt: now, completedAt: now,
       },
     });
     await t.orderItem.create({
       data: {
         organizationId, orderId: order.id, productId: await this.product(t, organizationId, s.type, branch.currency), nameSnapshot: s.line, productType: s.type,
-        quantity: s.quantity, unitPrice: fromMinor(Math.round(s.grossMinor / Math.max(1, s.quantity)), unit), discountAmount: fromMinor(s.discountMinor, unit), lineTotal: amount, status: "SERVED",
+        quantity: s.quantity, unitPrice: fromMinor(Math.round(s.grossMinor / Math.max(1, s.quantity)), unit), discountAmount: fromMinor(s.discountMinor, unit), taxAmount: taxTotal, lineTotal: amount, status: "SERVED",
       },
     });
     let paymentId: string | null = null;
@@ -92,7 +95,7 @@ export class CommerceService {
         }
       }
     }
-    await t.bill.update({ where: { id: bill.id }, data: { subtotal: order.subtotal, discountTotal: order.discountTotal, total: amount, paidTotal: amount, status: "SETTLED", closedAt: now } });
+    await t.bill.update({ where: { id: bill.id }, data: { subtotal: order.subtotal, discountTotal: order.discountTotal, taxTotal, total: amount, paidTotal: amount, status: "SETTLED", closedAt: now } });
     return { bill, paymentId, amount: amount.toFixed(unit), currency: branch.currency, unit };
   }
 

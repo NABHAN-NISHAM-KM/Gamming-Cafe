@@ -188,7 +188,7 @@ function SalesReport({ q, from, to }: { q: string; from: string; to: string }) {
     <div className="grid gap-4">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Tile label="Revenue (excl. VAT)" value={fmt(s.summary.revenue, c)} hint={margin} />
-        <Tile label="Takings (incl. top-ups)" value={fmt(s.summary.takings, c)} hint={`${s.summary.bills} bills · avg ${fmt(s.summary.averageBill)}`} />
+        <Tile label="Taken in (cash & card)" value={fmt(s.summary.takings, c)} hint={`${s.summary.bills} bills · avg ${fmt(s.summary.averageBill)}`} />
         <Tile label="VAT collected" value={fmt(s.summary.tax, c)} hint={Number(s.summary.discounts) ? `Discounts ${fmt(s.summary.discounts)}` : undefined} />
         <Tile label="Refunds" value={fmt(s.summary.refunds, c)} />
       </div>

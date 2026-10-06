@@ -1,5 +1,5 @@
 import { Prisma, type TenantTx } from "@arena/db";
-import { money, type ReportScope } from "./reports.service.js";
+import { money, takenOn, type ReportScope } from "./reports.service.js";
 
 /**
  * The dashboard: what's happening right now, how today compares with the
@@ -29,7 +29,7 @@ const addDays = (day: string, n: number) => new Date(Date.parse(`${day}T00:00:00
 async function revenueByDay(t: TenantTx, s: ReportScope, from: string, to: string) {
   return t.$queryRaw<Array<{ day: Date; revenue: Prisma.Decimal | null; bills: bigint; takings: Prisma.Decimal | null }>>`
     WITH b AS (
-      SELECT b."id", b."total", ${localDate(Prisma.sql`b."closedAt"`)} AS "day"
+      SELECT b."id", ${takenOn(Prisma.sql`b."id"`)} AS "taken", ${localDate(Prisma.sql`b."closedAt"`)} AS "day"
       FROM "Bill" b JOIN "Branch" br ON br."id" = b."branchId"
       WHERE b."status" = 'SETTLED' AND ${inScope(s, Prisma.sql`b."branchId"`)} AND ${window(Prisma.sql`b."closedAt"`, from, to)}
     ), net AS (
@@ -38,7 +38,7 @@ async function revenueByDay(t: TenantTx, s: ReportScope, from: string, to: strin
       JOIN "OrderItem" i ON i."orderId" = o."id" AND i."status" NOT IN ('VOIDED', 'REFUNDED')
       GROUP BY b."id"
     )
-    SELECT b."day", SUM(net."revenue") AS "revenue", COUNT(*) AS "bills", SUM(b."total") AS "takings"
+    SELECT b."day", SUM(net."revenue") AS "revenue", COUNT(*) AS "bills", SUM(b."taken") AS "takings"
     FROM b LEFT JOIN net ON net."id" = b."id" GROUP BY b."day"`;
 }
 
@@ -128,9 +128,9 @@ export async function overview(t: TenantTx, s: ReportScope, o: { today: string; 
     : [{ cur: 0n, prev: 0n }];
   const [float] = orgWide ? await t.$queryRaw<[{ v: Prisma.Decimal | null }]>`SELECT SUM("cashBalance" + "bonusBalance" + "promoBalance" + "refundBalance") AS v FROM "Wallet"` : [{ v: null }];
   const top = await t.$queryRaw<Array<{ id: string; name: string; spent: Prisma.Decimal; visits: bigint }>>`
-    SELECT c."id", c."displayName" AS "name", SUM(b."total") AS "spent", COUNT(*) AS "visits"
-    FROM "Bill" b JOIN "Branch" br ON br."id" = b."branchId" JOIN "Customer" c ON c."id" = b."customerId"
-    WHERE b."status" = 'SETTLED' AND ${inScope(s, Prisma.sql`b."branchId"`)} AND ${window(Prisma.sql`b."closedAt"`, from, o.today)}
+    SELECT c."id", c."displayName" AS "name", SUM(p."amount" - p."refundedAmount") AS "spent", COUNT(DISTINCT p."billId") AS "visits"
+    FROM "Payment" p JOIN "Branch" br ON br."id" = p."branchId" JOIN "Customer" c ON c."id" = p."customerId"
+    WHERE p."status" = 'CAPTURED' AND p."method" <> 'WALLET' AND ${inScope(s, Prisma.sql`p."branchId"`)} AND ${window(Prisma.sql`p."createdAt"`, from, o.today)}
     GROUP BY c."id", c."displayName" ORDER BY 3 DESC LIMIT 5`;
 
   const series: Array<{ day: string; revenue: string; bills: number; sessions: number; hours: number }> = [];

@@ -8,7 +8,7 @@ import { reverseForRefund } from "../loyalty/points.js";
 import { PromotionsService } from "../promotions/promotions.service.js";
 import { moveMoney } from "../wallet/wallet.js";
 import { assertMayOrderFood } from "../customers/restrictions.js";
-import { fromMinor, minorUnit, openShiftOf, recomputeBill, recordPayment, toMinor } from "./bills.js";
+import { branchTaxProfile, fromMinor, lockRow, minorUnit, openShiftOf, recomputeBill, recordPayment, toMinor } from "./bills.js";
 import { cashChange, OrderPricingError, priceOrder, validateModifiers, type OrderDiscount, type TaxClass, type TaxProfileDef } from "./order-pricing.js";
 
 export type OrderActor = { type: "EMPLOYEE"; id: string } | { type: "CUSTOMER"; id: string } | { type: "DEVICE"; id: string } | { type: "SYSTEM"; id: null };
@@ -107,11 +107,6 @@ export class OrdersService {
     };
   }
 
-  private async taxProfile(t: TenantTx, branchId: string): Promise<TaxProfileDef | null> {
-    const b = await t.branch.findUniqueOrThrow({ where: { id: branchId }, select: { taxProfile: { select: { pricesIncludeTax: true, taxRates: { select: { name: true, ratePercent: true, appliesTo: true } } } } } });
-    if (!b.taxProfile) return null;
-    return { pricesIncludeTax: b.taxProfile.pricesIncludeTax, rates: b.taxProfile.taxRates.map((r) => ({ name: r.name, ratePercent: Number(r.ratePercent), appliesTo: r.appliesTo as TaxClass })) };
-  }
 
   // ── place ────────────────────────────────────────────────────────────────
 
@@ -214,7 +209,7 @@ export class OrdersService {
     const discount: OrderDiscount = totalDiscount > 0 ? { kind: "AMOUNT", valueMinor: totalDiscount } : null;
     let priced;
     try {
-      priced = priceOrder(priceInputs.map((x) => x.input), await this.taxProfile(t, branch.id), discount);
+      priced = priceOrder(priceInputs.map((x) => x.input), await branchTaxProfile(t, branch.id), discount);
     } catch (e) {
       if (e instanceof OrderPricingError) throw new ConflictException({ error: e.code, message: e.message });
       throw e;
@@ -290,6 +285,7 @@ export class OrdersService {
 
   /** Pays a bill with one or more tenders (split payment). Cash needs an open shift; change is worked out. */
   async pay(t: TenantTx, billId: string, payments: PayInput[], actor: OrderActor, key: string, orderId: string | null = null, forAmountMinor: number | null = null) {
+    await lockRow(t, "Bill", billId); // two tills paying the same bill at once: the second waits, then sees it paid
     const bill = await t.bill.findUnique({ where: { id: billId }, select: { id: true, organizationId: true, branchId: true, currency: true, customerId: true, total: true, paidTotal: true, status: true } });
     if (!bill) throw new NotFoundException({ error: "bill_not_found" });
     if (bill.status === "VOID") throw new ConflictException({ error: "bill_void" });
@@ -407,6 +403,7 @@ export class OrdersService {
    * for the terminal (a gateway phase makes them automatic).
    */
   async refund(t: TenantTx, paymentId: string, r: { amount: string; destination: "ORIGINAL_METHOD" | "WALLET" | "CASH"; reason: string; idempotencyKey: string }, actor: Extract<OrderActor, { type: "EMPLOYEE" }>) {
+    await lockRow(t, "Payment", paymentId); // concurrent refunds can't both pass the "refundable" check
     const done = await t.refund.findFirst({ where: { idempotencyKey: r.idempotencyKey } });
     if (done) return done;
     const p = await t.payment.findUnique({ where: { id: paymentId } });

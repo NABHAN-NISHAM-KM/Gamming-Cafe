@@ -85,7 +85,7 @@ A drawer difference usually means cash was taken without an open shift.
 
 | Report | Permission | Contents |
 |---|---|---|
-| Sales | reports.financial | Takings vs revenue (net of VAT, excluding top-ups), by day, branch, what was sold, category and payment method; refunds; top products with **stock-cost margin**; weekday × hour heatmap |
+| Sales | reports.financial | Taken in (cash and card, incl. top-ups; wallet-paid bills were taken in at the top-up) vs revenue (net of VAT, excluding top-ups), by day, branch, what was sold, category and payment method; refunds; top products with **stock-cost margin**; weekday × hour heatmap |
 | VAT | reports.financial | Output VAT by rate (from each line's tax breakdown), minus the VAT share of refunds, minus input VAT (supplier invoices, expenses) = net payable |
 | Cash & shifts | reports.financial | Closed shifts with expected, counted and variance; floats, cash sales, refunds, pay-ins/outs, safe drops, expenses |
 | Gaming utilization | reports.operational | Per zone: stations, sessions, hours, occupancy (share of 24 h station-time), revenue, revenue per station-day; busiest and quietest stations; start-time heatmap |

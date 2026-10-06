@@ -5,6 +5,7 @@ import { NestFactory } from "@nestjs/core";
 import type { NestExpressApplication } from "@nestjs/platform-express";
 import { loadPlatformConfig, type PlatformConfig } from "./config.js";
 import { PlatformModule } from "./platform.module.js";
+import { securityHeaders } from "../common/security-headers.js";
 
 export async function createPlatformApp(config: PlatformConfig = loadPlatformConfig()) {
   const app = await NestFactory.create<NestExpressApplication>(PlatformModule.forRoot(config), {
@@ -13,6 +14,7 @@ export async function createPlatformApp(config: PlatformConfig = loadPlatformCon
   });
   app.set("trust proxy", 1);
   app.disable("x-powered-by");
+  app.use(securityHeaders(config.NODE_ENV === "production"));
   app.useBodyParser("json", { limit: "64kb" });
   app.setGlobalPrefix("v1", { exclude: ["health"] });
   app.enableCors({ origin: config.PLATFORM_CORS_ORIGINS.split(",").map((s) => s.trim()), credentials: true });

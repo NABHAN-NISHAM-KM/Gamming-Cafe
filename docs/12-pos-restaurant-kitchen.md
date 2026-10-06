@@ -25,6 +25,8 @@ payments, refunds, kitchen tickets, tables, shifts, cash movements), so there is
   `pos.discount`.
 - **Idempotency:** every order and payment carries an idempotency key. Each
   tender is keyed `key:n`, so a retried split payment never charges twice.
+  Paying locks the bill row, so two tills paying the same bill at once get
+  one payment and one `already_paid`.
 - **Payments:** CASH, CARD or WALLET, split across up to 4 tenders.
   - The last tender may omit its amount, meaning "the rest". The server's
     total always wins.
@@ -55,6 +57,9 @@ payments, refunds, kitchen tickets, tables, shifts, cash movements), so there is
   - As cash from the refunding cashier's drawer.
   - Or as wallet credit.
   - Partial refunds are allowed up to what was paid.
+  - A refund on a settled bill is a return: the bill stays settled (nothing is
+    owed again) and the refund shows under refunds in the reports. Before a bill
+    is settled, a refund gives the tender back and that amount is due again.
 
 ## Kitchen (KDS)
 
