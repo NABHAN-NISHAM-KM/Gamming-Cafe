@@ -28,7 +28,8 @@ Downloads are copied to `apps/website/downloads/`. They are build outputs and ar
 
 - **Admin demo:** a Next.js static export (`ARENA_DEMO=1`, `basePath /live/admin`). Pages with an id in the URL are pre-rendered for the demo's ids plus a `_` page; the host serves `_` for ids created during the demo (`apps/website/serve.mjs`, `Arena.DemoHost`). Any other static host needs the same rewrite.
 - **Desktop EXEs** (`clients/windows/src/Arena.DemoHost`): WebView2 windows that serve the bundled build from `https://demo.arena/`. Both share one WebView2 profile, so the Console and the Shell demo running together are one venue. The Console's start screen can also connect to a real ArenaOS server.
-- **APK:** Capacitor 6 wraps the customer app demo build. It is debug-signed; a store release needs your own key.
+- **APK:** Capacitor 6 wraps the customer app. With no arguments `build-apk.ps1` builds the offline demo (`ArenaOS-Customer.apk`); `-Api https://arena-prod.duckdns.org` builds the real app, where customers enter their venue code, as `apps/customer/Arena.apk` (add `-Venue <code>` to lock it to one venue). The website's download is the real app: copy `Arena.apk` to `apps/website/downloads/ArenaOS-Customer.apk`. It is debug-signed; a store release needs your own key.
+  Gradle may print `SDK XML versions up to 3 but an SDK XML file of version 4 was encountered`. It's harmless (Android Studio and the command-line tools are different versions) and doesn't stop the script: only Gradle's exit code fails the build. Updating the command-line tools in Android Studio's SDK Manager makes it go away.
 
 ## Refreshing the demo data
 
