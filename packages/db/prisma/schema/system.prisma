@@ -264,19 +264,53 @@ model ApiKey {
 }
 
 model WebhookEndpoint {
-  id             String       @id @default(uuid(7)) @db.Uuid
-  organizationId String       @db.Uuid
+  id             String            @id @default(uuid(7)) @db.Uuid
+  organizationId String            @db.Uuid
   url            String
   events         String[]
-  secretRef      String // HMAC signing secret in vault
-  isActive       Boolean      @default(true)
-  failureCount   Int          @default(0)
-  lastDeliveryAt DateTime?    @db.Timestamptz(3)
-  createdAt      DateTime     @default(now()) @db.Timestamptz(3)
-  updatedAt      DateTime     @updatedAt @db.Timestamptz(3)
-  organization   Organization @relation(fields: [organizationId], references: [id])
+  secretRef      String // the HMAC signing secret, sealed with the server key ("v1.…"); shown once at creation
+  description    String?
+  isActive       Boolean           @default(true)
+  failureCount   Int               @default(0) // consecutive failed deliveries; 20 switches the endpoint off
+  disabledReason String?
+  /// Audit entries up to this chain position have been looked at for this endpoint.
+  cursorSeq      BigInt            @default(0)
+  lastDeliveryAt DateTime?         @db.Timestamptz(3)
+  createdAt      DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime          @updatedAt @db.Timestamptz(3)
+  organization   Organization      @relation(fields: [organizationId], references: [id])
+  deliveries     WebhookDelivery[]
 
+  @@unique([id, organizationId])
   @@index([organizationId])
+}
+
+enum WebhookDeliveryStatus {
+  PENDING
+  DELIVERED
+  FAILED
+}
+
+/// One event for one endpoint, retried with backoff until it is delivered or gives up.
+model WebhookDelivery {
+  id             String                @id @default(uuid(7)) @db.Uuid
+  organizationId String                @db.Uuid
+  endpointId     String                @db.Uuid
+  eventId        String                @db.Uuid // the AuditLog row
+  eventType      String
+  payload        Json
+  status         WebhookDeliveryStatus @default(PENDING)
+  attempts       Int                   @default(0)
+  nextAttemptAt  DateTime              @default(now()) @db.Timestamptz(3)
+  lastStatus     Int?
+  lastError      String?
+  deliveredAt    DateTime?             @db.Timestamptz(3)
+  createdAt      DateTime              @default(now()) @db.Timestamptz(3)
+  endpoint       WebhookEndpoint       @relation(fields: [endpointId, organizationId], references: [id, organizationId], onDelete: Cascade)
+
+  @@unique([endpointId, eventId])
+  @@index([organizationId, status, nextAttemptAt])
+  @@index([endpointId, createdAt])
 }
 
 enum TicketStatus {

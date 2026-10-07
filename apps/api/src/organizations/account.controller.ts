@@ -5,6 +5,7 @@ import { AnyStaff, RequirePermission } from "../common/decorators.js";
 import { orgId, principal, tx } from "../common/request-state.js";
 import { ZodPipe } from "../common/zod.pipe.js";
 import { CONFIG, type AppConfig } from "../config.js";
+import { seal } from "../auth/crypto.js";
 import { createCheckout, resolveSecret } from "../payments/stripe.js";
 
 /** Share of a plan limit at which the venue is warned. */
@@ -15,11 +16,18 @@ const Gateway = z
   .object({
     provider: z.literal("STRIPE"),
     mode: z.enum(["TEST", "LIVE"]),
-    credentialsRef: z.string().regex(/^env:[A-Z0-9_]{1,100}$/, 'Where the secret key is, e.g. "env:STRIPE_SECRET_PIXEL"'),
-    webhookSecretRef: z.string().regex(/^env:[A-Z0-9_]{1,100}$/),
+    /** The venue's Stripe secret key, typed here and kept sealed. Leave out to keep the one already saved. */
+    secretKey: z.string().trim().regex(/^(sk|rk)_(test|live)_[A-Za-z0-9]{8,}$/, "Should look like sk_live_… or sk_test_…").optional(),
+    webhookSecret: z.string().trim().regex(/^whsec_[A-Za-z0-9]{8,}$/, "Should look like whsec_…").optional(),
+    /** Alternatively, point at the server's own environment: "env:STRIPE_SECRET_PIXEL". */
+    credentialsRef: z.string().regex(/^env:[A-Z0-9_]{1,100}$/).optional(),
+    webhookSecretRef: z.string().regex(/^env:[A-Z0-9_]{1,100}$/).optional(),
     isActive: z.boolean(),
   })
   .strict();
+
+/** Where a saved secret lives, without saying what it is. */
+const source = (ref: string | null) => (!ref ? null : ref.startsWith("v1.") ? "saved" : ref.startsWith("env:") ? ref : "unknown");
 
 const me = () => ({ type: "EMPLOYEE" as const, id: principal().employeeId });
 
@@ -168,7 +176,7 @@ export class AccountController {
     const g = await tx().paymentGatewayConfig.findFirst({ where: { branchId: null, provider: "STRIPE" } });
     const slug = (await tx().organization.findFirstOrThrow({ select: { slug: true } })).slug;
     return {
-      gateway: g ? { provider: g.provider, mode: g.mode, credentialsRef: g.credentialsRef, webhookSecretRef: g.webhookSecretRef, isActive: g.isActive, secretFound: !!resolveSecret(g.credentialsRef), webhookSecretFound: !!resolveSecret(g.webhookSecretRef) } : null,
+      gateway: g ? { provider: g.provider, mode: g.mode, isActive: g.isActive, keySource: source(g.credentialsRef), webhookSource: source(g.webhookSecretRef), secretFound: !!resolveSecret(g.credentialsRef, this.cfg.MFA_ENCRYPTION_KEY_B64), webhookSecretFound: !!resolveSecret(g.webhookSecretRef, this.cfg.MFA_ENCRYPTION_KEY_B64) } : null,
       webhookPath: `/v1/app/${slug}/stripe-webhook`,
     };
   }
@@ -177,7 +185,14 @@ export class AccountController {
   @Put("payments/gateway")
   async setGateway(@Body(new ZodPipe(Gateway)) body: z.infer<typeof Gateway>) {
     const g = await tx().paymentGatewayConfig.findFirst({ where: { branchId: null, provider: "STRIPE" } });
-    const data = { mode: body.mode, credentialsRef: body.credentialsRef, webhookSecretRef: body.webhookSecretRef, isActive: body.isActive };
+    const keyB64 = this.cfg.MFA_ENCRYPTION_KEY_B64;
+    const credentialsRef = body.secretKey ? seal(body.secretKey, keyB64) : (body.credentialsRef ?? g?.credentialsRef);
+    const webhookSecretRef = body.webhookSecret ? seal(body.webhookSecret, keyB64) : (body.webhookSecretRef ?? g?.webhookSecretRef);
+    if (!credentialsRef || !webhookSecretRef) throw new ConflictException({ error: "gateway_keys_missing", hint: "Enter both the secret key and the webhook signing secret." });
+    // Catch the classic slip: a live key with test mode switched on (or the reverse).
+    const typed = body.secretKey ?? resolveSecret(credentialsRef, keyB64);
+    if (typed && /^(sk|rk)_(test|live)_/.test(typed) && typed.split("_")[1]!.toUpperCase() !== body.mode) throw new ConflictException({ error: "gateway_mode_mismatch", hint: `That is a ${typed.split("_")[1]} key but the mode is ${body.mode.toLowerCase()}.` });
+    const data = { mode: body.mode, credentialsRef, webhookSecretRef, isActive: body.isActive };
     const saved = g ? await tx().paymentGatewayConfig.update({ where: { id: g.id }, data }) : await tx().paymentGatewayConfig.create({ data: { ...data, organizationId: orgId(), provider: "STRIPE" } });
     await auditAs(tx(), me(), { action: "payment.gateway_set", entityType: "PaymentGatewayConfig", entityId: saved.id, before: g ? { mode: g.mode, isActive: g.isActive } : null, after: { mode: saved.mode, isActive: saved.isActive } });
     return this.gateway();

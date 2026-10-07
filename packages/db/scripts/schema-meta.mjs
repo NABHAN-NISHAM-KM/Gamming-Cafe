@@ -26,6 +26,7 @@ export const RLS_EXEMPT = {
   AuditChainHead: "maintained only by SECURITY DEFINER audit trigger",
   Lead: "platform sales pipeline from the website; platform service only (revoked from the tenant API)",
   PlatformAnnouncement: "platform-wide messages to venue staff; read-only to tenants via GRANT",
+  PlatformSetting: "operator settings (mail, payment keys); secrets sealed; written by the platform service, read-only to tenants via GRANT",
   SiteStat: "anonymous website visit counts; platform service only (revoked from the tenant API)",
 };
 

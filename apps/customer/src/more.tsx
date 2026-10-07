@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
 import {
-  Bell, BellOff, Check, Clock, CreditCard, Gamepad2, Gift, HeartHandshake, KeyRound, Languages, LifeBuoy, Loader2, LogIn, Medal, Minus, Monitor,
+  Bell, BellOff, Check, Clock, CreditCard, Download, Gamepad2, Gift, HeartHandshake, KeyRound, Languages, LifeBuoy, Loader2, LogIn, Medal, Minus, Monitor,
   Plus, Send, Share2, ShieldCheck, Star, Trash2, Trophy, User, UtensilsCrossed, Users,
 } from "lucide-react";
 import { api, key, setToken, type Booking, type Me, type Venue } from "./api";
@@ -625,6 +625,39 @@ export function TopUpSheet({ me, venue, onClose, onDone, toast }: { me: Me; venu
   );
 }
 
+// ── wallet: gift card ───────────────────────────────────────────────────────
+
+/** A code bought at the counter becomes wallet money. */
+export function GiftCardSheet({ me, onClose, onDone, toast }: { me: Me; onClose: () => void; onDone: () => void; toast: Toast }) {
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const redeem = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await api<{ amount: string }>("/wallet/gift-card", { method: "POST", body: { code } });
+      toast(t("{amount} added to your wallet!", { amount: `${me.wallet.currency} ${r.amount}` }));
+      onDone();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("Couldn't redeem that code."));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Sheet title={t("Redeem a gift card")} onClose={onClose}>
+      <div className="grid gap-4">
+        <input className="field text-center font-mono text-lg uppercase tracking-widest" dir="ltr" autoCapitalize="characters" autoComplete="off" spellCheck={false} placeholder="XXXX-XXXX-XXXX-XXXX" value={code} onChange={(e) => setCode(e.target.value)} aria-label={t("Gift card code")} />
+        <ErrorText>{error}</ErrorText>
+        <button className="btn btn-primary py-4 text-lg" disabled={busy || code.replace(/[^A-Za-z0-9]/g, "").length < 16} onClick={() => void redeem()}>
+          {busy ? <Loader2 className="size-5 animate-spin" /> : <Gift className="size-5" />} {t("Redeem")}
+        </button>
+      </div>
+    </Sheet>
+  );
+}
+
 // ── sign in at a PC with the phone ──────────────────────────────────────────
 
 /** Opened from the PC's QR code (…?pc=CODE): confirm, and the PC unlocks with my saved time. */
@@ -733,7 +766,7 @@ export function ProfileScreen({ me, back, toast, onChanged }: { me: Me; back: ()
   const [f, setF] = useState({ displayName: me.displayName, phone: me.phone ?? "", email: me.email ?? "", dateOfBirth: me.dateOfBirth ?? "", marketingConsent: me.marketingConsent });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [sheet, setSheet] = useState<"password" | "pin" | "delete" | null>(null);
+  const [sheet, setSheet] = useState<"password" | "pin" | "export" | "delete" | null>(null);
   const [push, setPush] = useState<PushState | null>(null);
   const [qr, setQr] = useState<string | null>(null);
   useEffect(() => {
@@ -810,10 +843,12 @@ export function ProfileScreen({ me, back, toast, onChanged }: { me: Me; back: ()
         </div>
       )}
 
-      <button className="btn btn-ghost mt-6 w-full text-alarm" onClick={() => setSheet("delete")}><Trash2 className="size-5" /> {t("Delete my account")}</button>
+      <button className="btn btn-ghost mt-6 w-full" onClick={() => setSheet("export")}><Download className="size-5" /> {t("Download my data")}</button>
+      <button className="btn btn-ghost mt-3 w-full text-alarm" onClick={() => setSheet("delete")}><Trash2 className="size-5" /> {t("Delete my account")}</button>
 
       {sheet === "password" && <PasswordSheet onClose={() => setSheet(null)} toast={toast} />}
       {sheet === "pin" && <PinSheet hasPin={me.hasPin} onClose={() => setSheet(null)} onDone={() => { setSheet(null); onChanged(); }} toast={toast} />}
+      {sheet === "export" && <ExportSheet onClose={() => setSheet(null)} />}
       {sheet === "delete" && <DeleteSheet onClose={() => setSheet(null)} />}
     </Screen>
   );
@@ -873,6 +908,38 @@ function PinSheet({ hasPin, onClose, onDone, toast }: { hasPin: boolean; onClose
         <ErrorText>{error}</ErrorText>
         <button className="btn btn-primary py-4" disabled={busy || f.pin.length < 4}>{busy && <Loader2 className="size-5 animate-spin" />} {t("Save PIN")}</button>
         {hasPin && <button type="button" className="btn btn-ghost text-alarm" disabled={busy || !f.password} onClick={() => void save(null)}>{t("Remove PIN")}</button>}
+      </form>
+    </Sheet>
+  );
+}
+
+/** The venue's copy of my data, saved as a JSON file on this phone. */
+function ExportSheet({ onClose }: { onClose: () => void }) {
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const go = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const data = await api<unknown>("/me/export", { method: "POST", body: { password } });
+      const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
+      const a = Object.assign(document.createElement("a"), { href: url, download: "my-data.json" });
+      a.click();
+      URL.revokeObjectURL(url);
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("Couldn't prepare your data."));
+      setBusy(false);
+    }
+  };
+  return (
+    <Sheet title={t("Download my data")} onClose={onClose}>
+      <form className="grid gap-3" onSubmit={(e) => { e.preventDefault(); void go(); }}>
+        <p className="text-sm text-dim">{t("Your profile, wallet history, sessions, bills, bookings, points and messages, in one file.")}</p>
+        <input className="field" type="password" placeholder={t("Your password")} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />
+        <ErrorText>{error}</ErrorText>
+        <button className="btn btn-primary py-4" disabled={busy || !password}>{busy && <Loader2 className="size-5 animate-spin" />} {t("Download")}</button>
       </form>
     </Sheet>
   );

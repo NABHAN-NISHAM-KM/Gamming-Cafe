@@ -1,5 +1,5 @@
 import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { Prisma, type TenantTx } from "@arena/db";
 import { auditAs } from "../common/audit.service.js";
 import { chargeWithTax, openShiftOf, taxWithin } from "../pos/bills.js";
@@ -15,9 +15,18 @@ const SYS_PRODUCTS = {
   GAMING_TIME: { sku: "SYS-PREPAID-TIME", name: "Prepaid gaming time", category: "Gaming" },
   MEMBERSHIP: { sku: "SYS-MEMBERSHIP", name: "Membership", category: "Memberships" },
   WALLET_TOPUP: { sku: "SYS-WALLET-TOPUP", name: "Wallet top-up", category: "Wallet" },
+  GIFT_CARD: { sku: "SYS-GIFT-CARD", name: "Gift card", category: "Wallet" },
   /** Season passes (the only SERVICE sold from here). */
   SERVICE: { sku: "SYS-SEASON-PASS", name: "Season pass", category: "Memberships" },
 } as const;
+
+// No 0/O/1/I/L: a code read out loud or off a printed card survives being typed.
+const CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+/** 16 characters, about 79 bits: not guessable, so redeeming needs no more than a per-customer throttle. */
+const newGiftCode = () => Array.from(randomBytes(16), (b) => CODE_CHARS[b % CODE_CHARS.length]).join("");
+const formatGiftCode = (c: string) => c.match(/.{4}/g)!.join("-");
+/** Case, spaces and dashes don't matter when typing a code. */
+export const giftCodeHash = (code: string) => createHash("sha256").update(code.toUpperCase().replace(/[^A-Z0-9]/g, "")).digest("hex");
 
 /** Default life of bonus credit granted with a top-up. */
 const BONUS_DAYS = 90;
@@ -48,7 +57,7 @@ export class CommerceService {
   private async sell(
     t: TenantTx,
     s: {
-      branchId: string; customerId: string; type: keyof typeof SYS_PRODUCTS; line: string; quantity: number;
+      branchId: string; customerId: string | null; type: keyof typeof SYS_PRODUCTS; line: string; quantity: number;
       grossMinor: number; discountMinor: number; payment: SalePayment; key: string; actor: SaleActor;
     },
   ) {
@@ -58,11 +67,12 @@ export class CommerceService {
     const employeeId = s.actor.type === "EMPLOYEE" ? s.actor.id : null;
     const now = new Date();
     const stamp = `${now.toISOString().slice(2, 10).replace(/-/g, "")}-${randomBytes(3).toString("hex").toUpperCase()}`;
-    // A top-up is money held for the customer (a liability), not a sale: no tax until it's spent.
+    // A top-up or gift card is money held for the customer (a liability), not a sale: no tax until it's spent.
+    const held = s.type === "WALLET_TOPUP" || s.type === "GIFT_CARD";
     const cls = s.type === "GAMING_TIME" ? "GAMING" : "SERVICE";
-    const netMinor = s.type === "WALLET_TOPUP" ? s.grossMinor - s.discountMinor : await chargeWithTax(t, branch.id, cls, s.grossMinor - s.discountMinor);
+    const netMinor = held ? s.grossMinor - s.discountMinor : await chargeWithTax(t, branch.id, cls, s.grossMinor - s.discountMinor);
     const amount = fromMinor(netMinor, unit);
-    const { taxMinor, taxes } = s.type === "WALLET_TOPUP" ? { taxMinor: 0, taxes: [] } : await taxWithin(t, branch.id, cls, netMinor);
+    const { taxMinor, taxes } = held ? { taxMinor: 0, taxes: [] } : await taxWithin(t, branch.id, cls, netMinor);
     const taxTotal = fromMinor(taxMinor, unit);
     const bill = await t.bill.create({ data: { organizationId, branchId: branch.id, number: `${branch.code}-${stamp}`, customerId: s.customerId, currency: branch.currency, openedById: employeeId } });
     const order = await t.order.create({
@@ -81,6 +91,7 @@ export class CommerceService {
     let paymentId: string | null = null;
     if (netMinor > 0) {
       if (s.payment.method === "WALLET") {
+        if (!s.customerId) throw new ConflictException({ error: "wallet_needs_customer" });
         paymentId = await payFromWallet(t, { bill: { id: bill.id, branchId: branch.id, currency: branch.currency }, amountMinor: netMinor, unit, key: `${s.key}:pay`, customerId: s.customerId, employeeId });
       } else {
         // Cash at the counter goes into the cashier's open drawer, like any POS sale, so the shift count adds up.
@@ -161,6 +172,43 @@ export class CommerceService {
     }
     if (sale) await auditAs(t, actor, { action: "wallet.topup", entityType: "Customer", entityId: i.customerId, branchId: branch.id, after: { amount: i.amount, bonus: i.bonus ?? null, method: i.payment.method, billId: sale.bill.id } });
     return { customerId: i.customerId, cashBalance: fromMinor(cash.balanceAfterMinor, unit).toFixed(unit), duplicate: !sale };
+  }
+
+  // ── gift cards ──────────────────────────────────────────────────────────
+
+  /**
+   * Sells a gift card: one bill (held as a liability, not revenue) and a new
+   * code, returned once. Only the code's hash is stored. A retry with the same
+   * key returns no code, because it can't be recovered.
+   */
+  async sellGiftCard(t: TenantTx, i: { branchId: string; amount: string; customerId?: string | null; payment: SalePayment; idempotencyKey: string }, actor: SaleActor) {
+    const { unit, currency, organizationId } = await orgCurrency(t);
+    const branch = await this.branch(t, i.branchId);
+    if (branch.currency !== currency) throw new ConflictException({ error: "wallet_currency_mismatch" });
+    if (i.customerId && !(await t.customer.findUnique({ where: { id: i.customerId }, select: { id: true } }))) throw new NotFoundException({ error: "customer_not_found" });
+    const grossMinor = toMinor(i.amount, unit);
+    if (grossMinor <= 0) throw new ConflictException({ error: "bad_amount" });
+    const sale = await this.sell(t, { branchId: branch.id, customerId: i.customerId ?? null, type: "GIFT_CARD", line: "Gift card", quantity: 1, grossMinor, discountMinor: 0, payment: i.payment, key: i.idempotencyKey, actor });
+    if (!sale) return { duplicate: true as const };
+    const code = newGiftCode();
+    const card = await t.giftCard.create({
+      data: { organizationId, codeHash: giftCodeHash(code), codeHint: code.slice(-4), amount: fromMinor(grossMinor, unit), currency, branchId: branch.id, billId: sale.bill.id, soldById: actor.type === "EMPLOYEE" ? actor.id : null },
+    });
+    await auditAs(t, actor, { action: "giftcard.sell", entityType: "GiftCard", entityId: card.id, branchId: branch.id, after: { amount: i.amount, method: i.payment.method, billId: sale.bill.id } });
+    return { duplicate: false as const, id: card.id, code: formatGiftCode(code), amount: sale.amount, currency, billNumber: sale.bill.number };
+  }
+
+  /** Turns a code into wallet money, once. A wrong or used code looks the same: `gift_card_invalid`. */
+  async redeemGiftCard(t: TenantTx, i: { customerId: string; code: string }, actor: SaleActor) {
+    const card = await t.giftCard.findFirst({ where: { codeHash: giftCodeHash(i.code), status: "ACTIVE" } });
+    if (!card) throw new ConflictException({ error: "gift_card_invalid" });
+    // The claim is atomic: of two racing redemptions only one flips ACTIVE to REDEEMED.
+    const claimed = await t.giftCard.updateMany({ where: { id: card.id, status: "ACTIVE" }, data: { status: "REDEEMED", redeemedAt: new Date(), redeemedById: i.customerId } });
+    if (claimed.count !== 1) throw new ConflictException({ error: "gift_card_invalid" });
+    const { unit } = await orgCurrency(t);
+    const cash = await moveMoney(t, { customerId: i.customerId, bucket: "CASH", deltaMinor: toMinor(card.amount, unit), type: "TOPUP", reason: `Gift card ....${card.codeHint}`, branchId: card.branchId, referenceType: "GIFT_CARD", referenceId: card.id, idempotencyKey: `giftcard:${card.id}` });
+    await auditAs(t, actor, { action: "giftcard.redeem", entityType: "GiftCard", entityId: card.id, branchId: card.branchId, after: { amount: card.amount.toFixed(unit), customerId: i.customerId } });
+    return { amount: card.amount.toFixed(unit), currency: card.currency, cashBalance: fromMinor(cash.balanceAfterMinor, unit).toFixed(unit) };
   }
 
   // ── memberships ─────────────────────────────────────────────────────────

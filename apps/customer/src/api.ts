@@ -64,6 +64,7 @@ export class ApiError extends Error {
 const MESSAGES: Record<string, string> = {
   invalid_credentials: "Wrong username or password.",
   account_blocked: "This account can't be used. Please talk to the staff.",
+  gift_card_invalid: "That code isn't valid, or it was already used. Check it and try again.",
   too_many_attempts: "Too many attempts. Please wait a few minutes.",
   username_taken: "That username is taken — pick another one.",
   already_registered: "You already have an account — sign in instead.",

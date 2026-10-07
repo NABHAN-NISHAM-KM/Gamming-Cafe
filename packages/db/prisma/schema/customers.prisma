@@ -59,6 +59,7 @@ model Customer {
   guardian               Customer?               @relation("Guardian", fields: [guardianId, organizationId], references: [id, organizationId], onDelete: Restrict)
   wards                  Customer[]              @relation("Guardian")
   waitlistEntries        WaitlistEntry[]
+  giftCardsRedeemed      GiftCard[]
   seasonPasses           SeasonPass[]
   lfgPosts               LfgPost[]
   lfgMemberships         LfgMember[]

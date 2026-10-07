@@ -148,7 +148,7 @@ async function candidates(t: TenantTx, type: DocType): Promise<Candidate[]> {
       // credit with nothing behind it (an opening balance brought over from an old system).
       return t.$queryRaw<Candidate[]>`
         SELECT w."id", '1' AS fp FROM "WalletTransaction" w ${cursor("w")}
-        WHERE (w."type" IN ('BONUS_GRANT', 'BONUS_EXPIRE', 'ADJUSTMENT', 'REVERSAL') OR (w."type" = 'TOPUP' AND w."paymentId" IS NULL AND w."referenceType" IS NULL))
+        WHERE (w."type" IN ('BONUS_GRANT', 'BONUS_EXPIRE', 'ADJUSTMENT', 'REVERSAL') OR (w."type" = 'TOPUP' AND w."paymentId" IS NULL AND w."referenceType" IS NULL) OR (w."type" = 'TOPUP' AND w."referenceType" = 'GIFT_CARD'))
           AND w."bucket" <> 'TIME' AND c."id" IS NULL
         ORDER BY w."id" LIMIT ${BATCH}`;
     case "STOCK_MOVEMENT":
@@ -291,6 +291,9 @@ async function buildWalletTx(t: TenantTx, ctx: PostCtx, cs: Candidate[]): Promis
     if (orig && ["BONUS_GRANT", "BONUS_EXPIRE", "ADJUSTMENT"].includes(orig.type)) {
       // Credit to the wallet (+) is a cost to the business; a debit (−) gives it back.
       move(lines, expenseFor(orig.type, orig.referenceType), sk("WALLET_LIABILITY"), signed);
+    } else if (w.type === "TOPUP" && w.referenceType === "GIFT_CARD") {
+      // A redeemed gift card: what was owed on the card is now owed in the wallet.
+      move(lines, sk("GIFT_CARD_LIABILITY"), sk("WALLET_LIABILITY"), signed);
     } else if (w.type === "TOPUP") {
       // Opening balance: the money was received before ArenaOS kept the books.
       move(lines, sk("OWNER_EQUITY"), sk("WALLET_LIABILITY"), signed);

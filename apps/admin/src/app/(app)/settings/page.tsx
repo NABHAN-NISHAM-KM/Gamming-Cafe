@@ -249,27 +249,35 @@ function PublicPage() {
 function CardGateway() {
   const canOrg = useCanOrg();
   const may = canOrg("payment.gateway_manage");
-  const { data, setData } = useApi<{ gateway: { mode: "TEST" | "LIVE"; credentialsRef: string; webhookSecretRef: string; isActive: boolean; secretFound: boolean; webhookSecretFound: boolean } | null; webhookPath: string }>(may ? "/payments/gateway" : null);
+  type Gw = { mode: "TEST" | "LIVE"; isActive: boolean; keySource: string | null; webhookSource: string | null; secretFound: boolean; webhookSecretFound: boolean };
+  const { data, setData } = useApi<{ gateway: Gw | null; webhookPath: string }>(may ? "/payments/gateway" : null);
   const [f, setF] = useState<{ mode: "TEST" | "LIVE"; key: string; hook: string; isActive: boolean } | null>(null);
-  const cur = f ?? (data ? { mode: data.gateway?.mode ?? "TEST", key: data.gateway?.credentialsRef ?? "env:STRIPE_SECRET_KEY", hook: data.gateway?.webhookSecretRef ?? "env:STRIPE_WEBHOOK_SECRET", isActive: data.gateway?.isActive ?? false } : null);
+  const cur = f ?? (data ? { mode: data.gateway?.mode ?? "TEST", key: "", hook: "", isActive: data.gateway?.isActive ?? false } : null);
   const save = useAction(async () => {
-    setData(await api("/payments/gateway", { method: "PUT", body: { provider: "STRIPE", mode: cur!.mode, credentialsRef: cur!.key.trim(), webhookSecretRef: cur!.hook.trim(), isActive: cur!.isActive }, action: "Save card payments", done: "Card payments saved." }));
+    // Blank key fields keep what is already saved; a typed key replaces it.
+    setData(await api("/payments/gateway", { method: "PUT", body: { provider: "STRIPE", mode: cur!.mode, isActive: cur!.isActive, ...(cur!.key.trim() ? { secretKey: cur!.key.trim() } : {}), ...(cur!.hook.trim() ? { webhookSecret: cur!.hook.trim() } : {}) }, action: "Save card payments", done: "Card payments saved." }));
     setF(null);
   });
   if (!may || !data || !cur) return null;
   const g = data.gateway;
+  const state = (found: boolean, source: string | null) => (!g || !source ? "Not set yet" : !found ? `Not found (${source})` : source === "saved" ? "Saved. Type a new one to replace it." : `Read from the server (${source})`);
+  const origin = typeof window === "undefined" ? "" : window.location.origin;
   return (
     <Card className="mb-4 max-w-2xl p-6">
       <div className="flex items-start gap-3">
         <CreditCard className="mt-0.5 size-5 text-accent" />
         <div className="flex-1">
           <h2 className="flex items-center gap-2 font-semibold">Card top-ups in the app {g?.isActive && g.secretFound && g.webhookSecretFound ? <Badge tone="ok">On</Badge> : <Badge>Off</Badge>}</h2>
-          <p className="mt-1 text-sm text-ink-2">Customers top up their wallet by card from their phone, through your Stripe account. Keys never go in here: put them in the server's settings and name them below.</p>
+          <p className="mt-1 text-sm text-ink-2">Customers top up their wallet by card from their phone, through your own Stripe account. Paste your keys here; they are stored encrypted and never shown again.</p>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <Field label="Secret key" hint={g ? (g.secretFound ? "Found on the server" : "Not found on the server") : undefined}><Input value={cur.key} onChange={(e) => setF({ ...cur, key: e.target.value })} placeholder="env:STRIPE_SECRET_KEY" /></Field>
-            <Field label="Webhook signing secret" hint={g ? (g.webhookSecretFound ? "Found on the server" : "Not found on the server") : undefined}><Input value={cur.hook} onChange={(e) => setF({ ...cur, hook: e.target.value })} placeholder="env:STRIPE_WEBHOOK_SECRET" /></Field>
+            <Field label="Stripe secret key" hint={state(!!g?.secretFound, g?.keySource ?? null)}>
+              <Input type="password" autoComplete="off" value={cur.key} onChange={(e) => setF({ ...cur, key: e.target.value })} placeholder={g?.secretFound ? "••••••••  (saved)" : "sk_live_… or sk_test_…"} />
+            </Field>
+            <Field label="Webhook signing secret" hint={state(!!g?.webhookSecretFound, g?.webhookSource ?? null)}>
+              <Input type="password" autoComplete="off" value={cur.hook} onChange={(e) => setF({ ...cur, hook: e.target.value })} placeholder={g?.webhookSecretFound ? "••••••••  (saved)" : "whsec_…"} />
+            </Field>
           </div>
-          <p className="mt-3 text-xs text-ink-3">In Stripe, send the <b>checkout.session.completed</b> event to <span className="select-all font-mono">{`<your API address>${data.webhookPath}`}</span>.</p>
+          <p className="mt-3 text-xs text-ink-3">In Stripe → Developers → Webhooks, add this address and send it the <b>checkout.session.completed</b> event: <span className="select-all font-mono">{`${origin.replace(/:3000$/, ":4000")}${data.webhookPath}`}</span> (use your public API address).</p>
           <div className="mt-4 flex flex-wrap items-center gap-4 text-sm">
             <label className="flex items-center gap-2"><input type="radio" checked={cur.mode === "TEST"} onChange={() => setF({ ...cur, mode: "TEST" })} /> Test mode</label>
             <label className="flex items-center gap-2"><input type="radio" checked={cur.mode === "LIVE"} onChange={() => setF({ ...cur, mode: "LIVE" })} /> Live</label>

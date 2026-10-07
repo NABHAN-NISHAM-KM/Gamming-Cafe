@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
-  BarChart3, Boxes, Building2, CalendarClock, CalendarDays, ChefHat, CreditCard, Lightbulb, ListOrdered, ChevronDown, Coins, Cpu, Gamepad2, Gauge, Joystick, LayoutGrid, LogOut, MonitorPlay,
+  BarChart3, Boxes, Building2, CalendarClock, CalendarDays, ChefHat, CreditCard, Gift, Lightbulb, ListOrdered, Plug, ChevronDown, Coins, Cpu, Gamepad2, Gauge, Joystick, LayoutGrid, LogOut, MonitorPlay,
   Megaphone, Menu, Printer, ReceiptText, Search, Settings, ShieldAlert, ShieldCheck, ShoppingCart, Tag, Timer, Trophy, Truck, UserRound, Users, UtensilsCrossed, X,
 } from "lucide-react";
 import { session } from "@/lib/client/api";
@@ -29,7 +29,7 @@ interface NavItem {
 }
 
 const NAV: Array<{ group: string; items: NavItem[] }> = [
-  { group: "Operate", items: [
+  { group: "Front desk", items: [
     { href: "/counter", label: "Counter", icon: MonitorPlay, anyOf: ["station.start_session", "pos.sell"], everyday: true },
     { href: "/", label: "Dashboard", icon: Gauge, everyday: true },
     { href: "/floor", label: "Live Floor", icon: LayoutGrid, anyOf: ["station.view"], everyday: true },
@@ -37,32 +37,40 @@ const NAV: Array<{ group: string; items: NavItem[] }> = [
     { href: "/bookings", label: "Bookings", icon: CalendarClock, anyOf: ["booking.view"], everyday: true },
     { href: "/waitlist", label: "Waitlist", icon: ListOrdered, anyOf: ["booking.view"], everyday: true },
     { href: "/customers", label: "Customers", icon: UserRound, anyOf: ["customer.view"], everyday: true },
+  ] },
+  { group: "Sales & food", items: [
+    { href: "/pos", label: "POS", icon: ShoppingCart, anyOf: ["pos.sell"], everyday: true },
+    { href: "/orders", label: "Orders", icon: ReceiptText, anyOf: ["pos.sell"], everyday: true },
+    { href: "/kitchen", label: "Kitchen", icon: ChefHat, anyOf: ["kds.view"], everyday: true },
+    { href: "/restaurant", label: "Restaurant", icon: UtensilsCrossed, anyOf: ["restaurant.order", "restaurant.menu_manage"] },
+    { href: "/gift-cards", label: "Gift cards", icon: Gift, anyOf: ["wallet.topup", "wallet.view_ledger"] },
     { href: "/printing", label: "Printing", icon: Printer, anyOf: ["print.view"] },
   ] },
-  { group: "Gaming", items: [
+  { group: "Gaming floor", items: [
     { href: "/games", label: "Games", icon: Gamepad2, anyOf: ["game.view"] },
     { href: "/computers", label: "Computers", icon: Cpu, anyOf: ["station.view"] },
     { href: "/consoles", label: "Consoles & VR", icon: Joystick, anyOf: ["station.view"] },
     { href: "/tournaments", label: "Tournaments", icon: Trophy, anyOf: ["tournament.view"] },
   ] },
-  { group: "Food & sales", items: [
-    { href: "/restaurant", label: "Restaurant", icon: UtensilsCrossed, anyOf: ["restaurant.order", "restaurant.menu_manage"] },
-    { href: "/pos", label: "POS", icon: ShoppingCart, anyOf: ["pos.sell"], everyday: true },
-    { href: "/orders", label: "Orders", icon: ReceiptText, anyOf: ["pos.sell"], everyday: true },
-    { href: "/kitchen", label: "Kitchen", icon: ChefHat, anyOf: ["kds.view"], everyday: true },
+  { group: "Stock", items: [
     { href: "/inventory", label: "Inventory", icon: Boxes, anyOf: ["inventory.view"] },
     { href: "/purchasing", label: "Purchasing", icon: Truck, anyOf: ["purchasing.view"] },
   ] },
-  { group: "Business", items: [
-    { href: "/branches", label: "Branches & zones", icon: Building2, anyOf: ["branch.view"] },
+  { group: "Team", items: [
     { href: "/employees", label: "Employees", icon: Users, anyOf: ["employee.view"] },
     { href: "/rota", label: "Rota", icon: CalendarDays, anyOf: ["employee.view"] },
     { href: "/roles", label: "Roles", icon: ShieldCheck, anyOf: ["employee.view"] },
-    { href: "/rates", label: "Rates", icon: Tag, anyOf: ["pricing.view"] },
+  ] },
+  { group: "Money & insight", items: [
     { href: "/finance", label: "Finance", icon: Coins, anyOf: ["accounting.view"] },
     { href: "/reports", label: "Reports", icon: BarChart3, anyOf: ["reports.operational", "reports.financial", "reports.staff"] },
     { href: "/insights", label: "Insights", icon: Lightbulb, anyOf: ["reports.operational", "reports.financial", "station.view"] },
+    { href: "/rates", label: "Rates", icon: Tag, anyOf: ["pricing.view"] },
     { href: "/marketing", label: "Marketing", icon: Megaphone, anyOf: ["promotion.view", "loyalty.view", "crm.view"] },
+  ] },
+  { group: "Setup", items: [
+    { href: "/branches", label: "Branches & zones", icon: Building2, anyOf: ["branch.view"] },
+    { href: "/integrations", label: "Webhooks", icon: Plug, anyOf: ["integration.manage"] },
     { href: "/billing", label: "Billing", icon: CreditCard, anyOf: ["org.billing"] },
     { href: "/settings", label: "Settings", icon: Settings, everyday: true },
   ] },
@@ -111,47 +119,79 @@ function BrandMark({ className }: { className?: string }) {
   );
 }
 
+const OPEN_KEY = "arena.menuClosed";
+/** Which groups the user folded away, remembered in this browser. The group holding the current page always shows. */
+function useClosedGroups() {
+  const [closed, setClosed] = useState<string[]>([]);
+  useEffect(() => {
+    try {
+      setClosed(JSON.parse(localStorage.getItem(OPEN_KEY) ?? "[]"));
+    } catch {
+      /* storage unavailable: everything stays open */
+    }
+  }, []);
+  const toggle = (g: string) =>
+    setClosed((c) => {
+      const next = c.includes(g) ? c.filter((x) => x !== g) : [...c, g];
+      try {
+        localStorage.setItem(OPEN_KEY, JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  return [closed, toggle] as const;
+}
+
 function Sidebar({ nav, onNavigate, short, onToggleShort }: { nav: typeof NAV; onNavigate?: () => void; short: boolean; onToggleShort: () => void }) {
   const path = usePathname();
   const t = useT();
+  const [closed, toggleGroup] = useClosedGroups();
   return (
-    <nav className="flex flex-col gap-6 px-3 py-5" aria-label="Main">
-      {nav.map((g) => (
-        <div key={g.group}>
-          <p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-3">{t(`nav.${g.group}` as TKey)}</p>
-          <ul className="grid gap-0.5">
-            {g.items.map((it) => {
-              const on = isActive(path, it.href);
-              return (
-                <li key={it.href}>
-                  {it.phase ? (
-                    <span className="flex cursor-not-allowed items-center gap-3 rounded-lg px-3 py-2 text-sm text-ink-3/70" title={`Coming in phase ${it.phase}`}>
-                      <it.icon className="size-4" />
-                      {it.label}
-                      <span className="ml-auto rounded border border-line px-1 font-mono text-[9px]">P{it.phase}</span>
-                    </span>
-                  ) : (
-                    <Link
-                      href={it.href}
-                      onClick={onNavigate}
-                      aria-current={on ? "page" : undefined}
-                      className={cx(
-                        "group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors duration-150",
-                        on ? "bg-accent-soft font-medium text-ink" : "text-ink-2 hover:bg-panel-2 hover:text-ink",
-                      )}
-                    >
-                      {on && <span className="absolute inset-y-1.5 -left-3 w-1 rounded-r-full bg-accent shadow-[0_0_12px_var(--color-accent)] rtl:-right-3 rtl:left-auto rtl:rounded-l-full rtl:rounded-r-none" aria-hidden />}
-                      <it.icon className={cx("size-4 transition-colors", on ? "text-accent" : "text-ink-3 group-hover:text-ink-2")} />
-                      {t(`nav.${it.label}` as TKey)}
-                    </Link>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      ))}
-      <button onClick={onToggleShort} className="press flex items-center gap-2 rounded-lg px-3 py-2 text-xs text-ink-3 hover:bg-panel-2 hover:text-ink">
+    <nav className="flex flex-col gap-1 px-3 py-4" aria-label="Main">
+      {nav.map((g) => {
+        const holdsPage = g.items.some((it) => isActive(path, it.href));
+        const open = holdsPage || !closed.includes(g.group);
+        return (
+          <div key={g.group}>
+            <button
+              onClick={() => toggleGroup(g.group)}
+              aria-expanded={open}
+              disabled={holdsPage}
+              className="flex w-full items-center gap-1.5 rounded-md px-3 py-2 text-start text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-3 hover:text-ink-2 disabled:cursor-default disabled:hover:text-ink-3"
+            >
+              <ChevronDown className={cx("size-3 transition-transform", !open && "-rotate-90 rtl:rotate-90")} aria-hidden />
+              {t(`nav.${g.group}` as TKey)}
+              {!open && <span className="ms-auto font-mono text-[10px] normal-case tracking-normal">{g.items.length}</span>}
+            </button>
+            {open && (
+              <ul className="grid gap-0.5 pb-2">
+                {g.items.map((it) => {
+                  const on = isActive(path, it.href);
+                  return (
+                    <li key={it.href}>
+                      <Link
+                        href={it.href}
+                        onClick={onNavigate}
+                        aria-current={on ? "page" : undefined}
+                        className={cx(
+                          "group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors duration-150",
+                          on ? "bg-accent-soft font-medium text-ink" : "text-ink-2 hover:bg-panel-2 hover:text-ink",
+                        )}
+                      >
+                        {on && <span className="absolute inset-y-1.5 -left-3 w-1 rounded-r-full bg-accent shadow-[0_0_12px_var(--color-accent)] rtl:-right-3 rtl:left-auto rtl:rounded-l-full rtl:rounded-r-none" aria-hidden />}
+                        <it.icon className={cx("size-4 transition-colors", on ? "text-accent" : "text-ink-3 group-hover:text-ink-2")} />
+                        {t(`nav.${it.label}` as TKey)}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        );
+      })}
+      <button onClick={onToggleShort} className="press mt-2 flex items-center gap-2 rounded-lg px-3 py-2 text-xs text-ink-3 hover:bg-panel-2 hover:text-ink">
         <ChevronDown className={cx("size-3.5 transition-transform", !short && "rotate-180")} /> {short ? t("nav.more") : t("nav.less")}
       </button>
     </nav>
@@ -160,7 +200,7 @@ function Sidebar({ nav, onNavigate, short, onToggleShort }: { nav: typeof NAV; o
 
 function pageTitle(path: string) {
   for (const g of NAV) for (const it of g.items) if (it.href !== "/" && path.startsWith(it.href)) return { group: g.group, label: it.label };
-  return { group: "Operate", label: "Dashboard" };
+  return { group: "Front desk", label: "Dashboard" };
 }
 
 export default function AppLayout({ children }: { children: ReactNode }) {

@@ -9,7 +9,7 @@ import { BookScreen } from "./book";
 import { InboxScreen, RewardsScreen, ScreenshotsScreen, TournamentsScreen } from "./engage";
 import { askConfirm } from "./confirm";
 import { dir, getLang, locale, setLang, t, useLang } from "./i18n";
-import { AddTimeSheet, ClaimSheet, FoodScreen, FriendsScreen, GamesScreen, GiftSheet, HelpScreen, LiveCard, PcLoginSheet, ProfileScreen, SplitSheet, StatsScreen, TopUpSheet } from "./more";
+import { AddTimeSheet, ClaimSheet, FoodScreen, FriendsScreen, GamesScreen, GiftCardSheet, GiftSheet, HelpScreen, LiveCard, PcLoginSheet, ProfileScreen, SplitSheet, StatsScreen, TopUpSheet } from "./more";
 import { cx, ErrorText, hours, Screen, useLoad } from "./ui";
 
 const when = (iso: string) => new Date(iso).toLocaleString(locale(), { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -106,6 +106,20 @@ function Auth({ slug, venue, onIn, onChangeVenue, pcCode }: { slug: string; venu
   const [notice, setNotice] = useState<string | null>(null);
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF((x) => ({ ...x, [k]: e.target.value }));
 
+  /** Asks for a code by e-mail. The answer never says whether the account exists. */
+  const emailCode = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await api(`/${slug}/forgot`, { method: "POST", auth: false, body: { username: f.username } });
+      setNotice(t("If that account has an e-mail address, a code is on its way. It works for 15 minutes."));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("Couldn't send the code."));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const submit = async () => {
     setBusy(true);
     setError(null);
@@ -136,7 +150,7 @@ function Auth({ slug, venue, onIn, onChangeVenue, pcCode }: { slug: string; venu
   };
 
   const title = mode === "in" ? t("Welcome back.") : mode === "up" ? t("Join in 30 seconds.") : t("Forgot your password?");
-  const sub = mode === "in" ? t("Book a station, check your time and top up your game.") : mode === "up" ? t("Same login works on every PC at the venue.") : t("Ask the staff for a reset code, then choose a new password here.");
+  const sub = mode === "in" ? t("Book a station, check your time and top up your game.") : mode === "up" ? t("Same login works on every PC at the venue.") : t("Get a reset code by e-mail or from the staff, then choose a new password here.");
   return (
     <main className="relative mx-auto flex min-h-dvh max-w-lg flex-col justify-center px-6 py-10">
       <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
@@ -157,7 +171,8 @@ function Auth({ slug, venue, onIn, onChangeVenue, pcCode }: { slug: string; venu
       <form className="mt-8 grid gap-4" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
         {mode === "up" && <input className="field" placeholder={t("Your name")} value={f.displayName} onChange={set("displayName")} autoComplete="name" />}
         <input className="field" placeholder={mode === "up" ? t("Username") : t("Username, email or phone")} value={f.username} onChange={set("username")} autoComplete="username" autoCapitalize="none" required />
-        {mode === "reset" && <input className="field tracking-[0.4em]" inputMode="numeric" placeholder={t("6-digit code from the staff")} value={f.code} onChange={(e) => setF((x) => ({ ...x, code: e.target.value.replace(/\D/g, "").slice(0, 6) }))} required minLength={6} />}
+        {mode === "reset" && <button type="button" className="btn btn-ghost" disabled={busy || !f.username.trim()} onClick={() => void emailCode()}>{t("E-mail me a code")}</button>}
+        {mode === "reset" && <input className="field tracking-[0.4em]" inputMode="numeric" placeholder={t("6-digit code (from the staff or your e-mail)")} value={f.code} onChange={(e) => setF((x) => ({ ...x, code: e.target.value.replace(/\D/g, "").slice(0, 6) }))} required minLength={6} />}
         <PasswordField className="field" placeholder={mode === "reset" ? t("New password") : t("Password")} value={f.password} onChange={set("password")} autoComplete={mode === "in" ? "current-password" : "new-password"} required minLength={mode === "in" ? 1 : 8} />
         {mode === "up" && (
           <>
@@ -469,7 +484,7 @@ const TX_LABEL: Record<string, string> = { TOPUP: "Top-up", SPEND: "Payment", RE
 
 function WalletScreen({ me, venue, back, toast, onChanged }: { me: Me; venue: Venue; back: () => void; toast: (t: string, ok?: boolean) => void; onChanged: () => void }) {
   const w = useLoad(() => api<{ ledger: LedgerRow[] }>("/wallet"), [me]); // reloads with every live refresh of `me`
-  const [sheet, setSheet] = useState<"topup" | "gift" | null>(null);
+  const [sheet, setSheet] = useState<"topup" | "gift" | "card" | null>(null);
   return (
     <Screen title={t("Wallet")} back={back}>
       <div className="grid grid-cols-3 gap-3">
@@ -480,6 +495,7 @@ function WalletScreen({ me, venue, back, toast, onChanged }: { me: Me; venue: Ve
       <div className="mt-4 grid grid-cols-2 gap-3">
         <button className="btn btn-primary" onClick={() => setSheet("topup")} disabled={me.wallet.frozen}><CreditCard className="size-5" /> {t("Top up")}</button>
         <button className="btn btn-ghost" onClick={() => setSheet("gift")} disabled={me.wallet.frozen}><Gift className="size-5" /> {t("Send a gift")}</button>
+        <button className="btn btn-ghost col-span-2" onClick={() => setSheet("card")} disabled={me.wallet.frozen}><Gift className="size-5" /> {t("Redeem a gift card")}</button>
       </div>
       <p className="mb-3 mt-8 text-sm uppercase tracking-widest text-mute">{t("History")}</p>
       <div className="card divide-y divide-rim">
@@ -500,6 +516,7 @@ function WalletScreen({ me, venue, back, toast, onChanged }: { me: Me; venue: Ve
       </div>
       {sheet === "topup" && <TopUpSheet me={me} venue={venue} onClose={() => setSheet(null)} onDone={() => { setSheet(null); onChanged(); }} toast={toast} />}
       {sheet === "gift" && <GiftSheet me={me} onClose={() => setSheet(null)} onDone={() => { setSheet(null); onChanged(); }} toast={toast} />}
+      {sheet === "card" && <GiftCardSheet me={me} onClose={() => setSheet(null)} onDone={() => { setSheet(null); onChanged(); }} toast={toast} />}
     </Screen>
   );
 }

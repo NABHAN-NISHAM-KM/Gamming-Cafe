@@ -237,6 +237,13 @@ describe.skipIf(!HAS_DB)("Customer app self-service (e2e)", () => {
     expect((await app_(p.token, "POST", "/push/unsubscribe", { endpoint: sub.endpoint })).status).toBe(204);
 
     const rich = await player({ money: "10" });
+    // Right of access: password-gated, and it has my own money movements in it (and only mine).
+    expect((await app_(rich.token, "POST", "/me/export", { password: "nope" })).body.error).toBe("wrong_password");
+    const mine = (await app_(rich.token, "POST", "/me/export", { password: "longpassword1" })).body;
+    expect(mine.profile.username).toBeTruthy();
+    expect(mine.wallet.some((w: any) => w.type === "TOPUP" && Number(w.amount) === 10)).toBe(true);
+    expect(JSON.stringify(mine)).not.toMatch(/passwordHash|pinHash|resetCode/);
+    expect((await app_(p.token, "POST", "/me/export", { password: "longpassword1" })).body.wallet).toEqual([]);
     expect((await app_(rich.token, "POST", "/me/delete", { password: "longpassword1" })).body.error).toBe("wallet_not_empty");
     expect((await app_(p.token, "POST", "/me/delete", { password: "nope" })).body.error).toBe("wrong_password");
     expect((await app_(p.token, "POST", "/me/delete", { password: "longpassword1" })).body).toEqual({ deleted: true });

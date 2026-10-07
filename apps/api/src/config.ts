@@ -44,6 +44,14 @@ const Env = z.object({
   WEBSITE_URL: z.url().default("http://localhost:5180"),
   /** The platform's own Stripe account, for venues paying their ArenaOS plan by card. Without it, invoices are paid offline. */
   BILLING_STRIPE_SECRET_KEY: z.string().optional(),
+  /** Outgoing mail (Settings → Mail). Without a server, mail simply isn't sent. */
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().int().min(1).max(65535).optional(),
+  SMTP_SECURE: z.enum(["on", "off"]).optional(),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASSWORD: z.string().optional(),
+  MAIL_FROM: z.string().optional(),
+  LEADS_NOTIFY_EMAIL: z.string().optional(),
   /** Where to read Steam's latest public build per appid ("off" to disable; default api.steamcmd.net, off in tests). */
   STEAM_BUILDS_URL: z.union([z.literal("off"), z.url()]).optional(),
 }).transform((c) => ({ ...c, demoPayments: c.NODE_ENV !== "production" && c.DEMO_PAYMENTS !== "off" }));

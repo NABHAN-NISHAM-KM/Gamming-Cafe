@@ -14,6 +14,7 @@ import { eraseCustomer } from "../customers/merge.js";
 import { leaderboard } from "../customers/leaderboard.js";
 import { challengesFor } from "../loyalty/challenges.js";
 import { OrdersService } from "../pos/orders.service.js";
+import { MailService } from "../common/mail.service.js";
 import { PushService } from "../push/push.service.js";
 import { ShellAuthService } from "../sessions/shell-auth.service.js";
 import { SAVED_TIME_STEPS, ShellTimeService } from "../sessions/shell-time.service.js";
@@ -38,6 +39,7 @@ const Profile = z
 const Password = z.object({ current: z.string().min(1).max(256), next: z.string().min(8).max(128) }).strict();
 const Pin = z.object({ password: z.string().min(1).max(256), pin: z.string().regex(/^\d{4,8}$/).nullable() }).strict();
 const Confirm = z.object({ password: z.string().min(1).max(256) }).strict();
+const Forgot = z.object({ username: z.string().trim().min(1).max(254) }).strict();
 const Reset = z.object({ username: z.string().min(1).max(254), code: z.string().regex(/^\d{6}$/), password: z.string().min(8).max(128) }).strict();
 const Line = z.object({ productId: z.uuid(), quantity: z.number().int().min(1).max(20), modifierIds: z.array(z.uuid()).max(20).default([]), notes: z.string().max(200).nullish() }).strict();
 const Order = z.object({ lines: z.array(Line).min(1).max(30), notes: z.string().max(300).nullish(), payWith: z.enum(["BILL", "WALLET"]), idempotencyKey: Key }).strict();
@@ -69,6 +71,7 @@ const firstName = (n: string) => n.trim().split(/\s+/)[0] ?? n;
 export class SelfServiceController {
   private readonly resetByIp = new Throttle(10, 15 * 60_000);
   private readonly secretByCustomer = new Throttle(6, 15 * 60_000);
+  private readonly mailByAccount = new Throttle(3, 15 * 60_000);
 
   constructor(
     @Inject(DB) private readonly db: Db,
@@ -79,6 +82,7 @@ export class SelfServiceController {
     @Inject(ShellAuthService) private readonly shellAuth: ShellAuthService,
     @Inject(CommerceService) private readonly commerce: CommerceService,
     @Inject(PushService) private readonly push: PushService,
+    @Inject(MailService) private readonly mail: MailService,
   ) {}
 
   private as<T>(req: Request, fn: (t: TenantTx, me: Me) => Promise<T>) {
@@ -139,6 +143,32 @@ export class SelfServiceController {
     });
   }
 
+  /**
+   * Right of access: everything the venue holds about me, as one JSON file.
+   * Asks for the password again (a borrowed phone must not be able to take it).
+   * ponytail: the newest 1000 rows of each list; raise it if anyone has more.
+   */
+  @Post("me/export")
+  @HttpCode(200)
+  exportMyData(@Req() req: Request, @Body(new ZodPipe(Confirm)) body: z.infer<typeof Confirm>) {
+    return this.as(req, async (t, me) => {
+      await this.checkPassword(t, me, body.password);
+      const where = { customerId: me.customerId };
+      const take = 1000;
+      const [profile, wallet, sessions, bills, bookings, points, inbox] = await Promise.all([
+        t.customer.findUniqueOrThrow({ where: { id: me.customerId }, select: { username: true, displayName: true, firstName: true, lastName: true, phone: true, email: true, dateOfBirth: true, locale: true, marketingConsent: true, referralCode: true, tags: true, createdAt: true, lastVisitAt: true } }),
+        t.walletTransaction.findMany({ where: { wallet: where }, orderBy: { createdAt: "desc" }, take, select: { createdAt: true, type: true, bucket: true, amount: true, balanceAfter: true, currency: true, reason: true } }),
+        t.gamingSession.findMany({ where, orderBy: { createdAt: "desc" }, take, select: { startedAt: true, endedAt: true, status: true, amountDue: true, currency: true } }),
+        t.bill.findMany({ where, orderBy: { createdAt: "desc" }, take, select: { number: true, status: true, total: true, currency: true, createdAt: true } }),
+        t.booking.findMany({ where, orderBy: { startsAt: "desc" }, take, select: { reference: true, status: true, startsAt: true, endsAt: true } }),
+        t.loyaltyTransaction.findMany({ where, orderBy: { createdAt: "desc" }, take, select: { createdAt: true, type: true, source: true, points: true } }),
+        t.notification.findMany({ where: { ...where, recipientType: "CUSTOMER" }, orderBy: { createdAt: "desc" }, take, select: { createdAt: true, event: true, title: true, body: true } }),
+      ]);
+      await auditAs(t, { type: "CUSTOMER", id: me.customerId }, { action: "customer.self_export", entityType: "Customer", entityId: me.customerId });
+      return { exportedAt: new Date().toISOString(), profile, wallet, sessions, bills, bookings, loyaltyPoints: points, messages: inbox };
+    });
+  }
+
   /** Right to erasure, by the customer: same rules as staff Erase (no money left, nothing in progress). */
   @Post("me/delete")
   @HttpCode(200)
@@ -151,7 +181,35 @@ export class SelfServiceController {
     });
   }
 
-  /** Forgot password: a one-time code from the staff (no SMS/e-mail provider yet). */
+  /**
+   * "E-mail me a code": a one-time code goes to the address on the account. The
+   * answer is always the same (204), so this can't be used to find out who has
+   * an account here. Needs mail set up in the Super Admin settings; without it,
+   * nothing is sent and staff still hand out codes at the counter.
+   */
+  @Post(":slug/forgot")
+  @HttpCode(204)
+  async forgot(@Param("slug") slug: string, @Body(new ZodPipe(Forgot)) body: z.infer<typeof Forgot>, @Req() req: Request) {
+    if (!this.resetByIp.take(req.ip ?? "?")) throw new HttpException({ error: "too_many_attempts" }, 429);
+    if (!/^[a-z0-9-]{2,64}$/.test(slug)) return;
+    const who = body.username.toLowerCase();
+    if (!this.mail.configured || !this.mailByAccount.take(`${slug}:${who}`)) return;
+    const [o] = await this.db.global.$queryRaw<Array<{ organization_id: string; org_status: string }>>`SELECT * FROM app.org_by_slug(${slug})`;
+    if (!o || o.org_status !== "ACTIVE") return;
+    const out = await this.db.withTenant({ organizationId: o.organization_id, actorType: "SYSTEM", actorId: null }, async (t) => {
+      const c = await t.customer.findFirst({ where: { status: { notIn: ["BANNED", "DELETED"] }, email: { not: null }, OR: [{ username: who }, { email: who }] }, select: { id: true, email: true, displayName: true } });
+      if (!c?.email) return null;
+      const code = resetCode();
+      await t.customer.update({ where: { id: c.id }, data: { resetCodeHash: await hashSecret(code), resetCodeExpiresAt: new Date(Date.now() + 15 * 60_000) } });
+      await auditAs(t, { type: "SYSTEM", id: null }, { action: "customer.reset_code_emailed", entityType: "Customer", entityId: c.id });
+      const venue = (await t.organization.findFirst({ select: { displayName: true } }))?.displayName ?? "your venue";
+      return { to: c.email, name: c.displayName, code, venue };
+    });
+    // After the transaction, and not waited for: the answer takes the same time whether or not an account exists.
+    if (out) void this.mail.send({ to: out.to, subject: `${out.venue}: your password reset code`, text: `Hi ${out.name.split(/\s+/)[0]},\n\nYour code is ${out.code}. It works for 15 minutes.\n\nIf you didn't ask for it, ignore this message: your password hasn't changed.` });
+  }
+
+  /** Forgot password: a one-time code from the staff, or by e-mail through `forgot` above. */
   @Post(":slug/reset")
   @HttpCode(204)
   async reset(@Param("slug") slug: string, @Body(new ZodPipe(Reset)) body: z.infer<typeof Reset>, @Req() req: Request) {
@@ -398,6 +456,17 @@ export class SelfServiceController {
       const branchId = c.homeBranchId ?? (await t.branch.findFirst({ where: { status: "OPEN" }, select: { id: true }, orderBy: { name: "asc" } }))?.id;
       if (!branchId) throw new ConflictException({ error: "venue_closed" });
       return this.commerce.topUp(t, { customerId: me.customerId, branchId, amount: body.amount, payment: { method: "CARD", reference: "app-demo-card" }, idempotencyKey: `app:${me.customerId}:${body.idempotencyKey}` }, { type: "CUSTOMER", id: me.customerId });
+    });
+  }
+
+  /** A gift card's code becomes wallet money. Wrong guesses are throttled per customer. */
+  @Post("wallet/gift-card")
+  redeemGiftCard(@Req() req: Request, @Body(new ZodPipe(z.object({ code: z.string().trim().min(8).max(40) }).strict())) body: { code: string }) {
+    return this.as(req, async (t, me) => {
+      if (!this.secretByCustomer.take(me.customerId)) throw new HttpException({ error: "too_many_attempts" }, 429);
+      const r = await this.commerce.redeemGiftCard(t, { customerId: me.customerId, code: body.code }, { type: "CUSTOMER", id: me.customerId });
+      this.secretByCustomer.clear(me.customerId);
+      return r;
     });
   }
 

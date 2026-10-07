@@ -342,6 +342,42 @@ describe.skipIf(!HAS_DB)("Ops & growth (e2e)", () => {
     expect((await app_(p.token, "GET", `/bookings/${id}/directions`)).body.mapsUrl).toMatch(/^https:\/\/www\.google\.com\/maps/);
   });
 
+  it("venue health: a trial about to end and a venue playing far less than usual are flagged, and sign-ups are counted by month", async () => {
+    const run = randomUUID().slice(0, 8);
+    const plans = (await plat("GET", "/plans")).body.plans as Array<{ id: string; code: string }>;
+    const made = await plat("POST", "/organizations", { displayName: `Health ${run}`, slug: `h-${run}`, countryCode: "AE", planId: plans[0]!.id, ownerEmail: `h-${run}@platform.test`, ownerName: "Hana Health" });
+    expect(made.status, JSON.stringify(made.body)).toBe(201);
+    const id = made.body.organization.id as string;
+    await owner.query(`UPDATE "Organization" SET status = 'TRIAL' WHERE id = $1`, [id]);
+    await owner.query(`UPDATE "Subscription" SET "currentPeriodEnd" = now() + interval '2 days' WHERE "organizationId" = $1`, [id]);
+    const row = async () => ((await plat("GET", "/health")).body.venues as Array<{ id: string; flags: string[] }>).find((v) => v.id === id)!;
+    expect((await row()).flags).toContain("Trial ends in 2 days");
+    await owner.query(`UPDATE "Subscription" SET "currentPeriodEnd" = now() - interval '1 day' WHERE "organizationId" = $1`, [id]);
+    expect((await row()).flags).toContain("Trial has ended");
+    await owner.query(`UPDATE "Subscription" SET "currentPeriodEnd" = now() + interval '20 days' WHERE "organizationId" = $1`, [id]);
+    expect((await row()).flags.filter((f) => /^Trial (ends|has)/.test(f))).toEqual([]);
+
+    const month = new Date().toISOString().slice(0, 7);
+    const c = (await plat("GET", "/health")).body.cohorts as Array<{ month: string; signedUp: number; trial: number }>;
+    expect(c.find((x) => x.month === month)).toMatchObject({ signedUp: expect.any(Number), trial: expect.any(Number) });
+    expect(c.find((x) => x.month === month)!.signedUp).toBeGreaterThanOrEqual(1);
+  });
+
+  it("platform search finds venues and their people, and treats % and _ as plain characters", async () => {
+    const run = randomUUID().slice(0, 8);
+    const plans = (await plat("GET", "/plans")).body.plans as Array<{ id: string }>;
+    const made = await plat("POST", "/organizations", { displayName: `Findme ${run}`, slug: `f-${run}`, countryCode: "AE", planId: plans[0]!.id, ownerEmail: `owner-${run}@find.test`, ownerName: "Fiona Finder" });
+    expect(made.status, JSON.stringify(made.body)).toBe(201);
+    const id = made.body.organization.id as string;
+    const byName = (await plat("GET", `/search?q=Findme%20${run}`)).body.results as Array<{ kind: string; href: string }>;
+    expect(byName.find((r) => r.kind === "Venue")?.href).toBe(`/platform/organizations/${id}`);
+    const byOwner = (await plat("GET", `/search?q=owner-${run}%40find.test`)).body.results as Array<{ kind: string; href: string }>;
+    expect(byOwner.find((r) => r.kind === "Person")?.href).toBe(`/platform/organizations/${id}`);
+    expect((await plat("GET", "/search?q=a")).body.results).toEqual([]);
+    expect((await plat("GET", "/search?q=%25%25")).body.results).toEqual([]); // "%%" is not a wildcard
+    expect((await req(`${pbase}/v1/platform/search?q=demo`, null, "GET")).status).toBe(401);
+  });
+
   it("curfew: an under-age player can't start a session during it", async () => {
     const org = await staff(ownerT, "GET", "/organization");
     await staff(ownerT, "PATCH", "/organization", { settings: { ...org.body.settings, minorCurfew: { from: "00:00", to: "23:59", underAge: 18 } } });

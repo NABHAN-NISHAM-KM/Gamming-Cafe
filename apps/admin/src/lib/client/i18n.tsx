@@ -13,13 +13,13 @@ const KEY = "arena.lang";
 
 const EN = {
   // menu
-  "nav.Operate": "Operate", "nav.Gaming": "Gaming", "nav.Food & sales": "Food & sales", "nav.Business": "Business",
+  "nav.Front desk": "Front desk", "nav.Sales & food": "Sales & food", "nav.Gaming floor": "Gaming floor", "nav.Stock": "Stock", "nav.Team": "Team", "nav.Money & insight": "Money & insight", "nav.Setup": "Setup", "nav.Operate": "Operate", "nav.Gaming": "Gaming", "nav.Food & sales": "Food & sales", "nav.Business": "Business",
   "nav.Counter": "Counter", "nav.Dashboard": "Dashboard", "nav.Live Floor": "Live Floor", "nav.Sessions": "Sessions", "nav.Bookings": "Bookings",
   "nav.Customers": "Customers", "nav.Printing": "Printing", "nav.Games": "Games", "nav.Computers": "Computers", "nav.Consoles & VR": "Consoles & VR",
   "nav.Tournaments": "Tournaments", "nav.Restaurant": "Restaurant", "nav.POS": "POS", "nav.Orders": "Orders", "nav.Kitchen": "Kitchen",
   "nav.Inventory": "Inventory", "nav.Purchasing": "Purchasing", "nav.Branches & zones": "Branches & zones", "nav.Employees": "Employees",
   "nav.Roles": "Roles", "nav.Rates": "Rates", "nav.Finance": "Finance", "nav.Reports": "Reports", "nav.Marketing": "Marketing", "nav.Settings": "Settings",
-  "nav.Waitlist": "Waitlist", "nav.Rota": "Rota", "nav.Insights": "Insights", "nav.Billing": "Billing",
+  "nav.Waitlist": "Waitlist", "nav.Gift cards": "Gift cards", "nav.Webhooks": "Webhooks", "nav.Rota": "Rota", "nav.Insights": "Insights", "nav.Billing": "Billing",
   "nav.more": "Show all menus", "nav.less": "Show fewer menus", "nav.search": "Search",
   // staff bar
   "clock.in": "Clock in", "clock.inDone": "Clocked in — have a good shift.", "clock.out": "Clock out", "clock.since": "On shift since", "clock.worked": "Worked", "clock.done": "Clocked out — see you next shift.",
@@ -65,13 +65,13 @@ const EN = {
 export type TKey = keyof typeof EN;
 
 const AR: Partial<Record<TKey, string>> = {
-  "nav.Operate": "التشغيل", "nav.Gaming": "الألعاب", "nav.Food & sales": "الطعام والمبيعات", "nav.Business": "الإدارة",
+  "nav.Front desk": "مكتب الاستقبال", "nav.Sales & food": "المبيعات والطعام", "nav.Gaming floor": "قاعة الألعاب", "nav.Stock": "المخزون", "nav.Team": "الفريق", "nav.Money & insight": "المال والتحليلات", "nav.Setup": "الإعداد", "nav.Operate": "التشغيل", "nav.Gaming": "الألعاب", "nav.Food & sales": "الطعام والمبيعات", "nav.Business": "الإدارة",
   "nav.Counter": "الكاونتر", "nav.Dashboard": "لوحة التحكم", "nav.Live Floor": "الصالة المباشرة", "nav.Sessions": "الجلسات", "nav.Bookings": "الحجوزات",
   "nav.Customers": "العملاء", "nav.Printing": "الطباعة", "nav.Games": "الألعاب", "nav.Computers": "الأجهزة", "nav.Consoles & VR": "الكونسول والواقع الافتراضي",
   "nav.Tournaments": "البطولات", "nav.Restaurant": "المطعم", "nav.POS": "نقطة البيع", "nav.Orders": "الطلبات", "nav.Kitchen": "المطبخ",
   "nav.Inventory": "المخزون", "nav.Purchasing": "المشتريات", "nav.Branches & zones": "الفروع والمناطق", "nav.Employees": "الموظفون",
   "nav.Roles": "الأدوار", "nav.Rates": "الأسعار", "nav.Finance": "المالية", "nav.Reports": "التقارير", "nav.Marketing": "التسويق", "nav.Settings": "الإعدادات",
-  "nav.Waitlist": "قائمة الانتظار", "nav.Rota": "جدول المناوبات", "nav.Insights": "رؤى", "nav.Billing": "الفوترة",
+  "nav.Waitlist": "قائمة الانتظار", "nav.Gift cards": "بطاقات الهدايا", "nav.Webhooks": "الويب هوك", "nav.Rota": "جدول المناوبات", "nav.Insights": "رؤى", "nav.Billing": "الفوترة",
   "nav.more": "عرض كل القوائم", "nav.less": "عرض قوائم أقل", "nav.search": "بحث",
   "clock.in": "تسجيل الحضور", "clock.inDone": "تم تسجيل الحضور — دوام موفق.", "clock.out": "تسجيل الانصراف", "clock.since": "في الدوام منذ", "clock.worked": "مدة العمل", "clock.done": "تم تسجيل الانصراف — نراك في الدوام القادم.",
   "switch.title": "تبديل الموظف", "switch.who": "من سيستلم؟", "switch.pin": "الرمز السري", "switch.go": "تبديل", "switch.none": "لا يوجد زملاء لديهم رمز للكاونتر بعد. يمكن لكل شخص تعيينه من الإعدادات ← رمز الكاونتر.",

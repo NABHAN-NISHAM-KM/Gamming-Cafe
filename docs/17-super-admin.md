@@ -52,6 +52,7 @@ Roles are granted in the database (`PlatformRoleAssignment`), never from the UI,
 - **Platform admins:** who has which role, whether two-step sign-in is on, last sign-in.
 - **Leads:** walkthrough requests, booked calls, free trials and partner applications from the website, with the venue that referred each one, with type and status filters and a link to a trial's organization. Move each through New → Contacted → Won / Lost (audited). See [21 · Website](21-website.md); trials are opened by the same code as **New organization**. Each lead has team notes and a next follow-up date; **To do today** lists what's due and calls in the next 24 hours.
 - **Website:** page views, top pages, referring sites and the trial funnel, counted without cookies or IP addresses. See [21 · Website](21-website.md#site-analytics).
+- **Settings:** mail server, payment keys, public addresses and more, saved encrypted and applied without a restart. See [22 · Operations & growth](22-operations-and-growth.md#settings-from-the-console-mail-and-payment-keys-migration-0033_platform_settings).
 - **Sign in as venue, invoices, venue health, releases, announcements:** see [22 · Operations & growth](22-operations-and-growth.md#super-admin).
 
 ## API

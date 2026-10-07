@@ -34,6 +34,7 @@ export async function reconcile(t: TenantTx): Promise<{ checkedAt: string; check
 
   const [wallets] = await t.$queryRaw<[{ v: Prisma.Decimal | null }]>`SELECT SUM("cashBalance" + "bonusBalance" + "promoBalance" + "refundBalance") AS v FROM "Wallet"`;
   // Each movement is booked rounded to the currency's minor unit (costs carry 4 decimals).
+  const [cards] = await t.$queryRaw<[{ v: Prisma.Decimal | null }]>`SELECT SUM("amount") AS v FROM "GiftCard" WHERE "status" = 'ACTIVE'`;
   const [stock] = await t.$queryRaw<[{ v: Prisma.Decimal | null }]>`SELECT SUM(ROUND("quantity" * "unitCost", ${unit}::int)) AS v FROM "StockMovement"`;
   const [payables] = await t.$queryRaw<[{ v: Prisma.Decimal | null }]>`SELECT SUM("amount" + "taxAmount" - "paidAmount") AS v FROM "SupplierInvoice" WHERE "status" <> 'VOID'`;
   const [drawers] = await t.$queryRaw<[{ v: Prisma.Decimal | null }]>`
@@ -46,6 +47,7 @@ export async function reconcile(t: TenantTx): Promise<{ checkedAt: string; check
   const checks = [
     // Liabilities are credit balances: flip the sign to compare with the positive operational total.
     check("WALLET_LIABILITY", "Customer wallets", (await balanceOf(t, "WALLET_LIABILITY")).neg(), D(wallets.v)),
+    check("GIFT_CARD_LIABILITY", "Gift cards outstanding", (await balanceOf(t, "GIFT_CARD_LIABILITY")).neg(), D(cards.v)),
     check("INVENTORY", "Inventory value", await balanceOf(t, "INVENTORY"), D(stock.v)),
     check("AP", "Supplier invoices unpaid", (await balanceOf(t, "AP")).neg(), D(payables.v)),
     check("CASH_DRAWER", "Cash in open drawers", await balanceOf(t, "CASH_DRAWER"), D(drawers.v)),

@@ -236,6 +236,7 @@ model Branch {
   handoverNotes           HandoverNote[]
   sessionFeedback         SessionFeedback[]
   waitlistEntries         WaitlistEntry[]
+  giftCards               GiftCard[]
   shiftPlans              ShiftPlan[]
   lfgPosts                LfgPost[]
 

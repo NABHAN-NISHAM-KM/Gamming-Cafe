@@ -165,3 +165,32 @@ model AnnouncementRead {
   @@unique([announcementId, employeeId])
   @@index([organizationId, announcementId])
 }
+
+enum GiftCardStatus {
+  ACTIVE
+  REDEEMED
+}
+
+/// A prepaid code sold at the counter. Only the hash of the code is kept: the
+/// code is shown once, at the sale. Redeeming credits the customer's wallet.
+model GiftCard {
+  id             String         @id @default(uuid(7)) @db.Uuid
+  organizationId String         @db.Uuid
+  codeHash       String
+  codeHint       String // last 4 characters, for finding a card at the counter
+  amount         Decimal        @db.Decimal(19, 4)
+  currency       String         @db.Char(3)
+  status         GiftCardStatus @default(ACTIVE)
+  branchId       String         @db.Uuid
+  billId         String?        @db.Uuid
+  soldById       String?        @db.Uuid
+  redeemedById   String?        @db.Uuid
+  redeemedAt     DateTime?      @db.Timestamptz(3)
+  createdAt      DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime       @updatedAt @db.Timestamptz(3)
+  branch         Branch         @relation(fields: [branchId, organizationId], references: [id, organizationId])
+  redeemedBy     Customer?      @relation(fields: [redeemedById, organizationId], references: [id, organizationId])
+
+  @@unique([organizationId, codeHash])
+  @@index([organizationId, status, createdAt])
+}

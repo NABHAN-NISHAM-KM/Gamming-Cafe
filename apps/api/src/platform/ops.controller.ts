@@ -236,13 +236,15 @@ export class PlatformOpsController implements OnModuleInit, OnModuleDestroy {
   @PlatformRoles(...READ_ROLES)
   @Get("platform/health")
   async health() {
-    const rows = await this.db.$queryRaw<Array<{ id: string; slug: string; name: string; status: string; plan: string | null; stations: number; online: number; lastSession: Date | null; sessions7d: number; drops7d: number; openAlerts: number; createdAt: Date }>>`
+    const rows = await this.db.$queryRaw<Array<{ id: string; slug: string; name: string; status: string; plan: string | null; stations: number; online: number; lastSession: Date | null; sessions7d: number; sessionsBefore: number; periodEnd: Date | null; drops7d: number; openAlerts: number; createdAt: Date }>>`
       SELECT o."id", o."slug", o."displayName" AS name, o."status"::text AS status,
              (SELECT p."name" FROM "Subscription" s JOIN "SubscriptionPlan" p ON p."id" = s."planId" WHERE s."organizationId" = o."id" ORDER BY s."createdAt" DESC LIMIT 1) AS plan,
              (SELECT COUNT(*)::int FROM "Device" d WHERE d."organizationId" = o."id" AND d."isEnabled") AS stations,
              (SELECT COUNT(*)::int FROM "Device" d WHERE d."organizationId" = o."id" AND d."isEnabled" AND d."isOnline") AS online,
              (SELECT MAX(g."startedAt") FROM "GamingSession" g WHERE g."organizationId" = o."id") AS "lastSession",
              (SELECT COUNT(*)::int FROM "GamingSession" g WHERE g."organizationId" = o."id" AND g."startedAt" > now() - interval '7 days') AS "sessions7d",
+             (SELECT ROUND(COUNT(*) / 4.0)::int FROM "GamingSession" g WHERE g."organizationId" = o."id" AND g."startedAt" > now() - interval '35 days' AND g."startedAt" <= now() - interval '7 days') AS "sessionsBefore",
+             (SELECT s."currentPeriodEnd" FROM "Subscription" s WHERE s."organizationId" = o."id" ORDER BY s."createdAt" DESC LIMIT 1) AS "periodEnd",
              (SELECT COUNT(*)::int FROM "Alert" a WHERE a."organizationId" = o."id" AND a."type" = 'CLIENT_OFFLINE' AND a."openedAt" > now() - interval '7 days') AS "drops7d",
              (SELECT COUNT(*)::int FROM "Alert" a WHERE a."organizationId" = o."id" AND a."status" <> 'RESOLVED') AS "openAlerts",
              o."createdAt"
@@ -254,9 +256,44 @@ export class PlatformOpsController implements OnModuleInit, OnModuleDestroy {
       if (r.stations > 0 && r.sessions7d === 0) flags.push("No sessions this week");
       if (r.drops7d >= 20) flags.push(`${r.drops7d} station drop-offs this week`);
       if (r.status === "PAST_DUE") flags.push("Payment overdue");
+      // A trial about to end is the moment to call; a paying venue playing far less than usual is the early sign of leaving.
+      const trialDays = r.status === "TRIAL" && r.periodEnd ? Math.ceil((r.periodEnd.getTime() - Date.now()) / 86_400_000) : null;
+      if (trialDays !== null && trialDays <= 5) flags.push(trialDays <= 0 ? "Trial has ended" : `Trial ends in ${trialDays} day${trialDays === 1 ? "" : "s"}`);
+      if (r.stations > 0 && r.sessionsBefore >= 10 && r.sessions7d > 0 && r.sessions7d < r.sessionsBefore / 2) flags.push(`Sessions down ${Math.round((1 - r.sessions7d / r.sessionsBefore) * 100)}% on a normal week`);
       return { ...r, flags };
     });
-    return { venues, attention: venues.filter((v) => v.flags.length).length };
+    // Where each month's sign-ups ended up: the trial-to-paid picture.
+    const cohorts = await this.db.$queryRaw<Array<{ month: string; signedUp: number; trial: number; paying: number; pastDue: number; lost: number }>>`
+      SELECT to_char(date_trunc('month', "createdAt"), 'YYYY-MM') AS month, COUNT(*)::int AS "signedUp",
+             COUNT(*) FILTER (WHERE "status" = 'TRIAL')::int AS trial, COUNT(*) FILTER (WHERE "status" = 'ACTIVE')::int AS paying,
+             COUNT(*) FILTER (WHERE "status" = 'PAST_DUE')::int AS "pastDue", COUNT(*) FILTER (WHERE "status" IN ('CANCELLED', 'SUSPENDED'))::int AS lost
+        FROM "Organization" GROUP BY 1 ORDER BY 1 DESC LIMIT 12`;
+    return { venues, cohorts, attention: venues.filter((v) => v.flags.length).length };
+  }
+
+  // ── search ────────────────────────────────────────────────────────────────
+
+  /** One box for support: venues, the people who work there, leads and invoice numbers. */
+  @PlatformRoles(...READ_ROLES)
+  @Get("platform/search")
+  async search(@Query("q") q = "") {
+    const term = String(q).trim().slice(0, 60);
+    if (term.length < 2) return { results: [] };
+    const like = `%${term.replace(/[\\%_]/g, "\\$&")}%`;
+    const [orgs, people, leads, invoices] = await Promise.all([
+      this.db.$queryRaw<Array<{ id: string; name: string; slug: string; status: string }>>`SELECT "id", "displayName" AS name, "slug", "status"::text AS status FROM "Organization" WHERE "displayName" ILIKE ${like} OR "legalName" ILIKE ${like} OR "slug" ILIKE ${like} OR "billingEmail" ILIKE ${like} ORDER BY "displayName" LIMIT 6`,
+      this.db.$queryRaw<Array<{ org: string; name: string; email: string; venue: string }>>`SELECT e."organizationId" AS org, e."displayName" AS name, u."email", o."displayName" AS venue FROM "Employee" e JOIN "User" u ON u."id" = e."userId" JOIN "Organization" o ON o."id" = e."organizationId" WHERE u."email" ILIKE ${like} OR e."displayName" ILIKE ${like} ORDER BY e."displayName" LIMIT 6`,
+      this.db.$queryRaw<Array<{ id: string; name: string; email: string; venue: string | null; status: string }>>`SELECT "id", "name", "email", "venue", "status"::text AS status FROM "Lead" WHERE "name" ILIKE ${like} OR "email" ILIKE ${like} OR "venue" ILIKE ${like} ORDER BY "createdAt" DESC LIMIT 6`,
+      this.db.$queryRaw<Array<{ number: string; org: string; venue: string; status: string }>>`SELECT i."number", i."organizationId" AS org, o."displayName" AS venue, i."status"::text AS status FROM "SubscriptionInvoice" i JOIN "Organization" o ON o."id" = i."organizationId" WHERE i."number" ILIKE ${like} ORDER BY i."createdAt" DESC LIMIT 6`,
+    ]);
+    return {
+      results: [
+        ...orgs.map((o) => ({ kind: "Venue", label: o.name, sub: `${o.slug} · ${o.status.toLowerCase()}`, href: `/platform/organizations/${o.id}` })),
+        ...people.map((p) => ({ kind: "Person", label: `${p.name} · ${p.email}`, sub: p.venue, href: `/platform/organizations/${p.org}` })),
+        ...leads.map((l) => ({ kind: "Lead", label: `${l.name} · ${l.email}`, sub: `${l.venue ?? "no venue"} · ${l.status.toLowerCase()}`, href: "/platform/leads" })),
+        ...invoices.map((i) => ({ kind: "Invoice", label: i.number, sub: `${i.venue} · ${i.status.toLowerCase()}`, href: `/platform/organizations/${i.org}` })),
+      ],
+    };
   }
 
   // ── website stats ─────────────────────────────────────────────────────────

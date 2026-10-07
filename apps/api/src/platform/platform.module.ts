@@ -10,6 +10,9 @@ import { PlatformGuard, PlatformPublic } from "./guard.js";
 import { PlatformTokens } from "./tokens.js";
 import { PlatformPublicController } from "./public.controller.js";
 import { PlatformOpsController } from "./ops.controller.js";
+import { PlatformSettingsController } from "./settings.controller.js";
+import { SettingsOverlay } from "../common/managed-settings.js";
+import { MailService } from "../common/mail.service.js";
 
 @Controller()
 class HealthController {
@@ -33,11 +36,13 @@ export class PlatformModule {
   static forRoot(config: PlatformConfig): DynamicModule {
     return {
       module: PlatformModule,
-      controllers: [HealthController, PlatformAuthController, PlatformAdminController, PlatformPublicController, PlatformOpsController],
+      controllers: [HealthController, PlatformAuthController, PlatformAdminController, PlatformPublicController, PlatformOpsController, PlatformSettingsController],
       providers: [
         { provide: PLATFORM_CONFIG, useValue: config },
         { provide: PDB, useFactory: () => createPlatformClient(config.PLATFORM_DATABASE_URL) },
         DbLifecycle,
+        { provide: SettingsOverlay, inject: [PLATFORM_CONFIG, PDB], useFactory: (cfg: PlatformConfig, db: PlatformClient) => new SettingsOverlay(cfg as never, () => db.$queryRaw`SELECT "key", "value", "isSecret" FROM "PlatformSetting"`, cfg.MFA_ENCRYPTION_KEY_B64) },
+        { provide: MailService, inject: [PLATFORM_CONFIG], useFactory: (cfg: PlatformConfig) => new MailService(cfg) },
         PlatformTokens,
         PlatformAuthService,
         { provide: APP_GUARD, useClass: PlatformGuard },

@@ -1,3 +1,4 @@
+import { unseal } from "../auth/crypto.js";
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 /**
@@ -65,11 +66,20 @@ export function signWebhook(secret: string, rawBody: string, now = Date.now()) {
 }
 
 /**
- * Secrets are never stored in the database: a gateway row names where to find
- * them. "env:STRIPE_SECRET_PIXEL" reads that environment variable on the server.
+ * A gateway row holds a secret one of two ways: typed into Settings and kept
+ * sealed with the server key ("v1.…"), or as a pointer to the server's own
+ * environment ("env:STRIPE_SECRET_PIXEL"). Either way the value is only ever
+ * read here, at the moment it is used.
  */
-export function resolveSecret(ref: string | null | undefined): string | null {
+export function resolveSecret(ref: string | null | undefined, keyB64?: string): string | null {
   if (!ref) return null;
+  if (ref.startsWith("v1.")) {
+    try {
+      return keyB64 ? unseal(ref, keyB64) : null;
+    } catch {
+      return null;
+    }
+  }
   const m = /^env:([A-Z0-9_]{1,100})$/.exec(ref);
   return m ? (process.env[m[1]!] ?? null) : null;
 }

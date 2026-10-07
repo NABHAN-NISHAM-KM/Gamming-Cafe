@@ -293,3 +293,14 @@ model SiteStat {
 
   @@id([day, path, referrer, event])
 }
+
+/// An operator-managed setting (mail server, payment keys, public addresses…).
+/// Secrets are sealed with the server key. Written by the platform service only;
+/// the tenant API can read it so both services see the same values.
+model PlatformSetting {
+  key         String   @id
+  value       String
+  isSecret    Boolean  @default(false)
+  updatedById String?  @db.Uuid
+  updatedAt   DateTime @default(now()) @updatedAt @db.Timestamptz(3)
+}

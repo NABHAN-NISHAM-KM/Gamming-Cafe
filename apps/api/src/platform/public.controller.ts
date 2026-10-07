@@ -3,6 +3,7 @@ import type { Request } from "express";
 import { z } from "zod";
 import type { PlatformClient } from "@arena/db";
 import { ZodPipe } from "../common/zod.pipe.js";
+import { MailService } from "../common/mail.service.js";
 import { PDB, PLATFORM_CONFIG, type PlatformConfig } from "./config.js";
 import { PlatformPublic } from "./guard.js";
 import { provisionOrganization } from "./provision.js";
@@ -96,6 +97,7 @@ export class PlatformPublicController {
   constructor(
     @Inject(PDB) private readonly db: PlatformClient,
     @Inject(PLATFORM_CONFIG) private readonly cfg: PlatformConfig,
+    @Inject(MailService) private readonly mail: MailService,
   ) {}
 
   private gate(req: Request, limit: Throttle, honeypot?: string) {
@@ -105,6 +107,13 @@ export class PlatformPublicController {
 
   private async notify(lead: { id: string; kind: string; name: string; email: string; venue: string | null; demoAt?: Date | null }) {
     this.log.log(`New ${lead.kind.toLowerCase()} lead: ${lead.name} <${lead.email}>${lead.venue ? ` · ${lead.venue}` : ""}${lead.demoAt ? ` · call ${lead.demoAt.toISOString()}` : ""}`);
+    if (this.cfg.LEADS_NOTIFY_EMAIL && this.mail.configured) {
+      const r = await this.mail.send({
+        to: this.cfg.LEADS_NOTIFY_EMAIL, subject: `New ${lead.kind.toLowerCase()} lead: ${lead.name}`,
+        text: `${lead.name} <${lead.email}>${lead.venue ? `\nVenue: ${lead.venue}` : ""}${lead.demoAt ? `\nCall: ${lead.demoAt.toISOString()}` : ""}\n\nOpen the Leads page in the Super Admin console to follow up.`,
+      });
+      if (!r.ok) this.log.warn(`lead e-mail not sent: ${r.error}`);
+    }
     if (!this.cfg.LEADS_WEBHOOK_URL) return;
     await fetch(this.cfg.LEADS_WEBHOOK_URL, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ type: "lead", lead }), signal: AbortSignal.timeout(5000) }).catch((e) => this.log.warn(`webhook failed: ${e}`));
   }

@@ -160,6 +160,8 @@ export function describeError(status: number, body: any): string {
     cannot_deactivate_self: "You can't deactivate your own account.",
     conflict: "That conflicts with an existing record.",
     in_use: "Other records still use this, so it can't be deleted.",
+    gateway_mode_mismatch: body?.hint ?? "The key and the mode don't match.",
+    gateway_keys_missing: "Enter both the secret key and the webhook signing secret.",
     wallet_not_empty: "They still have money in their wallet — refund it to them first, then erase.",
     customer_in_session: "They're playing right now — end the session first.",
     customer_has_open_bill: "They have an open bill — settle or void it first.",

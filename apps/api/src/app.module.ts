@@ -43,6 +43,11 @@ import { StationReportsService } from "./stations/station-reports.service.js";
 import { BookingsController } from "./bookings/bookings.controller.js";
 import { BookingsService } from "./bookings/bookings.service.js";
 import { CommerceService } from "./customers/commerce.service.js";
+import { SettingsOverlay } from "./common/managed-settings.js";
+import { MailService } from "./common/mail.service.js";
+import { WebhooksController } from "./integrations/webhooks.controller.js";
+import { WebhooksService } from "./integrations/webhooks.service.js";
+import { GiftCardsController } from "./customers/gift-cards.controller.js";
 import { MembershipExpiryService } from "./customers/membership-expiry.service.js";
 import { TiersController } from "./customers/tiers.controller.js";
 import { CustomerAppController } from "./customer-app/customer-app.controller.js";
@@ -136,6 +141,8 @@ export class AppModule {
         SessionsController,
         PricingController,
         CustomersController,
+        GiftCardsController,
+        WebhooksController,
     CustomerRecordsController,
         GamesController,
         TiersController,
@@ -188,6 +195,10 @@ export class AppModule {
         GameUpdatesService,
         StationReportsService,
         CommerceService,
+        WebhooksService,
+        // Settings saved in the Super Admin console overlay the server's environment, live.
+        { provide: SettingsOverlay, inject: [CONFIG, DB], useFactory: (cfg: AppConfig, db: Db) => new SettingsOverlay(cfg as never, () => db.global.$queryRaw`SELECT "key", "value", "isSecret" FROM "PlatformSetting"`, cfg.MFA_ENCRYPTION_KEY_B64) },
+        { provide: MailService, inject: [CONFIG], useFactory: (cfg: AppConfig) => new MailService(cfg) },
         MembershipExpiryService,
         BookingsService,
         OrdersService,

@@ -41,6 +41,23 @@ const Env = z.object({
   BILLING_STRIPE_WEBHOOK_SECRET: z.string().optional(),
   /** Hourly renewal invoices and overdue checks; "off" in tests, which run the sweep themselves. */
   BILLING_SWEEP: z.enum(["on", "off"]).default("on"),
+  /** Outgoing mail (Settings → Mail). Without a server, mail simply isn't sent. */
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().int().min(1).max(65535).optional(),
+  SMTP_SECURE: z.enum(["on", "off"]).optional(),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASSWORD: z.string().optional(),
+  MAIL_FROM: z.string().optional(),
+  LEADS_NOTIFY_EMAIL: z.string().optional(),
+  /** The same addresses and keys the tenant API reads, so the Settings page shows what is really in force. */
+  ADMIN_URL: z.url().default("http://localhost:3000"),
+  CUSTOMER_APP_URL: z.url().default("http://localhost:5175"),
+  WEBSITE_URL: z.url().default("http://localhost:5180"),
+  BILLING_STRIPE_SECRET_KEY: z.string().optional(),
+  DEMO_PAYMENTS: z.enum(["on", "off"]).optional(),
+  VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  VAPID_SUBJECT: z.string().default("mailto:support@arenaos.app"),
   LOGIN_MAX_FAILURES: z.coerce.number().int().default(5),
   LOGIN_LOCK_MINUTES: z.coerce.number().int().default(15),
 });

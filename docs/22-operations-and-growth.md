@@ -47,6 +47,70 @@ A person's shifts can't overlap (exclusion constraint); a shift is at most 16 ho
 - **Full receipt** (Orders → an order → **Full receipt**, `/receipt?bill=…`): the venue's legal name and tax number, every line, tax, payments and gaming time, as an A4 page to print. API `GET /bills/:billId/receipt` (pos.sell, scoped to the bill's branch).
 - **Table QR codes** (Restaurant → Tables → **Print QR codes**, `/table-qr?branch=…`): one card per table. Scanning one opens the customer app's menu for that table, and orders go on the table's bill (`DINE_IN`). API `GET /branches/:branchId/table-qr` (restaurant.tables_manage).
 
+### Gift cards (`/gift-cards`, migration `0031_gift_cards`)
+
+Sell a prepaid code at the counter (cash or card); the player types it into the app (**Wallet → Redeem a gift card**) and the money lands in their wallet as cash.
+
+- The code (16 characters, no 0/O/1/I/L) is shown **once**, at the sale: copy or print it. Only its SHA-256 is stored, so a lost code can't be looked up; the list shows each card by its last four characters.
+- The sale is a bill with a `GIFT_CARD` line: no tax, and booked as *Gift cards outstanding* (a liability), not revenue. Redeeming moves it to *Customer wallets*. Reconciliation has a new check: the ledger's gift-card liability equals the unused cards.
+- A card redeems once (an atomic claim plus a database check). A wrong, used or already-claimed code gives the same answer, and wrong guesses are throttled per customer (6 per 15 minutes).
+- Sell: `wallet.topup` at the branch. List: `wallet.view_ledger`.
+- Not built: voiding or refunding a sold card, expiry. Both need a refund path through the books first.
+
+| Method | Path |
+|---|---|
+| POST | /gift-cards `{ branchId, amount, payment: { method: CASH \| CARD }, customerId?, idempotencyKey }` |
+| GET | /gift-cards?status=&hint= |
+| POST | /app/wallet/gift-card `{ code }` |
+
+### Webhooks (`/integrations`, migration `0032_webhooks`)
+
+Needs the **Public API & webhooks** plan feature (`PUBLIC_API`) and `integration.manage` (sensitive: asks for a reason). ArenaOS calls the venue's own HTTPS address when something happens.
+
+- **What is sent.** Whatever the audit trail records, restricted to business families: `booking`, `customer`, `giftcard`, `loyalty`, `membership`, `order`, `payment`, `season`, `session`, `shift`, `station`, `stock`, `ticket`, `tournament`, `waitlist`, `wallet`. Staff, roles, billing and platform events never leave. Subscribe to `*`, a family (`booking.*`) or one action (`giftcard.sell`). A new endpoint hears only what happens after it was added.
+- **The call.** `POST` with a JSON body `{ id, type, organizationId, createdAt, actor, entity, branchId, data }` (`data` is the audit entry's `after`) and the headers `Arena-Event`, `Arena-Delivery` (the event id, for de-duplicating) and `Arena-Signature: t=<unix seconds>,v1=<hex>`. The signature is `HMAC-SHA256(secret, "<t>.<raw body>")`; check it, and refuse a `t` that is old.
+- **Secret.** `whsec_…`, shown once when the webhook is added or the secret is renewed, kept sealed with the server key.
+- **Delivery.** At least once. A non-2xx answer or no answer within 5 seconds is retried after 1 min, 5 min, 30 min, 2 h and 12 h, then marked failed (**Try again** queues it afresh). 20 failures in a row switch the endpoint off, with the reason on the page. **Send test** sends a `webhook.test` event.
+- **Safety.** HTTPS only; no addresses with a user name or password; the connection is refused if the name points at this machine, a private or link-local network (checked when connecting, so a name that changes later is still caught); redirects aren't followed. `WEBHOOK_ALLOW_PRIVATE=1` lifts this for tests only.
+- Not built: API keys for reading data (they need their own sign-in path and a way to limit what a key can see).
+
+| Method | Path |
+|---|---|
+| GET / POST | /webhooks (list with recent deliveries / add: `{ url, events, description? }`) |
+| PUT / DELETE | /webhooks/:id (`{ events?, description?, isActive? }`) |
+| POST | /webhooks/:id/rotate-secret · /webhooks/:id/test · /webhooks/deliveries/:deliveryId/retry |
+
+Settings: `WEBHOOK_SWEEP_MS` (how often the worker looks, default 10 000).
+
+### Settings from the console, mail and payment keys (migration `0033_platform_settings`)
+
+**Super Admin → Settings** (Super Admin only) holds what used to live in a server file:
+
+| Group | Settings | Applies |
+|---|---|---|
+| Mail | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, `MAIL_FROM`, `LEADS_NOTIFY_EMAIL` | within seconds |
+| Payments | `BILLING_STRIPE_SECRET_KEY`, `BILLING_STRIPE_WEBHOOK_SECRET`, `DEMO_PAYMENTS` | within seconds |
+| Addresses | `ADMIN_URL`, `CUSTOMER_APP_URL`, `WEBSITE_URL` | within seconds |
+| Phone notifications | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | after a restart |
+| Sales | `LEADS_WEBHOOK_URL`, `SALES_TIMEZONE`, `TRIAL_PLAN_CODE` | within seconds |
+
+- A saved value wins over the server's environment; removing it (the bin button) brings the environment's value back. The page says for each setting whether it is *saved here*, *from the server* or *not set*.
+- Secrets are sealed with the server key and **never sent back**: the page only learns whether one is set. The audit log records which settings changed, never their values.
+- Both services read the table (the tenant API only reads it) and overlay it onto their config object, so everything that reads the config sees a change without a restart. The tenant API checks every 30 seconds (`SETTINGS_REFRESH_MS`); the platform service applies a save at once.
+- **Stays on the server:** database logins, `REDIS_URL`, the signing and encryption keys, ports and CORS. They are needed before a service can read any setting, or decide who can sign in. The page lists them with the reason.
+- Every value is checked before anything is saved (an invalid one saves nothing). `PUT /v1/platform/settings { values: { KEY: "value" | null } }`, `GET /v1/platform/settings`, `POST /v1/platform/settings/test-mail { to? }` (no address: only connects and signs in).
+
+**Mail.** `MailService` (nodemailer) sends through the saved SMTP server and never throws; a failed send is reported to the caller. Used for:
+
+- **Password-reset codes.** On the customer app's *Forgot password* screen, **E-mail me a code** (`POST /v1/app/:slug/forgot { username }`) sends a 6-digit code, valid 15 minutes, to the address on the account. The answer is always 204, so it can't be used to find out who has an account; at most 3 codes per account per 15 minutes. Staff can still hand out codes at the counter.
+- **New leads**, to `LEADS_NOTIFY_EMAIL`.
+
+**Venue card payments** (venue Settings → *Card top-ups in the app*): the owner pastes their own Stripe secret key and webhook signing secret. They are stored sealed (`v1.…`) in the gateway row and are never shown again; leaving a field blank keeps the saved one. A live key with test mode on (or the reverse) is refused. Pointing at the server's environment (`env:NAME`) still works for existing setups.
+
+### The menu
+
+The admin sidebar is grouped by the job: **Front desk** (counter, floor, sessions, bookings, waitlist, customers), **Sales & food**, **Gaming floor**, **Stock**, **Team**, **Money & insight** and **Setup**. A group can be folded away (remembered in the browser); the group holding the current page always stays open. Counter staff still start on the short menu. The Super Admin console is grouped as **Venues**, **Product** and **Setup & security**.
+
 ### Season passes (Marketing → Loyalty → Season passes)
 
 A season has a name, dates, a price (0 = free) and levels: `{ xp, reward: POINTS | MINUTES | BONUS, amount }`. Each level needs more XP than the one before. Players earn **1 XP per minute played** and **100 XP per challenge** finished during the season, and claim each level in the app. Rewards are points, free minutes (saved time) or bonus money that expires after 30 days. A paid pass is a normal sale paid from the wallet (system product `SYS-SEASON-PASS`), so the books and the wallets agree. A season people joined is switched off, not deleted. API: `GET/POST /seasons`, `PATCH/DELETE /seasons/:id` (loyalty.view / loyalty.manage).
@@ -89,7 +153,8 @@ The tenant API can only read subscriptions and invoices. Two SECURITY DEFINER fu
 |---|---|
 | Organizations → a venue → **Sign in as venue** | 15, 30 or 60 minutes as the venue's first active owner, with a reason recorded in the venue's audit log. Read-only unless a super admin ticks **Allow changes**. The console swaps in that venue session in the same browser (no refresh token: it simply runs out). The API checks the support session on every request and refuses changes when it's read-only (`IMPERSONATION_BLOCKED`). Ending it revokes the session immediately. |
 | Organizations → a venue → **Invoices** | Every invoice; **Mark paid** (a bank transfer) or **Void** (billing roles). |
-| **Venue health** | Per venue: stations online, sessions this week, last session, drop-offs, open alerts. Flags trials with no PCs, no stations online, no sessions this week, 20+ drop-offs, payment overdue. |
+| **Venue health** | Per venue: stations online, sessions this week, last session, drop-offs, open alerts. Flags trials with no PCs, no stations online, no sessions this week, 20+ drop-offs, payment overdue, **a trial ending within 5 days (or already ended)**, and **sessions down by half or more on the previous four weeks' weekly average** (only venues that averaged 10+ a week). Below the table, **sign-ups by month**: how many are still on trial, paying, overdue or lost. |
+| **Search** (Ctrl+K) | Type 2+ characters: venues (name, legal name, code, billing e-mail), the people who work at them (name, e-mail), leads and invoice numbers. `GET /v1/platform/search?q=`, any platform role. |
 | **Releases** | Add a build (component, version, URL, SHA-256, signature, notes, first rollout %); publish, change the share (0–100 %), pause / resume, revoke. |
 | **Announcements** | Title, message, info or warning, optional end; how many people and venues have seen it; **End now**. |
 | **Leads** | Notes for the team and a next follow-up date on each lead. **To do today** shows follow-ups that are due and calls in the next 24 hours. Upgrade requests from venues appear as kind *Upgrade*. |

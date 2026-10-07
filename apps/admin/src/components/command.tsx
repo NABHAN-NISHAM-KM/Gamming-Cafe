@@ -16,13 +16,26 @@ export interface Command {
 }
 
 /** Ctrl/⌘ K palette: jump to any page or run an action from the keyboard. */
-export function CommandPalette({ open, onClose, commands }: { open: boolean; onClose: () => void; commands: Command[] }) {
+export function CommandPalette({ open, onClose, commands, search }: { open: boolean; onClose: () => void; commands: Command[]; /** Looks things up on the server as you type (venues, people…). */ search?: (q: string) => Promise<Command[]> }) {
   const router = useRouter();
   const dialog = useRef<HTMLDialogElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const list = useRef<HTMLUListElement>(null);
   const [q, setQ] = useState("");
   const [sel, setSel] = useState(0);
+  const [found, setFound] = useState<Command[]>([]);
+
+  // Server results for what's typed, after a short pause; only the latest answer is kept.
+  useEffect(() => {
+    const t = q.trim();
+    if (!search || t.length < 2) return setFound([]);
+    let stale = false;
+    const timer = setTimeout(() => void search(t).then((r) => !stale && setFound(r), () => !stale && setFound([])), 200);
+    return () => {
+      stale = true;
+      clearTimeout(timer);
+    };
+  }, [q, search]);
 
   useEffect(() => {
     const d = dialog.current;
@@ -39,7 +52,7 @@ export function CommandPalette({ open, onClose, commands }: { open: boolean; onC
   const shown = useMemo(() => {
     const t = q.trim().toLowerCase();
     if (!t) return commands;
-    return commands
+    const local = commands
       .map((c) => {
         const hay = `${c.label} ${c.group} ${c.keywords ?? ""}`.toLowerCase();
         const score = c.label.toLowerCase().startsWith(t) ? 0 : hay.includes(t) ? 1 : t.split("").every((ch) => hay.includes(ch)) ? 2 : 9;
@@ -48,7 +61,8 @@ export function CommandPalette({ open, onClose, commands }: { open: boolean; onC
       .filter((x) => x.score < 9)
       .sort((a, b) => a.score - b.score)
       .map((x) => x.c);
-  }, [q, commands]);
+    return [...local, ...found];
+  }, [q, commands, found]);
 
   useEffect(() => setSel(0), [q]);
   useEffect(() => {

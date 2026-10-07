@@ -356,7 +356,7 @@ export class AppExtrasController {
 
   private async gateway(t: TenantTx) {
     const g = await t.paymentGatewayConfig.findFirst({ where: { provider: "STRIPE", isActive: true, branchId: null } });
-    const key = resolveSecret(g?.credentialsRef);
+    const key = resolveSecret(g?.credentialsRef, this.cfg.MFA_ENCRYPTION_KEY_B64);
     return g && key ? { g, key } : null;
   }
 
@@ -395,7 +395,7 @@ export class AppExtrasController {
     const raw = req.rawBody?.toString("utf8") ?? "";
     return this.db.withTenant({ organizationId: org.organization_id, actorType: "SYSTEM", actorId: null }, async (t) => {
       const g = await t.paymentGatewayConfig.findFirst({ where: { provider: "STRIPE", branchId: null } });
-      const secret = resolveSecret(g?.webhookSecretRef);
+      const secret = resolveSecret(g?.webhookSecretRef, this.cfg.MFA_ENCRYPTION_KEY_B64);
       if (!secret || !verifyWebhook(secret, raw, req.headers["stripe-signature"] as string | undefined)) throw new ForbiddenException({ error: "bad_signature" });
       const done = completedCheckout(JSON.parse(raw));
       if (!done || done.metadata["kind"] !== "wallet_topup") return { received: true };

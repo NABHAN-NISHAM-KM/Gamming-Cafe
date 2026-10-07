@@ -3,24 +3,32 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Activity, BarChart3, Building2, Gauge, Inbox, Layers, LogOut, Megaphone, Menu, Rocket, ScrollText, Search, ShieldCheck, X } from "lucide-react";
-import { platformSession, roleLabel, usePlatform, type PlatformMe } from "@/lib/client/platform";
+import { Activity, BarChart3, Building2, FileText, Gauge, Inbox, User, Layers, LogOut, Megaphone, Menu, Rocket, ScrollText, Search, Settings as SettingsIcon, ShieldCheck, X } from "lucide-react";
+import { platformApi, platformSession, roleLabel, usePlatform, type PlatformMe } from "@/lib/client/platform";
 import { PlatformMeProvider } from "@/lib/client/platform-me";
 import { cx, Kbd } from "@/components/ui";
 import { CommandPalette, type Command } from "@/components/command";
 
-const NAV = [
-  { href: "/platform", label: "Overview", icon: Gauge },
-  { href: "/platform/organizations", label: "Organizations", icon: Building2 },
-  { href: "/platform/leads", label: "Leads", icon: Inbox },
-  { href: "/platform/health", label: "Venue health", icon: Activity },
-  { href: "/platform/site", label: "Website", icon: BarChart3 },
-  { href: "/platform/releases", label: "Releases", icon: Rocket },
-  { href: "/platform/announcements", label: "Announcements", icon: Megaphone },
-  { href: "/platform/plans", label: "Plans & features", icon: Layers },
-  { href: "/platform/audit", label: "Audit log", icon: ScrollText },
-  { href: "/platform/admins", label: "Platform admins", icon: ShieldCheck },
+const GROUPS = [
+  { group: "", items: [{ href: "/platform", label: "Overview", icon: Gauge }] },
+  { group: "Venues", items: [
+    { href: "/platform/organizations", label: "Organizations", icon: Building2 },
+    { href: "/platform/health", label: "Venue health", icon: Activity },
+    { href: "/platform/leads", label: "Leads", icon: Inbox },
+  ] },
+  { group: "Product", items: [
+    { href: "/platform/releases", label: "Releases", icon: Rocket },
+    { href: "/platform/announcements", label: "Announcements", icon: Megaphone },
+    { href: "/platform/plans", label: "Plans & features", icon: Layers },
+    { href: "/platform/site", label: "Website", icon: BarChart3 },
+  ] },
+  { group: "Setup & security", items: [
+    { href: "/platform/settings", label: "Settings", icon: SettingsIcon },
+    { href: "/platform/audit", label: "Audit log", icon: ScrollText },
+    { href: "/platform/admins", label: "Platform admins", icon: ShieldCheck },
+  ] },
 ];
+const NAV = GROUPS.flatMap((g) => g.items);
 
 const isActive = (path: string, href: string) => (href === "/platform" ? path === "/platform" : path.startsWith(href));
 
@@ -41,23 +49,30 @@ function Mark() {
 function Nav({ onNavigate }: { onNavigate?: () => void }) {
   const path = usePathname();
   return (
-    <nav className="grid gap-0.5 px-3 py-5" aria-label="Platform">
-      {NAV.map((it) => {
-        const on = isActive(path, it.href);
-        return (
-          <Link
-            key={it.href}
-            href={it.href}
-            onClick={onNavigate}
-            aria-current={on ? "page" : undefined}
-            className={cx("group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors", on ? "bg-accent-soft font-medium text-ink" : "text-ink-2 hover:bg-panel-2 hover:text-ink")}
-          >
-            {on && <span className="absolute inset-y-1.5 -left-3 w-1 rounded-r-full bg-accent-2 shadow-[0_0_12px_var(--color-accent-2)]" aria-hidden />}
-            <it.icon className={cx("size-4", on ? "text-accent-2" : "text-ink-3 group-hover:text-ink-2")} />
-            {it.label}
-          </Link>
-        );
-      })}
+    <nav className="grid gap-4 px-3 py-5" aria-label="Platform">
+      {GROUPS.map((g) => (
+        <div key={g.group || "top"}>
+          {g.group && <p className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-3">{g.group}</p>}
+          <div className="grid gap-0.5">
+            {g.items.map((it) => {
+              const on = isActive(path, it.href);
+              return (
+                <Link
+                  key={it.href}
+                  href={it.href}
+                  onClick={onNavigate}
+                  aria-current={on ? "page" : undefined}
+                  className={cx("group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors", on ? "bg-accent-soft font-medium text-ink" : "text-ink-2 hover:bg-panel-2 hover:text-ink")}
+                >
+                  {on && <span className="absolute inset-y-1.5 -left-3 w-1 rounded-r-full bg-accent-2 shadow-[0_0_12px_var(--color-accent-2)]" aria-hidden />}
+                  <it.icon className={cx("size-4", on ? "text-accent-2" : "text-ink-3 group-hover:text-ink-2")} />
+                  {it.label}
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      ))}
     </nav>
   );
 }
@@ -94,6 +109,13 @@ export default function PlatformLayout({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
+
+  // Venues, people, leads and invoices by what you type (the palette's server-side half).
+  const lookup = useMemo(() => async (q: string): Promise<Command[]> => {
+    const r = await platformApi<{ results: Array<{ kind: string; label: string; sub: string; href: string }> }>(`/search?q=${encodeURIComponent(q)}`);
+    const icon = { Venue: Building2, Person: User, Lead: Inbox, Invoice: FileText } as const;
+    return r.results.map((x, i) => ({ id: `found-${i}`, label: `${x.label} — ${x.sub}`, group: x.kind, icon: icon[x.kind as keyof typeof icon] ?? Building2, href: x.href }));
+  }, []);
 
   if (error) {
     return (
@@ -184,7 +206,7 @@ export default function PlatformLayout({ children }: { children: ReactNode }) {
           </main>
         </div>
       </div>
-      <CommandPalette open={palette} onClose={() => setPalette(false)} commands={commands} />
+      <CommandPalette open={palette} onClose={() => setPalette(false)} commands={commands} search={lookup} />
     </PlatformMeProvider>
   );
 }

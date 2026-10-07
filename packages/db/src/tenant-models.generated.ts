@@ -46,6 +46,7 @@ export const TENANT_MODELS: ReadonlySet<string> = new Set([
   "GameSave",
   "GameUpdateJob",
   "GamingSession",
+  "GiftCard",
   "HandoverNote",
   "IdempotencyRecord",
   "ImpersonationSession",
@@ -126,6 +127,7 @@ export const TENANT_MODELS: ReadonlySet<string> = new Set([
   "WalletTopUp",
   "WalletTransaction",
   "Warehouse",
+  "WebhookDelivery",
   "WebhookEndpoint",
   "Zone",
 ]);
