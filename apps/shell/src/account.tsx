@@ -104,7 +104,16 @@ export function AccountScreen({ notify }: { notify: Notify }) {
     setLangState(l);
     chooseLang(l);
   };
-  if (!o) return <Spin />;
+  const [stuck, setStuck] = useState(false);
+  useEffect(() => {
+    if (o) return setStuck(false);
+    void refreshOverview();
+    const t = setTimeout(() => setStuck(true), 6000);
+    return () => clearTimeout(t);
+  }, [!o]);
+  if (!o) return stuck
+    ? <div className="grid place-items-center gap-3 py-16 text-center"><p className="text-sm text-mute">Couldn't load your profile. Check the connection and try again.</p><button className="press rounded-lg bg-white/10 px-4 py-2 text-sm" onClick={() => { setStuck(false); void refreshOverview(); }}>Retry</button></div>
+    : <Spin />;
   if (!o.customer) return <div className="mx-auto max-w-xl py-10"><GuestJoin /></div>;
   const tabs: Array<[Tab, string, typeof Gift, number?]> = [["rewards", "Rewards", Gift], ["inbox", "Inbox", Inbox, o.customer.unread], ["board", "Top players", Trophy], ["friends", "Friends here", Users], ["settings", "Settings", Languages]];
   return (
@@ -330,7 +339,7 @@ export function AwayLock({ name }: { name: string }) {
     }
   };
   return (
-    <div className="fixed inset-0 z-[60] grid place-items-center bg-void/95 backdrop-blur-xl">
+    <div className="fixed inset-0 z-[60] grid place-items-center bg-void/95">
       <form className="glass animate-pop w-full max-w-sm rounded-3xl p-10 text-center" onSubmit={(e) => { e.preventDefault(); void unlock(); }}>
         <Lock className="mx-auto size-10 text-glow" />
         <p className="mt-4 font-display text-2xl font-semibold">Locked — {name} is away</p>

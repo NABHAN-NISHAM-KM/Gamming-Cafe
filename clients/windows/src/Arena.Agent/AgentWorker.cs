@@ -109,7 +109,7 @@ public sealed class AgentWorker(
         {
             var root = w.RootElement;
             if (root.GetProperty("type").GetString() != "welcome") throw new WebSocketException("expected welcome");
-            var heartbeat = root.TryGetProperty("heartbeatSeconds", out var hb) ? hb.GetInt32() : identity.HeartbeatSeconds;
+            var heartbeat = root.TryGetProperty("heartbeatSeconds", out var hb) && hb.ValueKind == JsonValueKind.Number && hb.TryGetInt32(out var hbs) ? hbs : identity.HeartbeatSeconds;
             log.LogInformation("Connected as {Name}; heartbeat every {Seconds}s", root.GetProperty("deviceName").GetString(), heartbeat);
             if (root.TryGetProperty("serverTime", out var st) && st.TryGetDateTimeOffset(out var serverTime)) sessions.SyncClock(serverTime, DateTimeOffset.UtcNow);
             if (root.TryGetProperty("venue", out var v) && v.ValueKind == JsonValueKind.Object)

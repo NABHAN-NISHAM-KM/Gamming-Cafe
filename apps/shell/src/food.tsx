@@ -29,7 +29,7 @@ function Options({ p, currency, onAdd, onClose }: { p: Product; currency: string
   const unit = Number(p.price) + mods.reduce((a, m) => a + Number(m.priceDelta), 0);
   const missing = p.modifierGroups.find((g) => chosen.filter((x) => g.modifiers.some((m) => m.id === x)).length < g.minSelect);
   return (
-    <div className="fixed inset-0 z-40 grid place-items-center bg-void/70 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-40 grid place-items-center bg-void/70" onClick={onClose}>
       <div className="glass w-full max-w-lg rounded-3xl p-7" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between">
           <div>

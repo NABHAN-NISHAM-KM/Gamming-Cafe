@@ -14,10 +14,16 @@
   Output: apps\customer\Arena.apk
 
   Needs Node 22+, JDK 17+ and the Android SDK (ANDROID_HOME or ANDROID_SDK_ROOT).
-  The APK is debug-signed: fine for trying the demo (Android asks to allow the
-  install). A Play Store release needs your own signing key.
+  Without -Release the APK is debug-signed: fine for trying it out (Android asks
+  to allow the install).
+
+  Release build (signed with your own key, what customers should install):
+    .\apps\customer\build-apk.ps1 -Api https://arena-prod.duckdns.org -Release
+  The key lives OUTSIDE the repo, in %USERPROFILE%\.arenaos\ (arena-release.jks and
+  signing.properties). Back both up: lose the key and installed apps can never be updated.
+  Output: apps\customer\Arena.apk (or ArenaOS-Customer.apk without -Api)
 #>
-param([string]$Api, [string]$Venue)
+param([string]$Api, [string]$Venue, [switch]$Release)
 $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.Drawing
 $app = $PSScriptRoot
@@ -85,11 +91,17 @@ try {
     # redirected stderr into errors, which "Stop" would treat as fatal. The exit code decides.
     $ErrorActionPreference = "Continue"
     try {
-        .\gradlew.bat assembleDebug --no-daemon -q
+        if ($Release) {
+            $props = @{}
+            Get-Content (Join-Path $env:USERPROFILE ".arenaos\signing.properties") | ForEach-Object { if ($_ -match "^([^=]+)=(.*)$") { $props[$Matches[1]] = $Matches[2] } }
+            .\gradlew.bat assembleRelease --no-daemon -q "-Pandroid.injected.signing.store.file=$($props.storeFile)" "-Pandroid.injected.signing.store.password=$($props.storePassword)" "-Pandroid.injected.signing.key.alias=$($props.keyAlias)" "-Pandroid.injected.signing.key.password=$($props.keyPassword)"
+        } else {
+            .\gradlew.bat assembleDebug --no-daemon -q
+        }
         if ($LASTEXITCODE) { throw "Gradle build failed" }
     } finally { Pop-Location; $ErrorActionPreference = "Stop" }
 
-    $apk = "android\app\build\outputs\apk\debug\app-debug.apk"
+    $apk = if ($Release) { "android\app\build\outputs\apk\release\app-release.apk" } else { "android\app\build\outputs\apk\debug\app-debug.apk" }
     if ($Api) {
         Copy-Item $apk (Join-Path $app "Arena.apk") -Force
         Write-Host ("Arena.apk  {0:N1} MB -> {1}" -f ((Get-Item $apk).Length / 1MB), $app) -ForegroundColor Green

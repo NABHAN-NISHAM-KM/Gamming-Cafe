@@ -51,7 +51,7 @@ export function PrintApproval({ notify }: { notify: Notify }) {
   };
 
   return (
-    <div className="fixed inset-0 z-40 grid place-items-center bg-void/70 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="print-title">
+    <div className="fixed inset-0 z-40 grid place-items-center bg-void/70" role="dialog" aria-modal="true" aria-labelledby="print-title">
       <div className="glass w-full max-w-md rounded-3xl p-8 shadow-2xl">
         <div className="flex items-start gap-4">
           <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-glow/15 text-glow"><Printer className="size-6" /></span>

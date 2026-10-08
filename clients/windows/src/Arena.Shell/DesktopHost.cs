@@ -100,7 +100,7 @@ internal sealed class DesktopHost(Window window, Action<string> post, Action<boo
     /// <summary>Something the customer must see (a staff message, a print to approve): show the desktop.</summary>
     public void Attention()
     {
-        if (_active && _mode == "bar") EnterDesktop();
+        if (_active) EnterDesktop(); // whatever the mode: the Shell may be behind an app even while it thinks it is in front
     }
 
     /// <summary>window_action / desktop_show / show_desktop from the page. True when handled here.</summary>

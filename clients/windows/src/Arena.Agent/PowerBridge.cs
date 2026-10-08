@@ -21,9 +21,9 @@ public sealed class PowerBridge(ILogger<PowerBridge> log)
         if (!p.TryGetProperty("plug", out var plug) || plug.ValueKind != JsonValueKind.Object) return ExecResult.Fail("BAD_PAYLOAD", "plug missing");
         var kind = plug.TryGetProperty("kind", out var k) ? k.GetString() ?? "" : "";
         var host = plug.TryGetProperty("host", out var h) ? h.GetString() ?? "" : "";
-        var channel = plug.TryGetProperty("channel", out var c) && c.TryGetInt32(out var ch) ? ch : 0;
+        var channel = plug.TryGetProperty("channel", out var c) && c.ValueKind == JsonValueKind.Number && c.TryGetInt32(out var ch) ? ch : 0;
         var on = p.TryGetProperty("on", out var o) && o.ValueKind == JsonValueKind.True;
-        var delay = p.TryGetProperty("delaySeconds", out var d) && d.TryGetInt32(out var ds) ? Math.Clamp(ds, 0, 600) : 0;
+        var delay = p.TryGetProperty("delaySeconds", out var d) && d.ValueKind == JsonValueKind.Number && d.TryGetInt32(out var ds) ? Math.Clamp(ds, 0, 600) : 0;
         var target = p.TryGetProperty("targetName", out var tn) ? tn.GetString() : null;
 
         var uri = PlugControl.SwitchUri(kind, host, channel, on);

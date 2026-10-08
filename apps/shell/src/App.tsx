@@ -344,7 +344,7 @@ function SessionAlerts({ state, t }: { state: ShellState; t: Strings }) {
         </div>
       )}
       {timesUp && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-void/90 backdrop-blur">
+        <div className="fixed inset-0 z-50 grid place-items-center bg-void/90">
           <div className="text-center">
             <p className="font-display text-5xl font-semibold">{t.timesUp}</p>
             <p className="mt-4 flex items-center justify-center gap-2 text-dim">
@@ -428,7 +428,7 @@ function SessionScreen({ state, t }: { state: ShellState; t: Strings }) {
 function StaffMessage({ msg, onClose }: { msg: { title: string; text: string } | null; onClose: () => void }) {
   if (!msg) return null;
   return (
-    <div className="fixed inset-0 z-40 grid place-items-center bg-void/60 backdrop-blur-sm">
+    <div className="fixed inset-0 z-40 grid place-items-center bg-void/60">
       <div className="glass animate-pop max-w-lg rounded-3xl p-10 text-center shadow-2xl">
         <p className="text-sm uppercase tracking-[0.25em] text-glow">{msg.title}</p>
         <p className="mt-4 font-display text-3xl">{msg.text}</p>

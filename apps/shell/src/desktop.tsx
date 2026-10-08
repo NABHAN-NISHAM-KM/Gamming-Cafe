@@ -18,7 +18,11 @@ const hm = (min: number) => (min >= 60 ? `${Math.floor(min / 60)} h${min % 60 ? 
  * screen then thanks them with the final time, spend and points.
  */
 async function logOut(t: Strings, sessionId: string) {
-  const so = await player<{ minutes: number; spent: string; currency: string; nextReward?: { name: string; pointsNeeded: number } | null }>("summary", { sessionId }).catch(() => null);
+  // The "so far" line is a nicety: never make the confirm wait for the venue more than a moment.
+  const so = await Promise.race([
+    player<{ minutes: number; spent: string; currency: string; nextReward?: { name: string; pointsNeeded: number } | null }>("summary", { sessionId }).catch(() => null),
+    new Promise<null>((r) => setTimeout(() => r(null), 1200)),
+  ]);
   const sofar = so ? `\n\n${hm(so.minutes)} played · ${so.currency} ${so.spent} so far.${so.nextReward ? `\n${so.nextReward.pointsNeeded} points to ${so.nextReward.name} — stay a little longer?` : ""}` : "";
   if (!(await askConfirm(t.logoutConfirm + sofar, { ok: t.logout }))) return;
   const r = await askRating({ title: t.rateTitle, comment: t.rateComment, send: t.rateSend, skip: t.rateSkip });
@@ -172,7 +176,7 @@ function WindowFrame({ win, wm, active, area, children }: { win: Win; wm: WM; ac
     {snapHint && (
       <div
         aria-hidden
-        className="pointer-events-none absolute rounded-2xl border-2 border-glow/60 bg-glow/10 backdrop-blur-sm transition-all"
+        className="pointer-events-none absolute rounded-2xl border-2 border-glow/60 bg-glow/10 transition-all"
         style={{ zIndex: win.z - 1, top: 8, bottom: 8, ...(snapHint === "left" ? { left: 8, width: "calc(50% - 12px)" } : snapHint === "right" ? { right: 8, width: "calc(50% - 12px)" } : { left: 8, right: 8 }) }}
       />
     )}
@@ -182,7 +186,7 @@ function WindowFrame({ win, wm, active, area, children }: { win: Win; wm: WM; ac
       aria-label={def.label}
       onPointerDownCapture={() => !active && wm.focus(win.id)}
       className={cx(
-        "absolute flex flex-col overflow-hidden border bg-deck/95 shadow-2xl shadow-black/60 backdrop-blur-xl",
+        "absolute flex flex-col overflow-hidden border bg-deck/95 shadow-2xl shadow-black/60",
         win.max ? "rounded-none border-transparent" : "animate-pop rounded-2xl",
         active ? "border-glow/40" : "border-rim",
         win.min && "hidden",
